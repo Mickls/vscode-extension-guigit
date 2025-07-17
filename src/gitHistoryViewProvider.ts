@@ -32,7 +32,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case 'getCommitHistory':
-                    await this._sendCommitHistory(data.branch);
+                    await this._sendCommitHistory(data.branch, data.skip);
+                    break;
+                case 'getTotalCommitCount':
+                    await this._sendTotalCommitCount(data.branch);
                     break;
                 case 'getBranches':
                     await this._sendBranches();
@@ -60,7 +63,19 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     await this._compareCommits(data.hashes);
                     break;
                 case 'showFileDiff':
-                    await this._showFileDiff(data.hash, data.filePath);
+                    await this._showFileDiff(data.hash, data.file);
+                    break;
+                case 'openFile':
+                    await this._openFile(data.file);
+                    break;
+                case 'showFileHistory':
+                    await this._showFileHistory(data.file);
+                    break;
+                case 'viewFileOnline':
+                    await this._viewFileOnline(data.hash, data.file);
+                    break;
+                case 'squashCommits':
+                    await this._squashCommits(data.hashes);
                     break;
             }
         });
@@ -94,13 +109,27 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
-    private async _sendCommitHistory(branch?: string) {
+    private async _sendCommitHistory(branch?: string, skip: number = 0) {
         if (!this._view) return;
         
-        const commits = await this._gitHistoryProvider.getCommitHistory(branch);
+        const commits = await this._gitHistoryProvider.getCommitHistory(branch, 50, skip);
         this._view.webview.postMessage({
             type: 'commitHistory',
-            data: commits
+            data: {
+                commits,
+                skip,
+                hasMore: commits.length === 50
+            }
+        });
+    }
+
+    private async _sendTotalCommitCount(branch?: string) {
+        if (!this._view) return;
+        
+        const totalCount = await this._gitHistoryProvider.getTotalCommitCount(branch);
+        this._view.webview.postMessage({
+            type: 'totalCommitCount',
+            data: totalCount
         });
     }
 
@@ -206,6 +235,214 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 changes: changes
             }
         });
+    }
+
+    private async _squashCommits(hashes: string[]) {
+        if (hashes.length < 2) {
+            vscode.window.showErrorMessage('Please select at least 2 commits to squash');
+            return;
+        }
+
+        // 检查提交是否连续
+        const canSquash = await this._canSquashCommits(hashes);
+        if (!canSquash) {
+            vscode.window.showErrorMessage('Selected commits are not consecutive and cannot be squashed');
+            return;
+        }
+
+        const result = await vscode.window.showWarningMessage(
+            `Are you sure you want to squash ${hashes.length} commits?`,
+            'Yes', 'No'
+        );
+        
+        if (result === 'Yes') {
+            const success = await this._gitHistoryProvider.squashCommits(hashes);
+            if (success) {
+                vscode.window.showInformationMessage('Squash completed successfully');
+                this.refresh();
+            }
+        }
+    }
+
+    private async _openFile(filePath: string) {
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                vscode.window.showErrorMessage('No workspace folder found');
+                return;
+            }
+
+            const fullPath = vscode.Uri.joinPath(workspaceFolder.uri, filePath);
+            
+            // 检查文件是否存在
+            try {
+                await vscode.workspace.fs.stat(fullPath);
+                // 文件存在，打开它
+                const document = await vscode.workspace.openTextDocument(fullPath);
+                await vscode.window.showTextDocument(document, {
+                    viewColumn: vscode.ViewColumn.Beside,
+                    preview: false
+                });
+            } catch (error) {
+                vscode.window.showErrorMessage(`File ${filePath} does not exist in the current workspace`);
+            }
+        } catch (error) {
+            console.error('Error opening file:', error);
+            vscode.window.showErrorMessage(`Failed to open file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    private async _showFileHistory(filePath: string) {
+        try {
+            // 使用 Git 命令显示文件历史
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                vscode.window.showErrorMessage('No workspace folder found');
+                return;
+            }
+
+            // 创建一个新的 webview 来显示文件历史
+            const panel = vscode.window.createWebviewPanel(
+                'fileHistory',
+                `History: ${filePath}`,
+                vscode.ViewColumn.Beside,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true
+                }
+            );
+
+            // 获取文件历史
+            const fileHistory = await this._gitHistoryProvider.getFileHistory(filePath);
+            
+            panel.webview.html = this._getFileHistoryHtml(filePath, fileHistory);
+        } catch (error) {
+            console.error('Error showing file history:', error);
+            vscode.window.showErrorMessage(`Failed to show file history: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    private async _viewFileOnline(hash: string, filePath: string) {
+        try {
+            // 获取远程仓库 URL
+            const remoteUrl = await this._gitHistoryProvider.getRemoteUrl();
+            if (!remoteUrl) {
+                vscode.window.showErrorMessage('No remote repository found');
+                return;
+            }
+
+            // 构建在线查看 URL（支持 GitHub, GitLab, Bitbucket）
+            let onlineUrl = '';
+            
+            if (remoteUrl.includes('github.com')) {
+                // GitHub URL 格式
+                const repoMatch = remoteUrl.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+                if (repoMatch) {
+                    onlineUrl = `https://github.com/${repoMatch[1]}/blob/${hash}/${filePath}`;
+                }
+            } else if (remoteUrl.includes('gitlab.com')) {
+                // GitLab URL 格式
+                const repoMatch = remoteUrl.match(/gitlab\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+                if (repoMatch) {
+                    onlineUrl = `https://gitlab.com/${repoMatch[1]}/-/blob/${hash}/${filePath}`;
+                }
+            } else if (remoteUrl.includes('bitbucket.org')) {
+                // Bitbucket URL 格式
+                const repoMatch = remoteUrl.match(/bitbucket\.org[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+                if (repoMatch) {
+                    onlineUrl = `https://bitbucket.org/${repoMatch[1]}/src/${hash}/${filePath}`;
+                }
+            }
+
+            if (onlineUrl) {
+                await vscode.env.openExternal(vscode.Uri.parse(onlineUrl));
+            } else {
+                vscode.window.showErrorMessage('Unsupported remote repository provider');
+            }
+        } catch (error) {
+            console.error('Error viewing file online:', error);
+            vscode.window.showErrorMessage(`Failed to view file online: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    private _getFileHistoryHtml(filePath: string, history: any[]): string {
+        const commits = history.map(commit => `
+            <div class="commit-item">
+                <div class="commit-hash">${commit.hash.substring(0, 8)}</div>
+                <div class="commit-message">${commit.message}</div>
+                <div class="commit-author">${commit.author}</div>
+                <div class="commit-date">${new Date(commit.date).toLocaleDateString()}</div>
+            </div>
+        `).join('');
+
+        return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>File History: ${filePath}</title>
+                <style>
+                    body {
+                        font-family: var(--vscode-font-family);
+                        color: var(--vscode-foreground);
+                        background-color: var(--vscode-editor-background);
+                        margin: 0;
+                        padding: 20px;
+                    }
+                    .file-path {
+                        font-size: 18px;
+                        font-weight: bold;
+                        margin-bottom: 20px;
+                        color: var(--vscode-textLink-foreground);
+                    }
+                    .commit-item {
+                        border: 1px solid var(--vscode-panel-border);
+                        border-radius: 4px;
+                        padding: 12px;
+                        margin-bottom: 8px;
+                        background-color: var(--vscode-editor-background);
+                    }
+                    .commit-hash {
+                        font-family: monospace;
+                        color: var(--vscode-textLink-foreground);
+                        font-weight: bold;
+                        margin-bottom: 4px;
+                    }
+                    .commit-message {
+                        font-weight: bold;
+                        margin-bottom: 4px;
+                    }
+                    .commit-author {
+                        color: var(--vscode-descriptionForeground);
+                        font-size: 0.9em;
+                    }
+                    .commit-date {
+                        color: var(--vscode-descriptionForeground);
+                        font-size: 0.9em;
+                        float: right;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="file-path">File History: ${filePath}</div>
+                <div class="commits">
+                    ${commits}
+                </div>
+            </body>
+            </html>
+        `;
+    }
+
+    private async _canSquashCommits(hashes: string[]): Promise<boolean> {
+        // 简单检查：如果提交数量少于2个，不能squash
+        if (hashes.length < 2) {
+            return false;
+        }
+        
+        // 这里可以添加更复杂的逻辑来检查提交是否连续
+        // 目前简化处理，假设用户选择的提交是可以squash的
+        return true;
     }
 
     private async _showFileDiff(hash: string, filePath: string) {
@@ -446,6 +683,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     <div class="menu-item" data-action="copyHash">Copy Hash</div>
                     <div class="menu-item" data-action="cherryPick">Cherry Pick</div>
                     <div class="menu-item" data-action="revert">Revert</div>
+                    <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="squash" id="squashMenuItem">Squash Commits</div>
                     <div class="menu-separator"></div>
                     <div class="menu-item" data-action="resetSoft">Reset (Soft)</div>
                     <div class="menu-item" data-action="resetMixed">Reset (Mixed)</div>

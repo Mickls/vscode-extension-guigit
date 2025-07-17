@@ -249,6 +249,158 @@ body {
     font-size: 14px;
 }
 
+/* 文件树样式 */
+.file-tree-folder {
+    margin-left: 16px;
+}
+
+.folder-header {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.folder-header:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.folder-icon {
+    margin-right: 6px;
+    font-size: 10px;
+    transition: transform 0.2s ease;
+}
+
+.folder-icon.collapsed {
+    transform: rotate(-90deg);
+}
+
+.folder-icon.expanded {
+    transform: rotate(0deg);
+}
+
+.folder-name {
+    font-weight: 500;
+    color: var(--vscode-foreground);
+}
+
+.folder-count {
+    margin-left: 6px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.folder-content {
+    margin-left: 12px;
+}
+
+.file-tree-item {
+    margin-left: 16px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.file-icon {
+    margin-right: 6px;
+    font-size: 12px;
+}
+
+.file-name {
+    flex: 1;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+.file-name:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.file-view-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.view-toggle-btn {
+    background: none;
+    border: 1px solid var(--vscode-button-border);
+    color: var(--vscode-button-foreground);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.view-toggle-btn:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.view-toggle-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.file-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.file-tree-item:hover .file-actions,
+.file-item:hover .file-actions {
+    opacity: 1;
+}
+
+.file-action-btn {
+    background: none;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    font-size: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.file-action-btn:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.collapse-all-btn {
+    background: none;
+    border: 1px solid var(--vscode-button-border);
+    color: var(--vscode-button-foreground);
+    cursor: pointer;
+    padding: 2px 8px;
+    margin-left: 8px;
+    border-radius: 2px;
+    font-size: 11px;
+}
+
+.collapse-all-btn:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
 .file-item {
     display: flex;
     align-items: center;
@@ -313,6 +465,16 @@ body {
 .menu-item:hover {
     background-color: var(--vscode-menu-selectionBackground);
     color: var(--vscode-menu-selectionForeground);
+}
+
+.menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.menu-item.disabled:hover {
+    background-color: transparent;
+    color: inherit;
 }
 
 .menu-separator {

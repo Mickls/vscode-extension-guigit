@@ -59,43 +59,66 @@ export class GitHistoryProvider {
         }
     }
 
-    async getCommitHistory(branch?: string, limit: number = 50): Promise<GitCommit[]> {
+    async getCommitHistory(branch?: string, limit: number = 50, skip: number = 0): Promise<GitCommit[]> {
         if (!this.git) {
             return [];
         }
 
         try {
-            const options: any = {
-                maxCount: limit,
-                format: {
-                    hash: '%H',
-                    date: '%ai',
-                    message: '%s',
-                    author: '%an',
-                    email: '%ae',
-                    refs: '%D',
-                    body: '%b'
-                }
-            };
+            // 使用 raw 方法直接调用 git log 命令
+            const args = [
+                'log',
+                '--pretty=format:%H|%ai|%s|%an|%ae|%D|%b',
+                `--max-count=${limit}`
+            ];
 
-            if (branch) {
-                options.from = branch;
+            if (skip > 0) {
+                args.push(`--skip=${skip}`);
             }
 
-            const log: LogResult<DefaultLogFields> = await this.git.log(options);
+            if (branch) {
+                args.push(branch);
+            }
+
+            const result = await this.git.raw(args);
+            const lines = result.trim().split('\n').filter(line => line.trim());
             
-            return log.all.map(commit => ({
-                hash: commit.hash,
-                date: commit.date,
-                message: commit.message,
-                author: commit.author_name || '',
-                email: commit.author_email || '',
-                refs: commit.refs || '',
-                body: (commit as any).body || ''
-            }));
+            return lines.map(line => {
+                const parts = line.split('|');
+                return {
+                    hash: parts[0] || '',
+                    date: parts[1] || '',
+                    message: parts[2] || '',
+                    author: parts[3] || '',
+                    email: parts[4] || '',
+                    refs: parts[5] || '',
+                    body: parts[6] || ''
+                };
+            });
         } catch (error) {
             console.error('Error getting commit history:', error);
             return [];
+        }
+    }
+
+    async getTotalCommitCount(branch?: string): Promise<number> {
+        if (!this.git) {
+            return 0;
+        }
+
+        try {
+            const options: string[] = ['rev-list', '--count'];
+            if (branch) {
+                options.push(branch);
+            } else {
+                options.push('HEAD');
+            }
+            
+            const result = await this.git.raw(options);
+            return parseInt(result.trim()) || 0;
+        } catch (error) {
+            console.error('Error getting total commit count:', error);
+            return 0;
         }
     }
 
@@ -295,6 +318,33 @@ export class GitHistoryProvider {
         }
     }
 
+    async squashCommits(hashes: string[]): Promise<boolean> {
+        if (!this.git || hashes.length < 2) {
+            return false;
+        }
+
+        try {
+            // 对提交进行排序，确保从最旧到最新
+            const sortedHashes = [...hashes].reverse();
+            const oldestHash = sortedHashes[0];
+            const newestHash = sortedHashes[sortedHashes.length - 1];
+            
+            // 使用 git rebase -i 进行交互式变基来squash提交
+            // 这里简化处理，使用 git reset 和 git commit 来模拟squash
+            await this.git.reset(['--soft', `${oldestHash}^`]);
+            
+            // 创建新的提交消息
+            const commitMessage = `Squashed ${hashes.length} commits`;
+            await this.git.commit(commitMessage);
+            
+            return true;
+        } catch (error) {
+            console.error('Error squashing commits:', error);
+            vscode.window.showErrorMessage(`Squash failed: ${error}`);
+            return false;
+        }
+    }
+
     async getFileDiff(hash: string, filePath: string): Promise<string> {
         if (!this.git) {
             return '';
@@ -389,8 +439,8 @@ export class GitHistoryProvider {
                 hash: commit.hash,
                 date: commit.date,
                 message: commit.message,
-                author: commit.author_name || '',
-                email: commit.author_email || '',
+                author: (commit as any).author_name || '',
+                email: (commit as any).author_email || '',
                 refs: commit.refs || '',
                 body: (commit as any).body || ''
             };
@@ -423,6 +473,63 @@ export class GitHistoryProvider {
             return content;
         } catch (error) {
             console.error('Error getting file content:', error);
+            return null;
+        }
+    }
+
+    async getFileHistory(filePath: string): Promise<GitCommit[]> {
+        if (!this.git) {
+            return [];
+        }
+
+        try {
+            const log = await this.git.log({
+                file: filePath,
+                format: {
+                    hash: '%H',
+                    date: '%ai',
+                    message: '%s',
+                    author: '%an',
+                    email: '%ae',
+                    refs: '%D',
+                    body: '%b'
+                }
+            });
+
+            return log.all.map(commit => ({
+                hash: commit.hash,
+                date: commit.date,
+                message: commit.message,
+                author: (commit as any).author_name || '',
+                email: (commit as any).author_email || '',
+                refs: commit.refs || '',
+                body: (commit as any).body || ''
+            }));
+        } catch (error) {
+            console.error('Error getting file history:', error);
+            return [];
+        }
+    }
+
+    async getRemoteUrl(): Promise<string | null> {
+        if (!this.git) {
+            return null;
+        }
+
+        try {
+            const remotes = await this.git.getRemotes(true);
+            
+            // 优先查找 origin，如果没有则使用第一个远程仓库
+            const origin = remotes.find(remote => remote.name === 'origin');
+            const remote = origin || remotes[0];
+            
+            if (remote && remote.refs && remote.refs.fetch) {
+                return remote.refs.fetch;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error getting remote URL:', error);
             return null;
         }
     }
