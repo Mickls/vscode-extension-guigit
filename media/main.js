@@ -9,7 +9,7 @@
     let loadedCommits = 0;
     let totalCommits = 0;
     let isLoading = false;
-    let fileViewMode = 'tree'; // 'tree' or 'list'
+    let fileViewMode = 'list'; // 'tree' or 'list' - 默认为列表视图
 
     // DOM元素
     const branchSelect = document.getElementById('branchSelect');
@@ -95,6 +95,9 @@
                 break;
             case 'error':
                 showError(message.message);
+                break;
+            case 'viewMode':
+                fileViewMode = message.data;
                 break;
         }
     });
@@ -416,8 +419,8 @@
             const fileTree = buildFileTree(files);
             filesHtml = renderFileTree(fileTree, commit.hash);
         } else {
-            filesHtml = renderFileList(files, commit.hash);
-        }
+             filesHtml = `<div class="file-list-container">${renderFileList(files, commit.hash)}</div>`;
+         }
 
         // 解析refs信息
         const refs = commit.refs ? parseRefs(commit.refs) : [];
@@ -434,18 +437,15 @@
                 ${commit.body ? `<div class="details-body">${escapeHtml(commit.body)}</div>` : ''}
             </div>
             <div class="file-changes">
-                <h3>
-                    Changed Files (${files.length})
+                <div class="file-changes-header">
+                    <h3>Changed Files (${files.length})</h3>
                     <div class="file-view-controls">
                         <button class="view-toggle-btn" onclick="toggleFileViewMode()" title="${fileViewMode === 'tree' ? 'Switch to List View' : 'Switch to Tree View'}">
-                            ${fileViewMode === 'tree' ? 
-                                '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>' : 
-                                '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1.5A1.5 1.5 0 0 1 2.5 0h3A1.5 1.5 0 0 1 7 1.5v3A1.5 1.5 0 0 1 5.5 6h-3A1.5 1.5 0 0 1 1 4.5v-3zM2.5 1a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 0h3A1.5 1.5 0 0 1 15 1.5v3A1.5 1.5 0 0 1 13.5 6h-3A1.5 1.5 0 0 1 8 4.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 8 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3z"/></svg>'
-                            }
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
                         </button>
                         ${files.length > 10 && fileViewMode === 'tree' ? '<button class="collapse-all-btn" onclick="toggleAllFolders()">Collapse All</button>' : ''}
                     </div>
-                </h3>
+                </div>
                 ${files.length > 0 ? filesHtml : '<div class="no-files">No files changed</div>'}
             </div>
         `;
@@ -525,23 +525,24 @@
                 `;
             } else {
                 const file = node.data;
+                const fileIcon = level === 0 ? '🔹' : '📄';
                 html += `
                     <div class="file-tree-item" data-level="${level}" data-file="${escapeHtml(file.file)}" data-hash="${escapeHtml(commitHash)}">
                         <div class="file-info">
-                            <span class="file-icon">📄</span>
+                            <span class="file-icon">${fileIcon}</span>
                             <span class="file-name">${escapeHtml(name)}</span>
                             <div class="file-actions">
                                 <button class="file-action-btn" title="View Diff" onclick="showFileDiff('${escapeHtml(commitHash)}', '${escapeHtml(file.file)}')">
-                                    ⚡
+                                    ∆
                                 </button>
                                 <button class="file-action-btn" title="Open File" onclick="openFile('${escapeHtml(file.file)}')">
-                                    📄
+                                    ○
                                 </button>
                                 <button class="file-action-btn" title="File History" onclick="showFileHistory('${escapeHtml(file.file)}')">
-                                    🕒
+                                    ⟲
                                 </button>
                                 <button class="file-action-btn" title="View Online" onclick="viewFileOnline('${escapeHtml(commitHash)}', '${escapeHtml(file.file)}')">
-                                    🌐
+                                    ↗
                                 </button>
                             </div>
                         </div>
@@ -568,16 +569,16 @@
                         <span class="file-name">${escapeHtml(file.file)}</span>
                         <div class="file-actions">
                             <button class="file-action-btn" title="View Diff" onclick="showFileDiff('${escapeHtml(commitHash)}', '${escapeHtml(file.file)}')">
-                                ⚡
+                                ∆
                             </button>
                             <button class="file-action-btn" title="Open File" onclick="openFile('${escapeHtml(file.file)}')">
-                                📄
+                                ○
                             </button>
                             <button class="file-action-btn" title="File History" onclick="showFileHistory('${escapeHtml(file.file)}')">
-                                🕒
+                                ⟲
                             </button>
                             <button class="file-action-btn" title="View Online" onclick="viewFileOnline('${escapeHtml(commitHash)}', '${escapeHtml(file.file)}')">
-                                🌐
+                                ↗
                             </button>
                         </div>
                     </div>
@@ -608,6 +609,11 @@
     // 全局函数，供HTML onclick调用
     window.toggleFileViewMode = function() {
         fileViewMode = fileViewMode === 'tree' ? 'list' : 'tree';
+        // 保存配置到VSCode设置
+        vscode.postMessage({
+            type: 'saveViewMode',
+            viewMode: fileViewMode
+        });
         // 重新请求当前提交详情以刷新视图
         if (currentCommit) {
             vscode.postMessage({

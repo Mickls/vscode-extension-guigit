@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { GitHistoryProvider, GitCommit } from './gitHistoryProvider';
+import { GitHistoryProvider } from './gitHistoryProvider';
 
 export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'guigit.historyView';
@@ -14,7 +14,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
+        _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
         this._view = webviewView;
@@ -77,12 +77,16 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 case 'squashCommits':
                     await this._squashCommits(data.hashes);
                     break;
+                case 'saveViewMode':
+                    await this._saveViewMode(data.viewMode);
+                    break;
             }
         });
 
         // 初始化加载数据
         this._sendBranches();
         this._sendCommitHistory();
+        this._sendViewMode();
     }
 
     public refresh() {
@@ -280,8 +284,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 // 文件存在，打开它
                 const document = await vscode.workspace.openTextDocument(fullPath);
                 await vscode.window.showTextDocument(document, {
-                    viewColumn: vscode.ViewColumn.Beside,
-                    preview: false
+                    viewColumn: vscode.ViewColumn.One,
+                    preview: true
                 });
             } catch (error) {
                 vscode.window.showErrorMessage(`File ${filePath} does not exist in the current workspace`);
@@ -305,7 +309,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             const panel = vscode.window.createWebviewPanel(
                 'fileHistory',
                 `History: ${filePath}`,
-                vscode.ViewColumn.Beside,
+                vscode.ViewColumn.One,
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -445,6 +449,23 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         return true;
     }
 
+    private async _saveViewMode(viewMode: string) {
+        const config = vscode.workspace.getConfiguration('guigit');
+        await config.update('fileViewMode', viewMode, vscode.ConfigurationTarget.Workspace);
+    }
+
+    private async _sendViewMode() {
+        if (!this._view) return;
+        
+        const config = vscode.workspace.getConfiguration('guigit');
+        const viewMode = config.get<string>('fileViewMode', 'list');
+        
+        this._view.webview.postMessage({
+            type: 'viewMode',
+            data: viewMode
+        });
+    }
+
     private async _showFileDiff(hash: string, filePath: string) {
         try {
             // 获取工作区根目录
@@ -458,18 +479,28 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             const isInitialCommit = await this._gitHistoryProvider.isInitialCommit(hash);
 
             if (isInitialCommit) {
-                // 对于初始提交，显示整个文件内容
+                // 对于初始提交，也使用diff视图显示（空文件 vs 新文件）
                 const fileContent = await this._gitHistoryProvider.getFileContent(hash, filePath);
                 if (fileContent) {
-                    // 创建一个临时文档来显示文件内容
-                    const doc = await vscode.workspace.openTextDocument({
-                        content: fileContent,
-                        language: this._getLanguageFromFilePath(filePath)
-                    });
-                    await vscode.window.showTextDocument(doc, { 
-                        preview: true,
-                        viewColumn: vscode.ViewColumn.Beside
-                    });
+                    const baseFileName = filePath.split('/').pop() || 'file';
+                    const shortHash = hash.substring(0, 8);
+                    
+                    // 创建空文件URI和新文件URI进行差异对比
+                    const leftUri = this._createReadOnlyUri('', `${baseFileName} (empty)`, filePath);
+                    const rightUri = this._createReadOnlyUri(fileContent, `${baseFileName} (${shortHash})`, filePath);
+
+                    // 显示差异视图
+                    const title = `${baseFileName} (${shortHash}) - Initial Commit`;
+                    await vscode.commands.executeCommand(
+                        'vscode.diff',
+                        leftUri,
+                        rightUri,
+                        title,
+                        { 
+                            viewColumn: vscode.ViewColumn.One,
+                            preview: true
+                        }
+                    );
                 } else {
                     vscode.window.showErrorMessage(`Failed to get file content for ${filePath}`);
                 }
@@ -500,23 +531,43 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
             // 如果是新增文件（旧版本不存在）
             if (oldContent === null && newContent !== null) {
-                const uri = this._createReadOnlyUri(newContent || '', `${baseFileName} (${shortHash}) - New File`, filePath);
-                await vscode.window.showTextDocument(uri, { 
-                    preview: true,
-                    viewColumn: vscode.ViewColumn.Beside 
-                });
-                vscode.window.showInformationMessage(`${filePath} is a new file in this commit`);
+                // 创建空文件URI和新文件URI进行差异对比
+                const leftUri = this._createReadOnlyUri('', `${baseFileName} (empty)`, filePath);
+                const rightUri = this._createReadOnlyUri(newContent, `${baseFileName} (${shortHash})`, filePath);
+
+                // 显示差异视图
+                const title = `${baseFileName} (${shortHash}) - New File`;
+                await vscode.commands.executeCommand(
+                    'vscode.diff',
+                    leftUri,
+                    rightUri,
+                    title,
+                    { 
+                        viewColumn: vscode.ViewColumn.One,
+                        preview: true
+                    }
+                );
                 return;
             }
 
             // 如果是删除文件（新版本不存在）
             if (oldContent !== null && newContent === null) {
-                const uri = this._createReadOnlyUri(oldContent || '', `${baseFileName} (${shortHash}) - Deleted File`, filePath);
-                await vscode.window.showTextDocument(uri, { 
-                    preview: true,
-                    viewColumn: vscode.ViewColumn.Beside 
-                });
-                vscode.window.showInformationMessage(`${filePath} was deleted in this commit`);
+                // 创建旧文件URI和空文件URI进行差异对比
+                const leftUri = this._createReadOnlyUri(oldContent, `${baseFileName} (${shortHash}^)`, filePath);
+                const rightUri = this._createReadOnlyUri('', `${baseFileName} (deleted)`, filePath);
+
+                // 显示差异视图
+                const title = `${baseFileName} (${shortHash}) - Deleted File`;
+                await vscode.commands.executeCommand(
+                    'vscode.diff',
+                    leftUri,
+                    rightUri,
+                    title,
+                    { 
+                        viewColumn: vscode.ViewColumn.One,
+                        preview: true
+                    }
+                );
                 return;
             }
 
@@ -538,7 +589,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 rightUri,
                 title,
                 { 
-                    viewColumn: vscode.ViewColumn.Beside,
+                    viewColumn: vscode.ViewColumn.One,
                     preview: true
                 }
             );
@@ -552,18 +603,25 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     private _createReadOnlyUri(content: string, fileName: string, originalPath: string): vscode.Uri {
         // 创建唯一的URI
         const timestamp = Date.now();
-        const uri = vscode.Uri.parse(`git-history:${fileName}?${timestamp}`);
+        const random = Math.random().toString(36).substring(2, 8);
+        const uniqueKey = `${fileName}-${timestamp}-${random}`;
+        const scheme = `git-history-${random}`;
+        const uri = vscode.Uri.parse(`${scheme}:${fileName}?${timestamp}`);
         
         // 清理之前的内容提供者
-        const existingProvider = this._contentProviders.get(fileName);
+        const existingProvider = this._contentProviders.get(uniqueKey);
         if (existingProvider) {
             existingProvider.dispose();
         }
         
-        // 注册新的文本文档内容提供者
-        const disposable = vscode.workspace.registerTextDocumentContentProvider('git-history', {
+        // 确定语言模式（当前未使用，但保留以备将来扩展）
+        // const isDiffFile = fileName.endsWith('.diff');
+        // const language = isDiffFile ? 'diff' : this._getLanguageFromFilePath(originalPath);
+        
+        // 注册新的文本文档内容提供者，使用唯一的scheme
+        const disposable = vscode.workspace.registerTextDocumentContentProvider(scheme, {
             provideTextDocumentContent: (requestUri: vscode.Uri) => {
-                if (requestUri.path === uri.path) {
+                if (requestUri.toString() === uri.toString()) {
                     return content;
                 }
                 return null;
@@ -571,14 +629,14 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
 
         // 保存提供者引用
-        this._contentProviders.set(fileName, disposable);
+        this._contentProviders.set(uniqueKey, disposable);
 
         // 在一段时间后清理提供者（避免内存泄漏）
         setTimeout(() => {
-            const provider = this._contentProviders.get(fileName);
+            const provider = this._contentProviders.get(uniqueKey);
             if (provider === disposable) {
                 provider.dispose();
-                this._contentProviders.delete(fileName);
+                this._contentProviders.delete(uniqueKey);
             }
         }, 300000); // 5分钟后清理
 

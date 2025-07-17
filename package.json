@@ -66,6 +66,17 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "GUI Git History",
+      "properties": {
+        "guigit.fileViewMode": {
+          "type": "string",
+          "enum": ["list", "tree"],
+          "default": "list",
+          "description": "Default view mode for changed files (list or tree)"
+        }
+      }
     }
   },
   "scripts": {

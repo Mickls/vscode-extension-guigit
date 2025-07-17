@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { simpleGit, SimpleGit, LogResult, DefaultLogFields } from 'simple-git';
-import * as path from 'path';
+import { simpleGit, SimpleGit } from 'simple-git';
 
 export interface GitCommit {
     hash: string;
@@ -37,7 +36,12 @@ export class GitHistoryProvider {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
             this.workspaceRoot = workspaceFolders[0].uri.fsPath;
-            this.git = simpleGit(this.workspaceRoot);
+            this.git = simpleGit(this.workspaceRoot, {
+                config: [
+                    'core.quotepath=false',  // 禁用路径引用，正确显示中文文件名
+                    'log.showSignature=false' // 禁用签名显示
+                ]
+            });
         }
     }
 
@@ -69,6 +73,7 @@ export class GitHistoryProvider {
             const args = [
                 'log',
                 '--pretty=format:%H|%ai|%s|%an|%ae|%D|%b',
+                '--encoding=UTF-8',  // 指定UTF-8编码
                 `--max-count=${limit}`
             ];
 
@@ -131,6 +136,8 @@ export class GitHistoryProvider {
         try {
             console.log(`Getting commit details for hash: ${hash}`);
             
+            let commit: any;
+            
             // 获取提交详情 - 使用正确的方法获取指定 commit
             const log = await this.git.log({ maxCount: 1, from: hash, to: hash });
             if (log.all.length === 0) {
@@ -138,7 +145,7 @@ export class GitHistoryProvider {
                 // 尝试使用 show 命令获取 commit 信息
                 try {
                     console.log('Trying to get commit info with show command...');
-                    const showOutput = await this.git.show(['--format=fuller', '--no-patch', hash]);
+                    const showOutput = await this.git.show(['--format=fuller', '--no-patch', '--encoding=UTF-8', hash]);
                     console.log('Show output for commit info:', showOutput);
                     
                     // 解析 show 命令的输出
@@ -168,13 +175,13 @@ export class GitHistoryProvider {
                     }
                     
                     console.log('Parsed commit info:', commitInfo);
-                     var commit: any = commitInfo;
+                     commit = commitInfo;
                  } catch (showError) {
                      console.error('Show command also failed:', showError);
                      return null;
                  }
              } else {
-                 var commit: any = log.all[0];
+                 commit = log.all[0];
              }
             console.log(`Found commit: ${commit.hash.substring(0, 8)} - ${commit.message}`);
             
@@ -205,57 +212,88 @@ export class GitHistoryProvider {
                 
                 if (isInitialCommit) {
                     console.log('Processing initial commit...');
-                    // 初始提交：使用不同的方法获取文件列表
+                    // 初始提交：使用不同的方法获取文件列表和正确的行数统计
                     try {
-                        // 方法1：使用 git show --name-status
-                        console.log('Trying git show --name-status...');
-                        const showOutput = await this.git.show(['--name-status', '--format=', hash]);
-                        console.log('Show output:', showOutput);
-                        const lines = showOutput.trim().split('\n').filter(line => line.trim());
+                        // 方法1：使用 git show --numstat 获取准确的行数统计
+                        console.log('Trying git show --numstat...');
+                        const numstatOutput = await this.git.show(['--numstat', '--format=', '--encoding=UTF-8', hash]);
+                        console.log('Numstat output:', numstatOutput);
+                        const lines = numstatOutput.trim().split('\n').filter(line => line.trim());
                         files = lines.map(line => {
                             const parts = line.split('\t');
-                            const status = parts[0];
-                            const fileName = parts[1] || '';
+                            const insertions = parseInt(parts[0]) || 0;
+                            const deletions = parseInt(parts[1]) || 0;
+                            const fileName = parts[2] || '';
                             return {
                                 file: fileName,
-                                insertions: status === 'A' ? 1 : 0,
-                                deletions: status === 'D' ? 1 : 0,
-                                binary: false
+                                insertions: insertions,
+                                deletions: deletions,
+                                binary: parts[0] === '-' && parts[1] === '-'
                             };
                         });
-                        console.log(`Found ${files.length} files with show method`);
-                    } catch (showError) {
-                        console.log('Show method failed, trying ls-tree:', showError);
-                        // 方法2：使用 git ls-tree 获取初始提交的所有文件
+                        console.log(`Found ${files.length} files with numstat method`);
+                    } catch (numstatError) {
+                        console.log('Numstat method failed, trying show --name-status:', numstatError);
+                        // 备用方法：使用 git show --name-status 然后逐个获取文件行数
                         try {
-                            console.log('Trying git ls-tree...');
-                            const lsTreeOutput = await this.git.raw(['ls-tree', '-r', '--name-only', hash]);
-                            console.log('ls-tree output:', lsTreeOutput);
-                            const fileNames = lsTreeOutput.trim().split('\n').filter(name => name.trim());
-                            files = fileNames.map(fileName => ({
-                                file: fileName,
-                                insertions: 1, // 初始提交，所有文件都是新增的
-                                deletions: 0,
-                                binary: false
-                            }));
-                            console.log(`Found ${files.length} files with ls-tree method`);
-                        } catch (lsTreeError) {
-                            console.error('ls-tree method also failed:', lsTreeError);
-                            // 方法3：尝试使用 git diff-tree
+                            console.log('Trying git show --name-status...');
+                            const showOutput = await this.git.show(['--name-status', '--format=', '--encoding=UTF-8', hash]);
+                            console.log('Show output:', showOutput);
+                            const lines = showOutput.trim().split('\n').filter(line => line.trim());
+                            files = [];
+                            
+                            for (const line of lines) {
+                                const parts = line.split('\t');
+                                const status = parts[0];
+                                const fileName = parts[1] || '';
+                                
+                                if (status === 'A') {
+                                    // 新增文件，获取实际行数
+                                    try {
+                                        const fileContent = await this.git.show([`${hash}:${fileName}`]);
+                                        const lineCount = fileContent.split('\n').length;
+                                        files.push({
+                                            file: fileName,
+                                            insertions: lineCount,
+                                            deletions: 0,
+                                            binary: false
+                                        });
+                                    } catch (contentError) {
+                                        console.log(`Failed to get content for ${fileName}, treating as binary or empty`);
+                                        files.push({
+                                            file: fileName,
+                                            insertions: 1,
+                                            deletions: 0,
+                                            binary: true
+                                        });
+                                    }
+                                } else {
+                                    files.push({
+                                        file: fileName,
+                                        insertions: status === 'A' ? 1 : 0,
+                                        deletions: status === 'D' ? 1 : 0,
+                                        binary: false
+                                    });
+                                }
+                            }
+                            console.log(`Found ${files.length} files with show method`);
+                        } catch (showError) {
+                            console.log('Show method failed, trying ls-tree:', showError);
+                            // 最后的备用方法：使用 git ls-tree
                             try {
-                                console.log('Trying git diff-tree...');
-                                const diffTreeOutput = await this.git.raw(['diff-tree', '--no-commit-id', '--name-only', '-r', hash]);
-                                console.log('diff-tree output:', diffTreeOutput);
-                                const fileNames = diffTreeOutput.trim().split('\n').filter(name => name.trim());
+                                console.log('Trying git ls-tree...');
+                                const lsTreeOutput = await this.git.raw(['ls-tree', '-r', '--name-only', hash]);
+                                console.log('ls-tree output:', lsTreeOutput);
+                                const fileNames = lsTreeOutput.trim().split('\n').filter(name => name.trim());
                                 files = fileNames.map(fileName => ({
                                     file: fileName,
-                                    insertions: 1,
+                                    insertions: 1, // 无法获取准确行数时的默认值
                                     deletions: 0,
                                     binary: false
                                 }));
-                                console.log(`Found ${files.length} files with diff-tree method`);
-                            } catch (diffTreeError) {
-                                console.error('diff-tree method also failed:', diffTreeError);
+                                console.log(`Found ${files.length} files with ls-tree method`);
+                            } catch (lsTreeError) {
+                                console.error('ls-tree method also failed:', lsTreeError);
                                 files = [];
                             }
                         }
@@ -274,22 +312,64 @@ export class GitHistoryProvider {
                         }));
                         console.log(`Found ${files.length} files with diff summary`);
                     } catch (diffError) {
-                        console.log('Diff summary failed, trying show method:', diffError);
-                        // 备用方法：使用show命令
-                        const showOutput = await this.git.show(['--name-status', '--format=', hash]);
-                        const lines = showOutput.trim().split('\n').filter(line => line.trim());
-                        files = lines.map(line => {
-                            const parts = line.split('\t');
-                            const status = parts[0];
-                            const fileName = parts[1] || '';
-                            return {
-                                file: fileName,
-                                insertions: status === 'A' ? 1 : 0,
-                                deletions: status === 'D' ? 1 : 0,
-                                binary: false
-                            };
-                        });
-                        console.log(`Found ${files.length} files with backup show method`);
+                        console.log('Diff summary failed, trying numstat method:', diffError);
+                        // 备用方法：使用 git show --numstat 获取准确的行数统计
+                        try {
+                            const numstatOutput = await this.git.show(['--numstat', '--format=', '--encoding=UTF-8', hash]);
+                            const lines = numstatOutput.trim().split('\n').filter(line => line.trim());
+                            files = lines.map(line => {
+                                const parts = line.split('\t');
+                                const insertions = parseInt(parts[0]) || 0;
+                                const deletions = parseInt(parts[1]) || 0;
+                                const fileName = parts[2] || '';
+                                return {
+                                    file: fileName,
+                                    insertions: insertions,
+                                    deletions: deletions,
+                                    binary: parts[0] === '-' && parts[1] === '-'
+                                };
+                            });
+                            console.log(`Found ${files.length} files with numstat method`);
+                        } catch (numstatError) {
+                            console.log('Numstat method failed, trying show --name-status:', numstatError);
+                            // 最后的备用方法：使用show命令
+                            const showOutput = await this.git.show(['--name-status', '--format=', '--encoding=UTF-8', hash]);
+                            const lines = showOutput.trim().split('\n').filter(line => line.trim());
+                            files = await Promise.all(lines.map(async line => {
+                                const parts = line.split('\t');
+                                const status = parts[0];
+                                const fileName = parts[1] || '';
+                                
+                                if (status === 'A') {
+                                    // 新增文件，尝试获取实际行数
+                                    try {
+                                        const fileContent = await this.git!.show([`${hash}:${fileName}`]);
+                                        const lineCount = fileContent.split('\n').length;
+                                        return {
+                                            file: fileName,
+                                            insertions: lineCount,
+                                            deletions: 0,
+                                            binary: false
+                                        };
+                                    } catch {
+                                        return {
+                                            file: fileName,
+                                            insertions: 1,
+                                            deletions: 0,
+                                            binary: true
+                                        };
+                                    }
+                                }
+                                
+                                return {
+                                    file: fileName,
+                                    insertions: status === 'A' ? 1 : 0,
+                                    deletions: status === 'D' ? 1 : 0,
+                                    binary: false
+                                };
+                            }));
+                            console.log(`Found ${files.length} files with backup show method`);
+                        }
                     }
                 }
             } catch (fileError) {
@@ -544,10 +624,9 @@ export class GitHistoryProvider {
             const isInitial = await this.isInitialCommit(hash);
             
             if (isInitial) {
-                // 对于初始提交，显示整个文件作为新增
-                const content = await this.git.show([`${hash}:${filePath}`]);
-                return `--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${content.split('\n').length} @@\n` + 
-                       content.split('\n').map(line => `+${line}`).join('\n');
+                // 对于初始提交，使用 git show 命令生成标准的 diff 格式
+                const diff = await this.git.show(['--format=', hash, '--', filePath]);
+                return diff || 'No changes in this file';
             } else {
                 // 对于普通提交，显示与父提交的差异
                 const diff = await this.git.diff([`${hash}^`, hash, '--', filePath]);
