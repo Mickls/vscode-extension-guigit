@@ -1,3 +1,11 @@
+/**
+ * Git History View - 主样式文件
+ * 为VS Code扩展的Git历史视图提供样式定义
+ * 使用VS Code主题变量确保与编辑器主题一致
+ */
+
+/* ==================== 基础样式 ==================== */
+
 body {
     font-family: var(--vscode-font-family), "Microsoft YaHei", "SimHei", "Arial Unicode MS", sans-serif;
     font-size: var(--vscode-font-size);
@@ -8,12 +16,15 @@ body {
     overflow: hidden;
 }
 
+/* ==================== 布局容器 ==================== */
+
 .container {
     height: 100vh;
     display: flex;
     flex-direction: column;
 }
 
+/* 顶部工具栏 */
 .header {
     display: flex;
     align-items: center;
@@ -23,11 +34,13 @@ body {
     background-color: var(--vscode-panel-background);
 }
 
+/* 头部左侧区域 - 分支选择器 */
 .header-left {
     flex: 1;
     min-width: 0; /* 允许收缩 */
 }
 
+/* 头部右侧区域 - 操作按钮 */
 .header-right {
     display: flex;
     align-items: center;
@@ -35,6 +48,7 @@ body {
     flex-shrink: 0; /* 防止收缩 */
 }
 
+/* 分支选择下拉框 */
 .branch-select {
     width: 100%;
     max-width: 200px; /* 限制最大宽度 */
@@ -48,6 +62,9 @@ body {
     white-space: nowrap;
 }
 
+/* ==================== 按钮样式 ==================== */
+
+/* 图标按钮基础样式 */
 .icon-btn {
     width: 28px;
     height: 28px;
@@ -76,6 +93,7 @@ body {
     height: 16px;
 }
 
+/* 刷新按钮样式 */
 .refresh-btn {
     padding: 4px 8px;
     background-color: var(--vscode-button-background);
@@ -89,18 +107,25 @@ body {
     background-color: var(--vscode-button-hoverBackground);
 }
 
+/* ==================== 主要内容区域 ==================== */
+
+/* 内容容器 - 左右分栏布局 */
 .content {
     flex: 1;
     display: flex;
     overflow: hidden;
 }
 
+/* 左侧提交列表区域 */
 .commit-list {
     width: 50%;
     border-right: 1px solid var(--vscode-panel-border);
     overflow-y: auto;
 }
 
+/* ==================== 提交列表样式 ==================== */
+
+/* 提交项基础样式 */
 .commit-item {
     padding: 12px;
     border-bottom: 1px solid var(--vscode-panel-border);
@@ -113,16 +138,19 @@ body {
     background-color: var(--vscode-list-hoverBackground);
 }
 
+/* 单选状态 */
 .commit-item.selected {
     background-color: var(--vscode-list-activeSelectionBackground);
     color: var(--vscode-list-activeSelectionForeground);
 }
 
+/* 多选状态 */
 .commit-item.multi-selected {
     background-color: var(--vscode-list-inactiveSelectionBackground);
     color: var(--vscode-list-inactiveSelectionForeground);
 }
 
+/* 提交项内部元素样式 */
 .commit-hash {
     font-family: var(--vscode-editor-font-family);
     font-size: 11px;
@@ -153,6 +181,7 @@ body {
     margin-top: 4px;
 }
 
+/* Git引用标签样式 */
 .ref-tag {
     display: inline-block;
     padding: 2px 6px;
@@ -162,30 +191,37 @@ body {
     color: var(--vscode-badge-foreground);
 }
 
+/* ==================== 右侧详情面板 ==================== */
+
+/* 提交详情容器 */
 .commit-details {
     width: 50%;
     padding: 16px;
     overflow-y: auto;
 }
 
+/* 占位符文本 */
 .placeholder {
     text-align: center;
     color: var(--vscode-descriptionForeground);
     margin-top: 50px;
 }
 
+/* 加载状态提示 */
 .loading {
     text-align: center;
     color: var(--vscode-descriptionForeground);
     padding: 20px;
 }
 
+/* 详情头部区域 */
 .details-header {
     border-bottom: 1px solid var(--vscode-panel-border);
     padding-bottom: 16px;
     margin-bottom: 16px;
 }
 
+/* 详情内容元素 */
 .details-hash {
     font-family: var(--vscode-editor-font-family);
     font-size: 12px;
@@ -233,6 +269,9 @@ body {
     line-height: 1.4;
 }
 
+/* ==================== 文件变更区域 ==================== */
+
+/* 无文件提示 */
 .no-files {
     text-align: center;
     color: var(--vscode-descriptionForeground);
@@ -240,10 +279,12 @@ body {
     padding: 20px;
 }
 
+/* 文件变更容器 */
 .file-changes {
     margin-top: 16px;
 }
 
+/* 文件变更头部 */
 .file-changes-header {
     display: flex;
     align-items: center;
@@ -257,7 +298,9 @@ body {
     font-weight: 500;
 }
 
-/* 文件树样式 */
+/* ==================== 文件树样式 ==================== */
+
+/* 文件树容器 */
 .file-tree-container {
     background-color: var(--vscode-sideBar-background);
     border: 1px solid var(--vscode-panel-border);
@@ -266,8 +309,30 @@ body {
     margin: 4px 0;
 }
 
+/* 文件夹样式 */
 .file-tree-folder {
     margin-left: 16px;
+}
+
+/* 压缩目录样式 */
+.file-tree-folder.compressed-folder {
+    position: relative;
+}
+
+.file-tree-folder.compressed-folder .folder-name {
+    color: var(--vscode-textLink-foreground);
+    font-style: italic;
+    opacity: 0.9;
+}
+
+.file-tree-folder.compressed-folder .folder-header {
+    background-color: var(--vscode-editor-inactiveSelectionBackground);
+    border-radius: 3px;
+    padding: 4px 6px;
+}
+
+.file-tree-folder.compressed-folder .folder-header:hover {
+    background-color: var(--vscode-list-hoverBackground);
 }
 
 .folder-header {
@@ -282,6 +347,7 @@ body {
     background-color: var(--vscode-list-hoverBackground);
 }
 
+/* 文件夹展开/折叠图标 */
 .folder-icon {
     margin-right: 6px;
     font-size: 10px;
@@ -301,6 +367,7 @@ body {
     color: var(--vscode-foreground);
 }
 
+/* 文件夹内文件数量 */
 .folder-count {
     margin-left: 6px;
     color: var(--vscode-descriptionForeground);
@@ -311,6 +378,7 @@ body {
     margin-left: 12px;
 }
 
+/* 文件树项样式 */
 .file-tree-item {
     margin-left: 16px;
     padding: 4px 0;
@@ -318,6 +386,7 @@ body {
     position: relative;
 }
 
+/* 文件树连接线 */
 .file-tree-item::before {
     content: '';
     position: absolute;
@@ -329,6 +398,7 @@ body {
     opacity: 0.3;
 }
 
+/* 根级文件特殊样式 */
 .file-tree-item[data-level="0"] {
     margin-left: 8px;
     padding-left: 12px;
@@ -341,17 +411,20 @@ body {
     display: none;
 }
 
+/* 文件信息容器 */
 .file-info {
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
+/* 文件图标 */
 .file-icon {
     margin-right: 6px;
     font-size: 12px;
 }
 
+/* 文件名样式 */
 .file-name {
     flex: 1;
     font-family: var(--vscode-editor-font-family);
@@ -365,12 +438,16 @@ body {
     background-color: var(--vscode-list-hoverBackground);
 }
 
+/* ==================== 文件视图控制 ==================== */
+
+/* 视图控制容器 */
 .file-view-controls {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+/* 视图切换按钮 (树形/列表) */
 .view-toggle-btn {
     background: none;
     border: 1px solid var(--vscode-button-border);
@@ -394,12 +471,16 @@ body {
     height: 16px;
 }
 
+/* ==================== 文件操作按钮 ==================== */
+
+/* 文件操作按钮容器 */
 .file-actions {
     display: flex;
     gap: 4px;
     opacity: 1;
 }
 
+/* 文件操作按钮样式 */
 .file-action-btn {
     background: none;
     border: none;
@@ -423,6 +504,7 @@ body {
     transform: scale(1.05);
 }
 
+/* 全部折叠按钮 */
 .collapse-all-btn {
     background: none;
     border: 1px solid var(--vscode-button-border);
@@ -438,6 +520,9 @@ body {
     background-color: var(--vscode-button-hoverBackground);
 }
 
+/* ==================== 文件列表样式 ==================== */
+
+/* 文件列表容器 */
 .file-list-container {
     background-color: var(--vscode-editor-background);
     border: 1px solid var(--vscode-panel-border);
@@ -445,6 +530,7 @@ body {
     margin: 4px 0;
 }
 
+/* 文件列表项 */
 .file-item {
     display: flex;
     flex-direction: column;
@@ -456,6 +542,7 @@ body {
     border-bottom: none;
 }
 
+/* 可点击文件项 */
 .file-item.clickable-file {
     cursor: pointer;
     padding: 8px 6px;
@@ -484,6 +571,9 @@ body {
     background-color: var(--vscode-list-hoverBackground);
 }
 
+/* ==================== 文件统计信息 ==================== */
+
+/* 文件变更统计 */
 .file-stats {
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
@@ -491,14 +581,19 @@ body {
     margin-left: 18px; /* 与文件图标对齐 */
 }
 
+/* 新增行数 */
 .insertions {
     color: #28a745;
 }
 
+/* 删除行数 */
 .deletions {
     color: #dc3545;
 }
 
+/* ==================== 上下文菜单 ==================== */
+
+/* 右键菜单容器 */
 .context-menu {
     position: fixed;
     background-color: var(--vscode-menu-background);
@@ -513,6 +608,7 @@ body {
     max-width: calc(100vw - 20px);
 }
 
+/* 菜单项 */
 .menu-item {
     padding: 8px 12px;
     cursor: pointer;
@@ -524,6 +620,7 @@ body {
     color: var(--vscode-menu-selectionForeground);
 }
 
+/* 禁用的菜单项 */
 .menu-item.disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -534,12 +631,16 @@ body {
     color: inherit;
 }
 
+/* 菜单分隔线 */
 .menu-separator {
     height: 1px;
     background-color: var(--vscode-menu-separatorBackground);
     margin: 4px 0;
 }
 
+/* ==================== 比较面板 ==================== */
+
+/* 全屏比较面板 */
 .compare-panel {
     position: fixed;
     top: 0;
@@ -552,6 +653,7 @@ body {
     flex-direction: column;
 }
 
+/* 比较面板头部 */
 .compare-header {
     display: flex;
     align-items: center;
@@ -566,6 +668,7 @@ body {
     font-size: 14px;
 }
 
+/* 关闭比较按钮 */
 #closeCompare {
     background: none;
     border: none;
@@ -585,12 +688,14 @@ body {
     border-radius: 2px;
 }
 
+/* 比较内容区域 */
 .compare-content {
     flex: 1;
     padding: 16px;
     overflow-y: auto;
 }
 
+/* 比较的提交信息 */
 .compare-commits {
     display: flex;
     gap: 16px;
@@ -606,6 +711,9 @@ body {
     border-radius: 4px;
 }
 
+/* ==================== 多选信息面板 ==================== */
+
+/* 多选操作提示面板 */
 .multi-select-info {
     position: fixed;
     bottom: 16px;
@@ -618,10 +726,12 @@ body {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* 多选操作按钮容器 */
 .multi-select-actions {
     margin-top: 8px;
 }
 
+/* 多选操作按钮 */
 .multi-select-actions button {
     background-color: var(--vscode-button-background);
     color: var(--vscode-button-foreground);

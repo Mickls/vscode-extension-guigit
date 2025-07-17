@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { GitHistoryProvider } from './gitHistoryProvider';
 
+/**
+ * Git历史视图提供者，负责管理Git历史的WebView界面
+ */
 export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'guigit.historyView';
     private _view?: vscode.WebviewView;
@@ -12,6 +15,12 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         private readonly _gitHistoryProvider: GitHistoryProvider
     ) {}
 
+    /**
+     * 解析WebView视图
+     * @param webviewView WebView视图实例
+     * @param _context WebView视图解析上下文
+     * @param _token 取消令牌
+     */
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         _context: vscode.WebviewViewResolveContext,
@@ -89,20 +98,28 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         this._sendViewMode();
     }
 
+    /**
+     * 刷新Git历史视图
+     * 使用防抖机制避免频繁刷新
+     */
     public refresh() {
-        // 防抖机制，避免频繁刷新
         if (this._refreshTimeout) {
             clearTimeout(this._refreshTimeout);
         }
         
         this._refreshTimeout = setTimeout(() => {
             if (this._view) {
+                // 清理后端缓存
+                this._gitHistoryProvider.clearCache();
                 this._sendBranches();
                 this._sendCommitHistory();
             }
-        }, 300); // 300ms防抖延迟
+        }, 300);
     }
 
+    /**
+     * 发送分支列表到WebView
+     */
     private async _sendBranches() {
         if (!this._view) return;
         
@@ -113,6 +130,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    /**
+     * 发送提交历史到WebView
+     * @param branch 分支名称
+     * @param skip 跳过的提交数量
+     */
     private async _sendCommitHistory(branch?: string, skip: number = 0) {
         if (!this._view) return;
         
@@ -127,6 +149,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    /**
+     * 发送提交总数到WebView
+     * @param branch 分支名称
+     */
     private async _sendTotalCommitCount(branch?: string) {
         if (!this._view) return;
         
@@ -137,21 +163,22 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    /**
+     * 发送提交详情到WebView
+     * @param hash 提交哈希
+     */
     private async _sendCommitDetails(hash: string) {
         if (!this._view) return;
         
         try {
-            console.log(`Getting commit details for: ${hash}`);
             const details = await this._gitHistoryProvider.getCommitDetails(hash);
             
             if (details) {
-                console.log(`Successfully got details for commit: ${hash.substring(0, 8)}`);
                 this._view.webview.postMessage({
                     type: 'commitDetails',
                     data: details
                 });
             } else {
-                console.log(`No details found for commit: ${hash.substring(0, 8)}`);
                 this._view.webview.postMessage({
                     type: 'error',
                     message: `Failed to load commit details for ${hash.substring(0, 8)}`
@@ -166,6 +193,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 跳转到HEAD提交
+     */
     private async _jumpToHead() {
         if (!this._view) return;
         
@@ -180,6 +210,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 执行cherry-pick操作
+     * @param hash 提交哈希
+     */
     private async _cherryPickCommit(hash: string) {
         const result = await vscode.window.showWarningMessage(
             `Are you sure you want to cherry-pick commit ${hash.substring(0, 8)}?`,
@@ -195,6 +229,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 执行revert操作
+     * @param hash 提交哈希
+     */
     private async _revertCommit(hash: string) {
         const result = await vscode.window.showWarningMessage(
             `Are you sure you want to revert commit ${hash.substring(0, 8)}?`,
@@ -210,6 +248,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 执行reset操作
+     * @param hash 提交哈希
+     * @param mode reset模式
+     */
     private async _resetToCommit(hash: string, mode: 'soft' | 'mixed' | 'hard') {
         const result = await vscode.window.showWarningMessage(
             `Are you sure you want to reset to commit ${hash.substring(0, 8)} (${mode})?`,
@@ -225,6 +268,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 比较两个提交
+     * @param hashes 提交哈希数组
+     */
     private async _compareCommits(hashes: string[]) {
         if (hashes.length !== 2) {
             vscode.window.showErrorMessage('Please select exactly 2 commits to compare');
@@ -241,6 +288,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    /**
+     * 压缩多个提交
+     * @param hashes 提交哈希数组
+     */
     private async _squashCommits(hashes: string[]) {
         if (hashes.length < 2) {
             vscode.window.showErrorMessage('Please select at least 2 commits to squash');
@@ -268,6 +319,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 打开文件
+     * @param filePath 文件路径
+     */
     private async _openFile(filePath: string) {
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -296,6 +351,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 显示文件历史
+     * @param filePath 文件路径
+     */
     private async _showFileHistory(filePath: string) {
         try {
             // 使用 Git 命令显示文件历史
@@ -309,7 +368,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             const panel = vscode.window.createWebviewPanel(
                 'fileHistory',
                 `History: ${filePath}`,
-                vscode.ViewColumn.One,
+                vscode.ViewColumn.Beside,
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -320,22 +379,37 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             const fileHistory = await this._gitHistoryProvider.getFileHistory(filePath);
             
             panel.webview.html = this._getFileHistoryHtml(filePath, fileHistory);
+            
+            // 处理来自文件历史页面的消息
+            panel.webview.onDidReceiveMessage(
+                message => {
+                    switch (message.type) {
+                        case 'jumpToCommit':
+                            this._jumpToCommitInMainView(message.hash);
+                            break;
+                    }
+                },
+                undefined
+            );
         } catch (error) {
             console.error('Error showing file history:', error);
             vscode.window.showErrorMessage(`Failed to show file history: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
+    /**
+     * 在线查看文件
+     * @param hash 提交哈希
+     * @param filePath 文件路径
+     */
     private async _viewFileOnline(hash: string, filePath: string) {
         try {
-            // 获取远程仓库 URL
             const remoteUrl = await this._gitHistoryProvider.getRemoteUrl();
             if (!remoteUrl) {
                 vscode.window.showErrorMessage('No remote repository found');
                 return;
             }
 
-            // 构建在线查看 URL（支持 GitHub, GitLab, Bitbucket）
             let onlineUrl = '';
             
             if (remoteUrl.includes('github.com')) {
@@ -369,12 +443,46 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 跳转到主视图中的指定提交
+     * @param hash 提交哈希
+     */
+    private _jumpToCommitInMainView(hash: string) {
+        if (!this._view) return;
+        
+        // 向主视图发送跳转消息
+        this._view.webview.postMessage({
+            type: 'jumpToCommit',
+            data: { hash }
+        });
+    }
+
+    /**
+     * HTML转义函数
+     * @param text 需要转义的文本
+     * @returns 转义后的文本
+     */
+    private _escapeHtml(text: string): string {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * 生成文件历史的HTML内容
+     * @param filePath 文件路径
+     * @param history 文件历史记录
+     * @returns HTML字符串
+     */
     private _getFileHistoryHtml(filePath: string, history: any[]): string {
         const commits = history.map(commit => `
-            <div class="commit-item">
+            <div class="commit-item" onclick="jumpToCommit('${commit.hash}')">
                 <div class="commit-hash">${commit.hash.substring(0, 8)}</div>
-                <div class="commit-message">${commit.message}</div>
-                <div class="commit-author">${commit.author}</div>
+                <div class="commit-message">${this._escapeHtml(commit.message)}</div>
+                <div class="commit-author">${this._escapeHtml(commit.author)}</div>
                 <div class="commit-date">${new Date(commit.date).toLocaleDateString()}</div>
             </div>
         `).join('');
@@ -406,6 +514,12 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         padding: 12px;
                         margin-bottom: 8px;
                         background-color: var(--vscode-editor-background);
+                        cursor: pointer;
+                        transition: background-color 0.2s ease;
+                    }
+                    .commit-item:hover {
+                        background-color: var(--vscode-list-hoverBackground);
+                        border-color: var(--vscode-list-hoverForeground);
                     }
                     .commit-hash {
                         font-family: monospace;
@@ -429,31 +543,50 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 </style>
             </head>
             <body>
-                <div class="file-path">File History: ${filePath}</div>
+                <div class="file-path">File History: ${this._escapeHtml(filePath)}</div>
                 <div class="commits">
                     ${commits}
                 </div>
+                <script>
+                    const vscode = acquireVsCodeApi();
+                    
+                    function jumpToCommit(hash) {
+                        vscode.postMessage({
+                            type: 'jumpToCommit',
+                            hash: hash
+                        });
+                    }
+                </script>
             </body>
             </html>
         `;
     }
 
+    /**
+     * 检查是否可以压缩提交
+     * @param hashes 提交哈希数组
+     * @returns 是否可以压缩
+     */
     private async _canSquashCommits(hashes: string[]): Promise<boolean> {
-        // 简单检查：如果提交数量少于2个，不能squash
         if (hashes.length < 2) {
             return false;
         }
         
-        // 这里可以添加更复杂的逻辑来检查提交是否连续
-        // 目前简化处理，假设用户选择的提交是可以squash的
         return true;
     }
 
+    /**
+     * 保存视图模式
+     * @param viewMode 视图模式
+     */
     private async _saveViewMode(viewMode: string) {
         const config = vscode.workspace.getConfiguration('guigit');
         await config.update('fileViewMode', viewMode, vscode.ConfigurationTarget.Workspace);
     }
 
+    /**
+     * 发送视图模式到WebView
+     */
     private async _sendViewMode() {
         if (!this._view) return;
         
@@ -466,30 +599,30 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    /**
+     * 显示文件差异
+     * @param hash 提交哈希
+     * @param filePath 文件路径
+     */
     private async _showFileDiff(hash: string, filePath: string) {
         try {
-            // 获取工作区根目录
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 vscode.window.showErrorMessage('No workspace folder found');
                 return;
             }
 
-            // 检查是否是初始提交
             const isInitialCommit = await this._gitHistoryProvider.isInitialCommit(hash);
 
             if (isInitialCommit) {
-                // 对于初始提交，也使用diff视图显示（空文件 vs 新文件）
                 const fileContent = await this._gitHistoryProvider.getFileContent(hash, filePath);
                 if (fileContent) {
                     const baseFileName = filePath.split('/').pop() || 'file';
                     const shortHash = hash.substring(0, 8);
                     
-                    // 创建空文件URI和新文件URI进行差异对比
                     const leftUri = this._createReadOnlyUri('', `${baseFileName} (empty)`, filePath);
                     const rightUri = this._createReadOnlyUri(fileContent, `${baseFileName} (${shortHash})`, filePath);
 
-                    // 显示差异视图
                     const title = `${baseFileName} (${shortHash}) - Initial Commit`;
                     await vscode.commands.executeCommand(
                         'vscode.diff',
@@ -505,7 +638,6 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     vscode.window.showErrorMessage(`Failed to get file content for ${filePath}`);
                 }
             } else {
-                // 对于普通提交，直接使用自定义的差异显示方法
                 await this._showCustomFileDiff(hash, filePath);
             }
         } catch (error) {
@@ -514,13 +646,16 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 显示自定义文件差异
+     * @param hash 提交哈希
+     * @param filePath 文件路径
+     */
     private async _showCustomFileDiff(hash: string, filePath: string) {
         try {
-            // 获取文件的两个版本内容
             const oldContent = await this._gitHistoryProvider.getFileContent(`${hash}^`, filePath);
             const newContent = await this._gitHistoryProvider.getFileContent(hash, filePath);
 
-            // 处理文件不存在的情况
             if (oldContent === null && newContent === null) {
                 vscode.window.showErrorMessage(`Failed to get file content for ${filePath}`);
                 return;
@@ -529,13 +664,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             const baseFileName = filePath.split('/').pop() || 'file';
             const shortHash = hash.substring(0, 8);
 
-            // 如果是新增文件（旧版本不存在）
             if (oldContent === null && newContent !== null) {
-                // 创建空文件URI和新文件URI进行差异对比
                 const leftUri = this._createReadOnlyUri('', `${baseFileName} (empty)`, filePath);
                 const rightUri = this._createReadOnlyUri(newContent, `${baseFileName} (${shortHash})`, filePath);
 
-                // 显示差异视图
                 const title = `${baseFileName} (${shortHash}) - New File`;
                 await vscode.commands.executeCommand(
                     'vscode.diff',
@@ -550,13 +682,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
-            // 如果是删除文件（新版本不存在）
             if (oldContent !== null && newContent === null) {
-                // 创建旧文件URI和空文件URI进行差异对比
                 const leftUri = this._createReadOnlyUri(oldContent, `${baseFileName} (${shortHash}^)`, filePath);
                 const rightUri = this._createReadOnlyUri('', `${baseFileName} (deleted)`, filePath);
 
-                // 显示差异视图
                 const title = `${baseFileName} (${shortHash}) - Deleted File`;
                 await vscode.commands.executeCommand(
                     'vscode.diff',
@@ -571,17 +700,14 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
-            // 如果内容相同，不需要显示差异
             if (oldContent === newContent) {
                 vscode.window.showInformationMessage(`No changes in ${filePath}`);
                 return;
             }
 
-            // 创建只读的临时URI进行差异对比
             const leftUri = this._createReadOnlyUri(oldContent || '', `${baseFileName} (${shortHash}^)`, filePath);
             const rightUri = this._createReadOnlyUri(newContent || '', `${baseFileName} (${shortHash})`, filePath);
 
-            // 显示差异视图
             const title = `${baseFileName} (${shortHash})`;
             await vscode.commands.executeCommand(
                 'vscode.diff',
@@ -600,25 +726,25 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * 创建只读URI
+     * @param content 文件内容
+     * @param fileName 文件名
+     * @param originalPath 原始文件路径
+     * @returns 只读URI
+     */
     private _createReadOnlyUri(content: string, fileName: string, originalPath: string): vscode.Uri {
-        // 创建唯一的URI
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 8);
         const uniqueKey = `${fileName}-${timestamp}-${random}`;
         const scheme = `git-history-${random}`;
         const uri = vscode.Uri.parse(`${scheme}:${fileName}?${timestamp}`);
         
-        // 清理之前的内容提供者
         const existingProvider = this._contentProviders.get(uniqueKey);
         if (existingProvider) {
             existingProvider.dispose();
         }
         
-        // 确定语言模式（当前未使用，但保留以备将来扩展）
-        // const isDiffFile = fileName.endsWith('.diff');
-        // const language = isDiffFile ? 'diff' : this._getLanguageFromFilePath(originalPath);
-        
-        // 注册新的文本文档内容提供者，使用唯一的scheme
         const disposable = vscode.workspace.registerTextDocumentContentProvider(scheme, {
             provideTextDocumentContent: (requestUri: vscode.Uri) => {
                 if (requestUri.toString() === uri.toString()) {
@@ -628,59 +754,24 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        // 保存提供者引用
         this._contentProviders.set(uniqueKey, disposable);
 
-        // 在一段时间后清理提供者（避免内存泄漏）
         setTimeout(() => {
             const provider = this._contentProviders.get(uniqueKey);
             if (provider === disposable) {
                 provider.dispose();
                 this._contentProviders.delete(uniqueKey);
             }
-        }, 300000); // 5分钟后清理
+        }, 300000);
 
         return uri;
     }
 
-    private _getLanguageFromFilePath(filePath: string): string {
-        const extension = filePath.split('.').pop()?.toLowerCase();
-        const languageMap: { [key: string]: string } = {
-            'js': 'javascript',
-            'ts': 'typescript',
-            'py': 'python',
-            'java': 'java',
-            'cpp': 'cpp',
-            'c': 'c',
-            'cs': 'csharp',
-            'php': 'php',
-            'rb': 'ruby',
-            'go': 'go',
-            'rs': 'rust',
-            'swift': 'swift',
-            'kt': 'kotlin',
-            'scala': 'scala',
-            'html': 'html',
-            'css': 'css',
-            'scss': 'scss',
-            'less': 'less',
-            'json': 'json',
-            'xml': 'xml',
-            'yaml': 'yaml',
-            'yml': 'yaml',
-            'md': 'markdown',
-            'sh': 'shellscript',
-            'bash': 'shellscript',
-            'zsh': 'shellscript',
-            'fish': 'shellscript',
-            'ps1': 'powershell',
-            'sql': 'sql',
-            'dockerfile': 'dockerfile'
-        };
-        
-        return languageMap[extension || ''] || 'plaintext';
-    }
-
+    /**
+     * 生成WebView的HTML内容
+     * @param webview WebView实例
+     * @returns HTML字符串
+     */
     private _getHtmlForWebview(webview: vscode.Webview) {
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.js'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.css'));
@@ -754,14 +845,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             </html>`;
     }
 
+    /**
+     * 释放资源
+     */
     public dispose() {
-        // 清理所有内容提供者
         for (const disposable of this._contentProviders.values()) {
             disposable.dispose();
         }
         this._contentProviders.clear();
         
-        // 清理刷新定时器
         if (this._refreshTimeout) {
             clearTimeout(this._refreshTimeout);
         }
