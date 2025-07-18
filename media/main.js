@@ -1353,33 +1353,137 @@
     function showCompareResult(data) {
         const { commits: compareCommits, changes } = data;
         
-        const changesHtml = changes.map(file => `
-            <div class="file-item">
-                <div class="file-name">${escapeHtml(file.file)}</div>
-                <div class="file-stats">
-                    ${file.binary ? 'binary' : ''}
-                    ${!file.binary ? `<span class="insertions">+${file.insertions}</span> <span class="deletions">-${file.deletions}</span>` : ''}
-                </div>
-            </div>
-        `).join('');
+        // 使用与commitDetails相同的文件渲染逻辑，提供完整的交互功能
+        const changesHtml = renderCompareFileList(changes, compareCommits);
 
         compareContent.innerHTML = `
             <div class="compare-commits">
                 <div class="compare-commit">
                     <h4>From: ${compareCommits[0].substring(0, 8)}</h4>
+                    <p class="commit-info">Base commit</p>
                 </div>
+                <div class="compare-arrow">→</div>
                 <div class="compare-commit">
                     <h4>To: ${compareCommits[1].substring(0, 8)}</h4>
+                    <p class="commit-info">Target commit</p>
                 </div>
             </div>
             <div class="file-changes">
-                <h3>Changed Files (${changes.length})</h3>
-                ${changesHtml}
+                <div class="file-changes-header">
+                    <h3>Changed Files (${changes.length})</h3>
+                </div>
+                <div class="file-list-container">
+                    ${changes.length > 0 ? changesHtml : '<div class="no-files">No files changed</div>'}
+                </div>
             </div>
         `;
 
         comparePanel.style.display = 'block';
+        
+        // 添加文件交互事件监听器
+        addCompareFileEventListeners(compareCommits);
     }
+
+    /**
+     * 渲染比较结果的文件列表
+     * @param {Array} files - 文件变更列表
+     * @param {Array} commits - 比较的提交哈希数组
+     * @returns {string} 渲染后的HTML字符串
+     */
+    function renderCompareFileList(files, commits) {
+        let html = '';
+        
+        // 遍历文件列表，为每个文件创建列表项
+        files.forEach(file => {
+            // 确定文件状态图标和颜色
+            let statusIcon = '';
+            let statusClass = '';
+            
+            if (file.status === 'A') {
+                statusIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/></svg>';
+                statusClass = 'file-added';
+            } else if (file.status === 'D') {
+                statusIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 7.5a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>';
+                statusClass = 'file-deleted';
+            } else {
+                statusIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M12.854 4.146a.5.5 0 0 0-.708 0L8 8.293 3.854 4.146a.5.5 0 1 0-.708.708L7.293 9l-4.147 4.146a.5.5 0 0 0 .708.708L8 9.707l4.146 4.147a.5.5 0 0 0 .708-.708L8.707 9l4.147-4.146a.5.5 0 0 0 0-.708z"/></svg>';
+                statusClass = 'file-modified';
+            }
+            
+            html += `
+                <div class="file-item ${statusClass}" data-file="${escapeHtml(file.file)}" data-from-hash="${escapeHtml(commits[0])}" data-to-hash="${escapeHtml(commits[1])}">
+                    <div class="file-info">
+                        <span class="file-status-icon" title="File ${file.status === 'A' ? 'added' : file.status === 'D' ? 'deleted' : 'modified'}">${statusIcon}</span>
+                        <span class="file-icon"><svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4 0h5.293A1 1 0 0 1 10 .293L13.707 4a1 1 0 0 1 .293.707V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5.5 1.5v2a1 1 0 0 0 1 1h2l-3-3z"/></svg></span>
+                        <span class="file-name">${escapeHtml(file.file)}</span>
+                        <div class="file-actions">
+                            <button class="file-action-btn" title="View Diff" onclick="showCompareFileDiff('${escapeHtml(commits[0])}', '${escapeHtml(commits[1])}', '${escapeHtml(file.file)}')">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h4a.5.5 0 0 1 0 1H2v13h12v-6a.5.5 0 0 1 1 0v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a.5.5 0 0 1 .5-.5z"/><path d="M15.854 2.146a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L8.5 8.793l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                            </button>
+                            ${file.status !== 'D' ? `
+                                <button class="file-action-btn" title="Open File" onclick="openFile('${escapeHtml(file.file)}')">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 0h5.293A1 1 0 0 1 10 .293L13.707 4a1 1 0 0 1 .293.707V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5.5 1.5v2a1 1 0 0 0 1 1h2l-3-3z"/></svg>
+                                </button>
+                                <button class="file-action-btn" title="File History" onclick="showFileHistory('${escapeHtml(file.file)}')">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3.5a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1-.5-.5zM8 6a.5.5 0 0 1 .5.5v1.5a.5.5 0 0 1-.5.5H6a.5.5 0 0 1 0-1h1.5V6.5A.5.5 0 0 1 8 6zM1 10.5a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1-.5-.5z"/><circle cx="4" cy="6.5" r="1.5"/><circle cx="4" cy="13.5" r="1.5"/></svg>
+                                </button>
+                                <button class="file-action-btn" title="View Online" onclick="viewFileOnline('${escapeHtml(commits[1])}', '${escapeHtml(file.file)}')">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/><path d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/></svg>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="file-stats">
+                        ${file.binary ? 'binary' : ''}
+                        ${!file.binary ? `<span class="insertions">+${file.insertions}</span> <span class="deletions">-${file.deletions}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        
+        return html;
+    }
+
+    /**
+     * 为比较结果的文件元素添加事件监听器
+     * @param {Array} commits - 比较的提交哈希数组
+     */
+    function addCompareFileEventListeners(commits) {
+        // 文件名点击事件 - 显示文件差异
+        const fileItems = compareContent.querySelectorAll('.file-name');
+        fileItems.forEach(fileItem => {
+            fileItem.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const fileElement = fileItem.closest('[data-file]');
+                const filePath = fileElement.dataset.file;
+                showCompareFileDiff(commits[0], commits[1], filePath);
+            });
+        });
+    }
+
+    /**
+     * 显示比较文件差异
+     * 全局函数，供HTML onclick调用
+     * @param {string} fromHash - 源提交哈希值
+     * @param {string} toHash - 目标提交哈希值
+     * @param {string} filePath - 文件路径
+     */
+    window.showCompareFileDiff = function(fromHash, toHash, filePath) {
+        vscode.postMessage({
+            type: 'showCompareFileDiff',
+            fromHash: fromHash,
+            toHash: toHash,
+            file: filePath
+        });
+    };
+
+    /**
+     * 关闭比较面板
+     * 全局函数，供HTML onclick调用
+     */
+    window.closeComparePanel = function() {
+        comparePanel.style.display = 'none';
+    };
 
     /**
      * 比较选中的提交记录

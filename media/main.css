@@ -894,3 +894,120 @@ body.resizing .resizer {
     background-color: var(--vscode-input-background);
     border-radius: 4px;
 }
+
+.compare-commit h4 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    font-family: var(--vscode-editor-font-family);
+}
+
+.compare-commit .commit-info {
+    margin: 0;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* 比较箭头 */
+.compare-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--vscode-descriptionForeground);
+    min-width: 30px;
+}
+
+/* 文件变更头部 */
+.file-changes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.file-changes-header h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* 文件状态样式 */
+.file-status-icon {
+    margin-right: 6px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.file-item.file-added {
+    border-left: 3px solid #28a745;
+}
+
+.file-item.file-added .file-status-icon {
+    color: #28a745;
+}
+
+.file-item.file-deleted {
+    border-left: 3px solid #dc3545;
+}
+
+.file-item.file-deleted .file-status-icon {
+    color: #dc3545;
+}
+
+.file-item.file-modified {
+    border-left: 3px solid #ffc107;
+}
+
+.file-item.file-modified .file-status-icon {
+    color: #ffc107;
+}
+
+/* 文件信息布局 */
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.file-icon {
+    color: var(--vscode-descriptionForeground);
+    display: inline-flex;
+    align-items: center;
+}
+
+/* 文件操作按钮 */
+.file-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.file-item:hover .file-actions {
+    opacity: 1;
+}
+
+.file-action-btn {
+    background: none;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-action-btn:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+    color: var(--vscode-foreground);
+}
+
+/* 无文件变更提示 */
+.no-files {
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+    padding: 20px;
+}

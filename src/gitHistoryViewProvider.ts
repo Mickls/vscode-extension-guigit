@@ -74,6 +74,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "showFileDiff":
           await this._showFileDiff(data.hash, data.file);
           break;
+        case "showCompareFileDiff":
+          await this._showCompareFileDiff(data.fromHash, data.toHash, data.file);
+          break;
         case "openFile":
           await this._openFile(data.file);
           break;
@@ -744,6 +747,131 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       }
     } catch (error) {
       console.error("Error showing file diff:", error);
+      vscode.window.showErrorMessage(
+        `Failed to show file diff: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+  }
+
+  /**
+   * 显示比较文件差异
+   * @param fromHash 源提交哈希
+   * @param toHash 目标提交哈希
+   * @param filePath 文件路径
+   */
+  private async _showCompareFileDiff(fromHash: string, toHash: string, filePath: string) {
+    try {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage("No workspace folder found");
+        return;
+      }
+
+      const fromContent = await this._gitHistoryProvider.getFileContent(
+        fromHash,
+        filePath
+      );
+      const toContent = await this._gitHistoryProvider.getFileContent(
+        toHash,
+        filePath
+      );
+
+      if (fromContent === null && toContent === null) {
+        vscode.window.showErrorMessage(
+          `Failed to get file content for ${filePath}`
+        );
+        return;
+      }
+
+      const baseFileName = filePath.split("/").pop() || "file";
+      const shortFromHash = fromHash.substring(0, 8);
+      const shortToHash = toHash.substring(0, 8);
+
+      if (fromContent === null && toContent !== null) {
+        // 文件在源提交中不存在，在目标提交中新增
+        const leftUri = this._createReadOnlyUri(
+          "",
+          `${baseFileName} (empty)`,
+          filePath
+        );
+        const rightUri = this._createReadOnlyUri(
+          toContent,
+          `${baseFileName} (${shortToHash})`,
+          filePath
+        );
+
+        const title = `${baseFileName} (${shortFromHash}..${shortToHash}) - New File`;
+        await vscode.commands.executeCommand(
+          "vscode.diff",
+          leftUri,
+          rightUri,
+          title,
+          {
+            viewColumn: vscode.ViewColumn.One,
+            preview: true,
+          }
+        );
+        return;
+      }
+
+      if (fromContent !== null && toContent === null) {
+        // 文件在源提交中存在，在目标提交中被删除
+        const leftUri = this._createReadOnlyUri(
+          fromContent,
+          `${baseFileName} (${shortFromHash})`,
+          filePath
+        );
+        const rightUri = this._createReadOnlyUri(
+          "",
+          `${baseFileName} (deleted)`,
+          filePath
+        );
+
+        const title = `${baseFileName} (${shortFromHash}..${shortToHash}) - Deleted File`;
+        await vscode.commands.executeCommand(
+          "vscode.diff",
+          leftUri,
+          rightUri,
+          title,
+          {
+            viewColumn: vscode.ViewColumn.One,
+            preview: true,
+          }
+        );
+        return;
+      }
+
+      if (fromContent === toContent) {
+        vscode.window.showInformationMessage(`No changes in ${filePath} between these commits`);
+        return;
+      }
+
+      const leftUri = this._createReadOnlyUri(
+        fromContent || "",
+        `${baseFileName} (${shortFromHash})`,
+        filePath
+      );
+      const rightUri = this._createReadOnlyUri(
+        toContent || "",
+        `${baseFileName} (${shortToHash})`,
+        filePath
+      );
+
+      const title = `${baseFileName} (${shortFromHash}..${shortToHash})`;
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        leftUri,
+        rightUri,
+        title,
+        {
+          viewColumn: vscode.ViewColumn.One,
+          preview: true,
+        }
+      );
+    } catch (error) {
+      console.error("Error showing compare file diff:", error);
       vscode.window.showErrorMessage(
         `Failed to show file diff: ${
           error instanceof Error ? error.message : "Unknown error"
