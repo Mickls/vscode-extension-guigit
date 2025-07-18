@@ -26,9 +26,11 @@ export interface GitGraphInfo {
 }
 
 export interface GitLane {
-  type: 'commit' | 'line' | 'merge' | 'branch';
+  type: 'commit' | 'line' | 'merge' | 'fork';
   color: string;
   column: number;
+  direction?: 'up' | 'down' | 'left' | 'right';
+  char?: string; // 原始字符，用于特殊渲染
 }
 
 export interface GitBranch {
@@ -238,10 +240,30 @@ export class GitHistoryProvider {
       if (char === '*' || char === '|' || char === '\\' || char === '/') {
         // 为每个活跃位置创建车道
         const laneColor = colors[i % colors.length];
+        
+        let laneType: 'commit' | 'line' | 'merge' | 'fork' = 'line';
+        let direction: 'up' | 'down' | 'left' | 'right' | undefined;
+        
+        // 根据字符类型确定车道类型和方向
+        if (char === '*') {
+          laneType = 'commit';
+        } else if (char === '|') {
+          laneType = 'line';
+          direction = 'up';
+        } else if (char === '\\') {
+          laneType = 'merge';
+          direction = 'right';
+        } else if (char === '/') {
+          laneType = 'fork';
+          direction = 'left';
+        }
+        
         lanes.push({
-          type: char === '*' ? 'commit' : 'line',
+          type: laneType,
           color: laneColor,
-          column: i
+          column: i,
+          direction,
+          char
         });
       }
     }

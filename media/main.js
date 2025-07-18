@@ -599,9 +599,17 @@
             
             let columnHtml = '<div class="graph-column">';
             
-            // 如果当前列有车道信息，显示垂直线条
-            if (lane && (lane.type === 'line' || lane.type === 'commit')) {
-                columnHtml += `<div class="graph-vertical-line" style="background-color: ${color};"></div>`;
+            // 根据车道类型渲染不同的图形元素
+            if (lane) {
+                if (lane.type === 'line' || lane.type === 'commit') {
+                    columnHtml += `<div class="graph-vertical-line" style="background-color: ${color};"></div>`;
+                } else if (lane.type === 'merge' && lane.char === '\\') {
+                    // 渲染合并线（\）
+                    columnHtml += `<div class="graph-curve bottom-left" style="border-color: ${color};"></div>`;
+                } else if (lane.type === 'fork' && lane.char === '/') {
+                    // 渲染分叉线（/）
+                    columnHtml += `<div class="graph-curve bottom-right" style="border-color: ${color};"></div>`;
+                }
             } else if (hasActiveBranch(commit, index, col)) {
                 // 备用逻辑：如果没有车道信息但检测到活跃分支，也显示线条
                 columnHtml += `<div class="graph-vertical-line" style="background-color: ${color};"></div>`;
@@ -643,22 +651,27 @@
             return true;
         }
         
+        // 检查当前提交的lanes中是否有这一列的信息
+        if (commit.graphInfo && commit.graphInfo.lanes) {
+            const hasLaneInColumn = commit.graphInfo.lanes.some(lane => lane.column === col);
+            if (hasLaneInColumn) {
+                return false; // 如果已经有lane信息，不需要额外的线条
+            }
+        }
+        
         // 检查这一列是否有连续的分支线
         // 向上查找
         let hasAbove = false;
-        for (let i = index - 1; i >= 0; i--) {
+        for (let i = index - 1; i >= 0 && i >= index - 3; i--) { // 限制查找范围
             const prevCommit = commits[i];
             if (prevCommit && prevCommit.graphInfo) {
-                // 如果找到在同一列的提交
-                if (prevCommit.graphInfo.column === col) {
+                // 检查是否有lane在这一列
+                if (prevCommit.graphInfo.lanes && prevCommit.graphInfo.lanes.some(lane => lane.column === col)) {
                     hasAbove = true;
                     break;
                 }
-                // 如果找到有连接到这一列的提交
-                if (prevCommit.children && prevCommit.children.some(child => {
-                    const childCommit = commits.find(c => c.hash === child);
-                    return childCommit && childCommit.graphInfo && childCommit.graphInfo.column === col;
-                })) {
+                // 如果找到在同一列的提交
+                if (prevCommit.graphInfo.column === col) {
                     hasAbove = true;
                     break;
                 }
@@ -667,27 +680,40 @@
         
         // 向下查找
         let hasBelow = false;
-        for (let i = index + 1; i < commits.length; i++) {
+        for (let i = index + 1; i < commits.length && i <= index + 3; i++) { // 限制查找范围
             const nextCommit = commits[i];
             if (nextCommit && nextCommit.graphInfo) {
-                // 如果找到在同一列的提交
-                if (nextCommit.graphInfo.column === col) {
+                // 检查是否有lane在这一列
+                if (nextCommit.graphInfo.lanes && nextCommit.graphInfo.lanes.some(lane => lane.column === col)) {
                     hasBelow = true;
                     break;
                 }
-                // 如果找到有连接到这一列的提交
-                if (nextCommit.parents && nextCommit.parents.some(parent => {
-                    const parentCommit = commits.find(c => c.hash === parent);
-                    return parentCommit && parentCommit.graphInfo && parentCommit.graphInfo.column === col;
-                })) {
+                // 如果找到在同一列的提交
+                if (nextCommit.graphInfo.column === col) {
                     hasBelow = true;
                     break;
                 }
             }
         }
         
-        return hasAbove || hasBelow;
+        return hasAbove && hasBelow; // 只有上下都有连接时才显示线条
     }
+    
+    /**
+     * 获取分支连接线信息（从当前提交连接到下一个提交的不同分支）
+     * @param {Object} commit - 提交记录对象
+     * @param {number} index - 提交记录在列表中的索引
+     * @param {number} col - 列号
+     * @returns {Array} 分支连接线数组
+     */
+    function getBranchConnections(commit, index, col) {
+          const connections = [];
+          
+          // 暂时返回空数组，先解决基本的分支线显示问题
+          // 后续可以根据实际的Git图形数据来实现分支连接逻辑
+          
+          return connections;
+      }
     
     /**
      * 获取水平连接线信息
