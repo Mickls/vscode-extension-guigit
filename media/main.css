@@ -177,6 +177,7 @@ body {
     position: relative;
     flex-shrink: 0;
     transition: background-color 0.2s ease;
+    z-index: 10; /* 确保分割线在最上层 */
 }
 
 .resizer:hover {
@@ -185,6 +186,23 @@ body {
 
 .resizer.dragging {
     background-color: var(--vscode-focusBorder);
+}
+
+/* 拖拽时的全局样式 */
+body.resizing {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+body.resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+    pointer-events: none !important;
+}
+
+/* 拖拽时分割线保持可交互 */
+body.resizing .resizer {
+    pointer-events: auto !important;
 }
 
 /* 分割线中央指示器 */
@@ -342,6 +360,30 @@ body {
     color: var(--vscode-badge-foreground);
 }
 
+/* HEAD 指针样式 - 红色 */
+.ref-tag.ref-head {
+    background-color: #f56565;
+    color: #ffffff;
+}
+
+/* 远程分支样式 - 蓝色 */
+.ref-tag.ref-remote {
+    background-color: #4299e1;
+    color: #ffffff;
+}
+
+/* 标签样式 - 绿色 */
+.ref-tag.ref-tag-label {
+    background-color: #48bb78;
+    color: #ffffff;
+}
+
+/* 本地分支样式 - 紫色 */
+.ref-tag.ref-local {
+    background-color: #9f7aea;
+    color: #ffffff;
+}
+
 /* ==================== 右侧详情面板内容样式 ==================== */
 
 /* 占位符文本 */
@@ -401,8 +443,6 @@ body {
     padding: 2px 6px;
     margin-right: 4px;
     border-radius: 10px;
-    background-color: var(--vscode-badge-background);
-    color: var(--vscode-badge-foreground);
 }
 
 .details-body {

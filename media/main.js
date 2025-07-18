@@ -120,8 +120,7 @@
         
         isResizing = true;
         resizer.classList.add('dragging');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
+        document.body.classList.add('resizing');
         
         // 禁用面板的过渡动画以提高拖拽响应性
         commitList.classList.add('no-transition');
@@ -152,8 +151,7 @@
             if (isResizing) {
                 isResizing = false;
                 resizer.classList.remove('dragging');
-                document.body.style.cursor = '';
-                document.body.style.userSelect = '';
+                document.body.classList.remove('resizing');
                 
                 // 重新启用面板的过渡动画
                 commitList.classList.remove('no-transition');
@@ -309,7 +307,8 @@
             if (previousCurrentCommit && data.commits.some(commit => commit.hash === previousCurrentCommit)) {
                 // 如果之前选中的提交仍然存在，保持选中状态
                 currentCommit = previousCurrentCommit;
-                selectedCommits = [previousCurrentCommit];
+                const commit = data.commits.find(c => c.hash === previousCurrentCommit);
+                selectedCommits = commit ? [commit] : [];
             } else {
                 // 只有当之前选中的提交不存在时才重置
                 currentCommit = null;
@@ -516,7 +515,10 @@
         div.dataset.index = index;
 
         const refs = commit.refs ? parseRefs(commit.refs) : [];
-        const refsHtml = refs.map(ref => `<span class="ref-tag">${ref}</span>`).join('');
+        const refsHtml = refs.map(ref => {
+            const refClass = getRefClass(ref);
+            return `<span class="ref-tag ${refClass}">${ref}</span>`;
+        }).join('');
 
         div.innerHTML = `
             <div class="commit-hash">${commit.hash.substring(0, 8)}</div>
@@ -570,14 +572,17 @@
      * @param {HTMLElement} element - 提交记录的DOM元素
      */
     function toggleCommitSelection(hash, element) {
-        const index = selectedCommits.indexOf(hash);
+        const commit = commits.find(c => c.hash === hash);
+        if (!commit) return;
+        
+        const index = selectedCommits.findIndex(c => c.hash === hash);
         if (index > -1) {
             // 取消选择：从数组中移除并移除样式
             selectedCommits.splice(index, 1);
             element.classList.remove('multi-selected');
         } else {
             // 添加选择：加入数组并添加样式
-            selectedCommits.push(hash);
+            selectedCommits.push(commit);
             element.classList.add('multi-selected');
         }
         updateMultiSelectInfo();
@@ -594,8 +599,12 @@
             item.classList.remove('selected', 'multi-selected');
         });
         
+        // 找到对应的提交对象
+        const commit = commits.find(c => c.hash === hash);
+        if (!commit) return;
+        
         // 重置选择数组
-        selectedCommits = [hash];
+        selectedCommits = [commit];
         currentCommit = hash;
         
         // 设置当前选中状态
@@ -849,7 +858,10 @@
 
         // 解析refs信息
         const refs = commit.refs ? parseRefs(commit.refs) : [];
-        const refsHtml = refs.map(ref => `<span class="ref-tag">${ref}</span>`).join('');
+        const refsHtml = refs.map(ref => {
+            const refClass = getRefClass(ref);
+            return `<span class="ref-tag ${refClass}">${ref}</span>`;
+        }).join('');
 
         // 构建完整的详情HTML
         const detailsHtml = `
@@ -1289,7 +1301,7 @@
         if (selectedCommits.length === 2) {
             vscode.postMessage({
                 type: 'compareCommits',
-                hashes: selectedCommits
+                hashes: selectedCommits.map(c => c.hash)
             });
         }
     };
@@ -1316,6 +1328,33 @@
     function parseRefs(refs) {
         if (!refs) return [];
         return refs.split(', ').filter(ref => ref.trim());
+    }
+
+    /**
+     * 根据引用类型获取对应的CSS类名
+     * @param {string} ref - Git引用字符串
+     * @returns {string} CSS类名
+     */
+    function getRefClass(ref) {
+        if (!ref) return '';
+        
+        // HEAD 指针
+        if (ref.includes('HEAD')) {
+            return 'ref-head';
+        }
+        
+        // 远程分支 (origin/xxx, upstream/xxx 等)
+        if (ref.includes('origin/') || ref.includes('upstream/') || ref.includes('remote/')) {
+            return 'ref-remote';
+        }
+        
+        // 标签 (tag: xxx)
+        if (ref.startsWith('tag:') || ref.includes('tags/')) {
+            return 'ref-tag-label';
+        }
+        
+        // 本地分支 (其他情况)
+        return 'ref-local';
     }
 
     /**
@@ -1357,7 +1396,7 @@
             headElement.classList.add('selected');
             headElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            selectedCommits = [headCommit.hash];
+            selectedCommits = [headCommit];
             currentCommit = headCommit.hash;
             
             // 请求获取提交详情
@@ -1388,7 +1427,9 @@
             targetElement.classList.add('selected');
             targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            selectedCommits = [commitHash];
+            // 找到对应的提交对象
+            const commit = commits.find(c => c.hash === commitHash);
+            selectedCommits = commit ? [commit] : [];
             currentCommit = commitHash;
             
             // 请求获取提交详情
