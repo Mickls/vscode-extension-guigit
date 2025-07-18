@@ -296,27 +296,159 @@ body.resizing .resizer {
 
 /* 提交项基础样式 */
 .commit-item {
-    padding: 12px;
+    display: flex;
+    align-items: stretch;
     border-bottom: 1px solid var(--vscode-panel-border);
     cursor: pointer;
     user-select: none;
     position: relative;
+    min-height: 60px;
 }
 
-.commit-item:hover {
+/* 让图形部分的垂直线能够穿过分割线 */
+.commit-item .commit-graph {
+    position: relative;
+    z-index: 5;
+}
+
+/* 确保分割线在垂直线条下方 */
+.commit-item {
+    position: relative;
+    z-index: 1;
+}
+
+.commit-item:hover .commit-content {
     background-color: var(--vscode-list-hoverBackground);
 }
 
 /* 单选状态 */
-.commit-item.selected {
+.commit-item.selected .commit-content {
     background-color: var(--vscode-list-activeSelectionBackground);
     color: var(--vscode-list-activeSelectionForeground);
 }
 
 /* 多选状态 */
-.commit-item.multi-selected {
+.commit-item.multi-selected .commit-content {
     background-color: var(--vscode-list-inactiveSelectionBackground);
     color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+/* 图形部分 */
+.commit-graph {
+    display: flex;
+    align-items: stretch;
+    min-width: 120px;
+    flex-shrink: 0;
+    position: relative;
+    background-color: var(--vscode-editor-background);
+}
+
+.graph-column {
+    width: 16px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+}
+
+/* 垂直线条 - 连续的分支线 */
+.graph-vertical-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+/* 水平连接线 - 用于分支合并 */
+.graph-horizontal-line {
+    position: absolute;
+    height: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+
+/* 提交节点 */
+.commit-node {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--vscode-editor-background);
+    z-index: 3;
+    position: relative;
+}
+
+/* 合并节点 */
+.merge-node {
+    width: 10px;
+    height: 10px;
+    border-radius: 1px;
+    border: 2px solid var(--vscode-editor-background);
+    z-index: 3;
+    position: relative;
+    transform: rotate(45deg);
+}
+
+/* 弯曲连接线 - 用于分支分叉和合并的圆滑过渡 */
+.graph-curve {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border: 2px solid transparent;
+    z-index: 2;
+}
+
+/* 各种弯曲方向 */
+.graph-curve.top-left {
+    top: 0;
+    left: 0;
+    border-top-color: inherit;
+    border-left-color: inherit;
+    border-top-left-radius: 8px;
+}
+
+.graph-curve.top-right {
+    top: 0;
+    right: 0;
+    border-top-color: inherit;
+    border-right-color: inherit;
+    border-top-right-radius: 8px;
+}
+
+.graph-curve.bottom-left {
+    bottom: 0;
+    left: 0;
+    border-bottom-color: inherit;
+    border-left-color: inherit;
+    border-bottom-left-radius: 8px;
+}
+
+.graph-curve.bottom-right {
+    bottom: 0;
+    right: 0;
+    border-bottom-color: inherit;
+    border-right-color: inherit;
+    border-bottom-right-radius: 8px;
+}
+
+.graph-placeholder {
+    width: 120px;
+    height: 50px;
+}
+
+/* 提交内容部分 */
+.commit-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    background-color: var(--vscode-editor-background);
 }
 
 /* 提交项内部元素样式 */
@@ -324,12 +456,12 @@ body.resizing .resizer {
     font-family: var(--vscode-editor-font-family);
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
-    margin-bottom: 4px;
+    margin: 0;
 }
 
 .commit-message {
     font-weight: 500;
-    margin-bottom: 4px;
+    margin: 0;
     line-height: 1.3;
 }
 
@@ -347,7 +479,7 @@ body.resizing .resizer {
 
 .commit-refs {
     font-size: 10px;
-    margin-top: 4px;
+    margin: 0;
 }
 
 /* Git引用标签样式 */

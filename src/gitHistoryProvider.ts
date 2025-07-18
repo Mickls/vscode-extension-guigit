@@ -9,6 +9,26 @@ export interface GitCommit {
   email: string;
   refs: string;
   body: string;
+  parents: string[];
+  children: string[];
+  branchName?: string;
+  graphInfo?: GitGraphInfo;
+}
+
+export interface GitGraphInfo {
+  column: number;
+  lanes: GitLane[];
+  mergeInfo?: {
+    isMerge: boolean;
+    mergeFrom?: number;
+    mergeTo?: number;
+  };
+}
+
+export interface GitLane {
+  type: 'commit' | 'line' | 'merge' | 'branch';
+  color: string;
+  column: number;
 }
 
 export interface GitBranch {
@@ -94,7 +114,7 @@ export class GitHistoryProvider {
   }
 
   /**
-   * 获取提交历史
+   * 获取提交历史（带图形信息）
    */
   async getCommitHistory(
     branch?: string,
@@ -103,11 +123,13 @@ export class GitHistoryProvider {
   ): Promise<GitCommit[]> {
     return this.executeGitCommand(
       async () => {
-        // 使用特殊的记录分隔符来区分不同的提交记录
+        // 使用git log --graph --oneline获取图形信息
         const RECORD_SEPARATOR = "---COMMIT-RECORD-SEPARATOR---";
         const args = [
           "log",
-          `--pretty=format:%H|%ai|%s|%an|%ae|%D|%b${RECORD_SEPARATOR}`,
+          "--graph",
+          "--all", // 显示所有分支
+          `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P|%b${RECORD_SEPARATOR}`,
           "--encoding=UTF-8",
           `--max-count=${limit}`,
         ];
@@ -116,52 +138,157 @@ export class GitHistoryProvider {
           args.push(`--skip=${skip}`);
         }
 
-        if (branch) {
+        if (branch && branch !== 'all') {
+          // 如果指定了特定分支，只显示该分支
+          args.splice(args.indexOf('--all'), 1);
           args.push(branch);
         }
 
         const result = await this.git!.raw(args);
         
-        // 使用记录分隔符分割提交记录
-        const records = result
-          .trim()
-          .split(RECORD_SEPARATOR)
-          .filter((record) => record.trim());
-
-        console.log(`Found ${records.length} commit records`);
+        // 解析带图形信息的输出
+        const lines = result.trim().split('\n').filter(line => line.trim());
+        const commits: GitCommit[] = [];
         
-        return records.map((record) => {
-          const trimmedRecord = record.trim();
-          const parts = trimmedRecord.split("|");
+        console.log(`Found ${lines.length} lines to process`);
+        
+        for (const line of lines) {
+          const graphMatch = line.match(/^([\s\|\\\/*]+)(.*)$/);
+          if (!graphMatch) continue;
           
-          // 验证是否为有效的提交记录（必须有hash值）
-          const hash = parts[0] || "";
-          if (!hash || hash.length < 7) {
-            console.warn(`Invalid commit record: ${trimmedRecord.substring(0, 50)}...`);
-            return null;
-          }
+          const graphPart = graphMatch[1];
+          const commitPart = graphMatch[2];
           
-          // 处理提交体，将多行内容合并
+          // 检查是否包含提交信息
+          if (!commitPart.includes('|')) continue;
+          
+          const recordEnd = commitPart.indexOf(RECORD_SEPARATOR);
+          const actualCommitPart = recordEnd > -1 ? commitPart.substring(0, recordEnd) : commitPart;
+          
+          const parts = actualCommitPart.split("|");
+          
+          // 验证是否为有效的提交记录
+          const hash = parts[0]?.trim() || "";
+          if (!hash || hash.length < 7) continue;
+          
+          // 解析父提交
+          const parents = parts[6] ? parts[6].trim().split(' ').filter(p => p) : [];
+          
+          // 处理提交体
           let body = "";
-          if (parts.length > 6) {
-            // 将第6个分隔符之后的所有内容作为body
-            body = parts.slice(6).join("|").trim();
+          if (parts.length > 7) {
+            body = parts.slice(7).join("|").trim();
           }
           
-          return {
+          // 解析图形信息
+          const graphInfo = this.parseGraphInfo(graphPart, parents.length > 1);
+          
+          const commit: GitCommit = {
             hash,
-            date: parts[1] || "",
-            message: parts[2] || "",
-            author: parts[3] || "",
-            email: parts[4] || "",
-            refs: parts[5] || "",
+            date: parts[1]?.trim() || "",
+            message: parts[2]?.trim() || "",
+            author: parts[3]?.trim() || "",
+            email: parts[4]?.trim() || "",
+            refs: parts[5]?.trim() || "",
             body,
+            parents,
+            children: [], // 将在后处理中填充
+            graphInfo
           };
-        }).filter((commit): commit is GitCommit => commit !== null); // 过滤掉无效记录
+          
+          commits.push(commit);
+        }
+        
+        // 后处理：建立父子关系
+        this.buildParentChildRelationships(commits);
+        
+        console.log(`Successfully processed ${commits.length} commits with graph info`);
+        return commits;
       },
       "Error getting commit history",
       []
     );
+  }
+
+  /**
+   * 解析图形信息
+   */
+  private parseGraphInfo(graphPart: string, isMerge: boolean): GitGraphInfo {
+    const lanes: GitLane[] = [];
+    let column = 0;
+    
+    // 改进的图形解析 - 正确处理git log --graph的输出格式
+    // git log --graph的输出格式：每个字符位置代表一列
+    // 主分支通常在最左侧，次要分支向右延伸
+    
+    // 找到提交节点（*）的位置
+    const commitIndex = graphPart.indexOf('*');
+    if (commitIndex !== -1) {
+      // 直接使用字符位置作为列号，确保位置一致性
+      column = commitIndex;
+    }
+    
+    // 生成颜色（基于列号）
+    const colors = ['#007acc', '#f14c4c', '#00aa00', '#ff8800', '#aa00aa', '#00aaaa'];
+    const color = colors[column % colors.length];
+    
+    // 解析所有活跃的车道
+    for (let i = 0; i < graphPart.length; i++) {
+      const char = graphPart[i];
+      if (char === '*' || char === '|' || char === '\\' || char === '/') {
+        // 为每个活跃位置创建车道
+        const laneColor = colors[i % colors.length];
+        lanes.push({
+          type: char === '*' ? 'commit' : 'line',
+          color: laneColor,
+          column: i
+        });
+      }
+    }
+    
+    // 如果没有找到任何车道，至少创建一个提交车道
+    if (lanes.length === 0) {
+      lanes.push({
+        type: 'commit',
+        color: colors[0],
+        column: 0
+      });
+    }
+    
+    // 如果是合并提交，添加合并信息
+    const mergeInfo = isMerge ? {
+      isMerge: true,
+      mergeFrom: column + 1,
+      mergeTo: column
+    } : undefined;
+    
+    return {
+      column,
+      lanes,
+      mergeInfo
+    };
+  }
+  
+  /**
+   * 建立父子关系
+   */
+  private buildParentChildRelationships(commits: GitCommit[]): void {
+    const commitMap = new Map<string, GitCommit>();
+    
+    // 创建哈希到提交的映射
+    commits.forEach(commit => {
+      commitMap.set(commit.hash, commit);
+    });
+    
+    // 建立父子关系
+    commits.forEach(commit => {
+      commit.parents.forEach(parentHash => {
+        const parent = commitMap.get(parentHash);
+        if (parent) {
+          parent.children.push(commit.hash);
+        }
+      });
+    });
   }
 
   /**
@@ -171,10 +298,10 @@ export class GitHistoryProvider {
     return this.executeGitCommand(
       async () => {
         const options: string[] = ["rev-list", "--count"];
-        if (branch) {
+        if (branch && branch !== 'all') {
           options.push(branch);
         } else {
-          options.push("HEAD");
+          options.push("--all");
         }
 
         const result = await this.git!.raw(options);
@@ -216,6 +343,8 @@ export class GitHistoryProvider {
             email: commit.author_email || "",
             refs: commit.refs || "",
             body: commit.body || "",
+            parents: [], // 在详情视图中不需要父子关系
+            children: [],
           },
           files,
         };
@@ -1059,6 +1188,8 @@ export class GitHistoryProvider {
           email: (commit as any).author_email || "",
           refs: commit.refs || "",
           body: (commit as any).body || "",
+          parents: [],
+          children: [],
         };
       },
       "Failed to get HEAD commit",
@@ -1137,6 +1268,8 @@ export class GitHistoryProvider {
           email: (commit as any).author_email || "",
           refs: commit.refs || "",
           body: (commit as any).body || "",
+          parents: [],
+          children: [],
         }));
       },
       "Failed to get file history",
