@@ -989,6 +989,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     <div class="menu-item" data-action="cherryPick">Cherry Pick</div>
                     <div class="menu-item" data-action="revert">Revert</div>
                     <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="compare" id="compareMenuItem">Compare Selected</div>
                     <div class="menu-item" data-action="squash" id="squashMenuItem">Squash Commits</div>
                     <div class="menu-separator"></div>
                     <div class="menu-item" data-action="resetSoft">Reset (Soft)</div>

@@ -331,9 +331,10 @@
             // 如果保持了选中状态，需要恢复UI状态和详情显示
             if (currentCommit) {
                 setTimeout(() => {
-                    const selectedElement = document.querySelector(`[data-hash="${currentCommit}"]`);
-                    if (selectedElement) {
-                        selectedElement.classList.add('selected');
+                    // 使用安全的更新函数确保UI状态正确
+                    const commit = commits.find(c => c.hash === currentCommit);
+                    if (commit) {
+                        ensureCommitSelectionUI(currentCommit);
                         // 如果有缓存的详情，直接显示
                         if (commitDetailsCache.has(currentCommit)) {
                             updateCommitDetails(commitDetailsCache.get(currentCommit));
@@ -577,14 +578,51 @@
         
         const index = selectedCommits.findIndex(c => c.hash === hash);
         if (index > -1) {
-            // 取消选择：从数组中移除并移除样式
+            // 取消选择：从数组中移除
             selectedCommits.splice(index, 1);
-            element.classList.remove('multi-selected');
+            
+            // 如果这是当前选中的提交，需要更新 currentCommit
+            if (currentCommit === hash) {
+                if (selectedCommits.length > 0) {
+                    // 如果还有其他选中的提交，选择第一个作为当前提交
+                    currentCommit = selectedCommits[0].hash;
+                } else {
+                    // 如果没有选中的提交了，清空当前提交
+                    currentCommit = null;
+                }
+            }
         } else {
-            // 添加选择：加入数组并添加样式
+            // 添加选择：加入数组
             selectedCommits.push(commit);
-            element.classList.add('multi-selected');
+            
+            // 如果这是第一个选中的提交，设置为当前提交
+            if (selectedCommits.length === 1) {
+                currentCommit = hash;
+            }
         }
+        
+        // 确保UI状态正确
+        if (selectedCommits.length === 0) {
+            // 没有选中的提交，清除所有样式
+            document.querySelectorAll('.commit-item').forEach(item => {
+                item.classList.remove('selected', 'multi-selected');
+            });
+        } else if (selectedCommits.length === 1) {
+            // 单选模式
+            ensureCommitSelectionUI(selectedCommits[0].hash);
+        } else {
+            // 多选模式
+            document.querySelectorAll('.commit-item').forEach(item => {
+                item.classList.remove('selected', 'multi-selected');
+            });
+            selectedCommits.forEach(commit => {
+                const element = document.querySelector(`[data-hash="${commit.hash}"]`);
+                if (element) {
+                    element.classList.add('multi-selected');
+                }
+            });
+        }
+        
         updateMultiSelectInfo();
     }
 
@@ -594,28 +632,18 @@
      * @param {HTMLElement} element - 提交记录的DOM元素
      */
     function selectSingleCommit(hash, element) {
-        // 清除所有选择状态
-        document.querySelectorAll('.commit-item').forEach(item => {
-            item.classList.remove('selected', 'multi-selected');
-        });
-        
         // 找到对应的提交对象
         const commit = commits.find(c => c.hash === hash);
         if (!commit) return;
         
-        // 重置选择数组
-        selectedCommits = [commit];
-        currentCommit = hash;
-        
-        // 设置当前选中状态
-        element.classList.add('selected');
+        // 使用安全的更新函数
+        safeUpdateCurrentCommit(hash, commit);
         
         // 性能优化：检查缓存
         if (commitDetailsCache.has(hash)) {
             // 从缓存中获取详情，立即显示
             const cachedDetails = commitDetailsCache.get(hash);
             updateCommitDetails(cachedDetails);
-            updateMultiSelectInfo();
             return;
         }
         
@@ -627,7 +655,6 @@
                 <div class="loading">Loading commit details...</div>
             `;
             rebindCollapseButtons();
-            updateMultiSelectInfo();
             return;
         }
         
@@ -646,8 +673,6 @@
             type: 'getCommitDetails',
             hash: hash
         });
-
-        updateMultiSelectInfo();
     }
     
     /**
@@ -672,28 +697,16 @@
 
     /**
      * 更新多选信息显示
-     * 当选中多个提交时显示操作面板
+     * 只更新选中状态，不再显示操作面板
      */
     function updateMultiSelectInfo() {
-        // 移除现有的多选信息面板
+        // 移除现有的多选信息面板（如果存在）
         const existingInfo = document.querySelector('.multi-select-info');
         if (existingInfo) {
             existingInfo.remove();
         }
-
-        // 如果选中了多个提交，显示操作面板
-        if (selectedCommits.length > 1) {
-            const info = document.createElement('div');
-            info.className = 'multi-select-info';
-            info.innerHTML = `
-                <div>${selectedCommits.length} commits selected</div>
-                <div class="multi-select-actions">
-                    <button onclick="compareSelectedCommits()">Compare</button>
-                    <button onclick="clearSelection()">Clear</button>
-                </div>
-            `;
-            document.body.appendChild(info);
-        }
+        
+        // 不再创建操作面板，多选操作通过右键菜单处理
     }
 
     /**
@@ -728,6 +741,18 @@
         contextMenu.style.display = 'block';
         contextMenu.style.left = x + 'px';
         contextMenu.style.top = y + 'px';
+
+        // 更新Compare菜单项状态
+        const compareMenuItem = contextMenu.querySelector('#compareMenuItem');
+        const canCompare = selectedCommits.length === 2;
+        
+        if (canCompare) {
+            compareMenuItem.classList.remove('disabled');
+            compareMenuItem.textContent = 'Compare Selected (2)';
+        } else {
+            compareMenuItem.classList.add('disabled');
+            compareMenuItem.textContent = `Compare Selected (${selectedCommits.length}/2)`;
+        }
 
         // 更新squash菜单项状态
         const squashMenuItem = contextMenu.querySelector('#squashMenuItem');
@@ -783,6 +808,15 @@
                 // 回滚提交
                 vscode.postMessage({ type: 'revert', hash });
                 break;
+            case 'compare':
+                // 比较选中的提交（仅在选中2个提交时可用）
+                if (selectedCommits.length === 2) {
+                    vscode.postMessage({
+                        type: 'compareCommits',
+                        hashes: selectedCommits.map(c => c.hash)
+                    });
+                }
+                break;
             case 'squash':
                 // 压缩多个提交（仅在多选时可用）
                 if (selectedCommits.length > 1) {
@@ -805,6 +839,57 @@
                 vscode.postMessage({ type: 'reset', hash, mode: 'hard' });
                 break;
         }
+    }
+
+    /**
+     * 确保提交选中状态的UI正确性
+     * @param {string} hash - 提交哈希值
+     */
+    function ensureCommitSelectionUI(hash) {
+        console.log(`Ensuring UI state for commit ${hash.substring(0, 8)}, selectedCommits: ${selectedCommits.length}`);
+        
+        // 清除所有选择状态
+        document.querySelectorAll('.commit-item').forEach(item => {
+            item.classList.remove('selected', 'multi-selected');
+        });
+        
+        // 确保当前选中的提交有正确的样式
+        const currentElement = document.querySelector(`[data-hash="${hash}"]`);
+        if (currentElement) {
+            if (selectedCommits.length === 1) {
+                currentElement.classList.add('selected');
+                console.log(`Applied 'selected' class to commit ${hash.substring(0, 8)}`);
+            } else if (selectedCommits.length > 1) {
+                // 多选模式下，为所有选中的提交添加样式
+                selectedCommits.forEach(commit => {
+                    const element = document.querySelector(`[data-hash="${commit.hash}"]`);
+                    if (element) {
+                        element.classList.add('multi-selected');
+                        console.log(`Applied 'multi-selected' class to commit ${commit.hash.substring(0, 8)}`);
+                    }
+                });
+            }
+        } else {
+            console.warn(`Element not found for commit ${hash.substring(0, 8)}`);
+        }
+    }
+
+    /**
+     * 安全地更新当前选中的提交
+     * @param {string} hash - 提交哈希值
+     * @param {Object} commit - 提交对象
+     */
+    function safeUpdateCurrentCommit(hash, commit) {
+        console.log(`Updating current commit from ${currentCommit ? currentCommit.substring(0, 8) : 'none'} to ${hash.substring(0, 8)}`);
+        
+        currentCommit = hash;
+        selectedCommits = commit ? [commit] : [];
+        
+        // 立即更新UI状态
+        ensureCommitSelectionUI(hash);
+        
+        // 更新多选信息
+        updateMultiSelectInfo();
     }
 
     /**
@@ -842,8 +927,12 @@
         // 这样可以防止预加载或其他异步请求影响当前显示的详情
         if (commit.hash !== currentCommit) {
             // 如果不是当前选中的提交，只缓存数据，不更新UI
+            console.log(`Skipping UI update for ${commit.hash.substring(0, 8)} (current: ${currentCommit ? currentCommit.substring(0, 8) : 'none'})`);
             return;
         }
+        
+        // 确保当前选中的 commit 元素仍然有正确的样式
+        ensureCommitSelectionUI(commit.hash);
         
         // 根据视图模式构建文件HTML
         let filesHtml;
@@ -1304,18 +1393,6 @@
                 hashes: selectedCommits.map(c => c.hash)
             });
         }
-    };
-
-    /**
-     * 清除所有选择
-     * 全局函数，供HTML onclick调用
-     */
-    window.clearSelection = function() {
-        selectedCommits = [];
-        document.querySelectorAll('.commit-item').forEach(item => {
-            item.classList.remove('multi-selected');
-        });
-        updateMultiSelectInfo();
     };
 
     // ==================== 工具函数 ====================
@@ -1947,4 +2024,29 @@
     vscode.postMessage({ type: 'getBranches' });
     loadCommits(true);
     
+    /**
+     * 定期检查并修复选中状态
+     * 防止由于异步操作或DOM更新导致的状态丢失
+     */
+    function checkAndFixSelectionState() {
+        if (currentCommit && selectedCommits.length > 0) {
+            const currentElement = document.querySelector(`[data-hash="${currentCommit}"]`);
+            if (currentElement && !currentElement.classList.contains('selected') && !currentElement.classList.contains('multi-selected')) {
+                console.log(`Fixing lost selection state for commit ${currentCommit.substring(0, 8)}`);
+                ensureCommitSelectionUI(currentCommit);
+            }
+        }
+    }
+
+    // 初始化定期检查
+    setInterval(checkAndFixSelectionState, 2000); // 每2秒检查一次
+
+    // 页面加载完成后的初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 确保初始状态正确
+        if (currentCommit) {
+            ensureCommitSelectionUI(currentCommit);
+        }
+    });
+
 })(); // 立即执行函数表达式结束

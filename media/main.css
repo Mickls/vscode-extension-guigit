@@ -894,39 +894,3 @@ body.resizing .resizer {
     background-color: var(--vscode-input-background);
     border-radius: 4px;
 }
-
-/* ==================== 多选信息面板 ==================== */
-
-/* 多选操作提示面板 */
-.multi-select-info {
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-    background-color: var(--vscode-notifications-background);
-    color: var(--vscode-notifications-foreground);
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-/* 多选操作按钮容器 */
-.multi-select-actions {
-    margin-top: 8px;
-}
-
-/* 多选操作按钮 */
-.multi-select-actions button {
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    padding: 4px 8px;
-    margin-right: 8px;
-    border-radius: 2px;
-    cursor: pointer;
-    font-size: 11px;
-}
-
-.multi-select-actions button:hover {
-    background-color: var(--vscode-button-hoverBackground);
-}
