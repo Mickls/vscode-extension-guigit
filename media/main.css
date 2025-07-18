@@ -119,7 +119,7 @@ body {
 
 /* 左侧提交列表区域 */
 .commit-list {
-    width: 50%;
+    width: 70%;
     overflow-y: auto;
     position: relative;
     transition: width 0.3s ease;
@@ -361,7 +361,7 @@ body.resizing .resizer {
     bottom: 0;
     width: 2px;
     transform: translateX(-50%);
-    z-index: 10;
+    z-index: 1;
 }
 
 /* 水平连接线 - 用于分支合并 */
@@ -371,6 +371,7 @@ body.resizing .resizer {
     top: 50%;
     transform: translateY(-50%);
     z-index: 1;
+    background-color: currentColor;
 }
 
 /* 提交节点 */
@@ -434,6 +435,36 @@ body.resizing .resizer {
     border-bottom-color: inherit;
     border-right-color: inherit;
     border-bottom-right-radius: 12px;
+}
+
+/* 分支分叉弯曲连接线样式 */
+.graph-fork-curve {
+    position: absolute;
+    z-index: 2;
+    border: none;
+    box-sizing: border-box;
+}
+
+.graph-fork-curve.right {
+    top: 0%;
+    left: 50%;
+    width: calc(var(--target-distance) * 16px + 1px);
+    height: 50%;
+    border-bottom: 2px solid;
+    border-right: 2px solid;
+    border-bottom-right-radius: 20px;
+    transform: translateX(0%);
+}
+
+.graph-fork-curve.left {
+    top: 0%;
+    right: 50%;
+    width: calc(var(--target-distance) * 16px + 1px);
+    height: 50%;
+    border-bottom: 2px solid;
+    border-left: 2px solid;
+    border-bottom-left-radius: 20px;
+    transform: translateX(0%);
 }
 
 .graph-placeholder {
