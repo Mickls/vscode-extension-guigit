@@ -114,13 +114,164 @@ body {
     flex: 1;
     display: flex;
     overflow: hidden;
+    position: relative;
 }
 
 /* 左侧提交列表区域 */
 .commit-list {
     width: 50%;
-    border-right: 1px solid var(--vscode-panel-border);
     overflow-y: auto;
+    position: relative;
+    transition: width 0.3s ease;
+}
+
+/* 拖拽时禁用过渡动画 */
+.commit-list.no-transition {
+    transition: none !important;
+}
+
+/* 左侧面板折叠状态 */
+.commit-list.collapsed {
+    width: 40px !important;
+    min-width: 40px !important;
+    overflow: hidden;
+    padding: 0;
+}
+
+/* 隐藏折叠面板中除了折叠按钮之外的所有内容 */
+.commit-list.collapsed > *:not(.panel-collapse-btn) {
+    display: none !important;
+}
+
+/* 左侧面板折叠按钮 */
+.panel-collapse-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    width: 24px;
+    height: 24px;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.panel-collapse-btn:hover {
+    background-color: var(--vscode-button-hoverBackground);
+    opacity: 1;
+}
+
+/* 可拖拽分割线 */
+.resizer {
+    width: 4px;
+    background-color: var(--vscode-panel-border);
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease;
+}
+
+.resizer:hover {
+    background-color: var(--vscode-focusBorder);
+}
+
+.resizer.dragging {
+    background-color: var(--vscode-focusBorder);
+}
+
+/* 分割线中央指示器 */
+.resizer::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 20px;
+    background-color: var(--vscode-icon-foreground);
+    opacity: 0.3;
+    border-radius: 1px;
+}
+
+.resizer:hover::after {
+    opacity: 0.6;
+}
+
+/* 右侧详情面板 */
+.commit-details {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    position: relative;
+    transition: width 0.3s ease;
+}
+
+/* 拖拽时禁用过渡动画 */
+.commit-details.no-transition {
+    transition: none !important;
+}
+
+/* 右侧面板折叠状态 */
+.commit-details.collapsed {
+    width: 40px !important;
+    min-width: 40px !important;
+    overflow: hidden;
+    padding: 0;
+}
+
+/* 隐藏折叠面板中除了折叠按钮之外的所有内容 */
+.commit-details.collapsed > *:not(.panel-collapse-btn) {
+    display: none !important;
+}
+
+/* 右侧面板折叠按钮 */
+.commit-details .panel-collapse-btn {
+    left: 8px;
+    right: auto;
+}
+
+/* 当左侧面板折叠时，调整分割线位置 */
+.commit-list.collapsed + .resizer {
+    display: block;
+}
+
+/* 当右侧面板折叠时，调整分割线位置 */
+.resizer + .commit-details.collapsed {
+    display: block;
+}
+
+.resizer.hidden {
+    display: none;
+}
+
+/* 展开按钮（当面板折叠时显示） - 移除这些样式，因为我们不再需要展开按钮 */
+.expand-btn {
+    display: none !important;
+}
+
+/* 当面板折叠时，折叠按钮样式调整 */
+.commit-list.collapsed .panel-collapse-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: auto;
+    transform: rotate(180deg);
+}
+
+.commit-details.collapsed .panel-collapse-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: auto;
+    transform: rotate(180deg);
 }
 
 /* ==================== 提交列表样式 ==================== */
@@ -191,14 +342,7 @@ body {
     color: var(--vscode-badge-foreground);
 }
 
-/* ==================== 右侧详情面板 ==================== */
-
-/* 提交详情容器 */
-.commit-details {
-    width: 50%;
-    padding: 16px;
-    overflow-y: auto;
-}
+/* ==================== 右侧详情面板内容样式 ==================== */
 
 /* 占位符文本 */
 .placeholder {

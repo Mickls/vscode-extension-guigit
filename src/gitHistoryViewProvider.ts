@@ -123,11 +123,19 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     private async _sendBranches() {
         if (!this._view) return;
         
-        const branches = await this._gitHistoryProvider.getBranches();
-        this._view.webview.postMessage({
-            type: 'branches',
-            data: branches
-        });
+        try {
+            const branches = await this._gitHistoryProvider.getBranches();
+            this._view.webview.postMessage({
+                type: 'branches',
+                data: branches
+            });
+        } catch (error) {
+            console.error('Error getting branches:', error);
+            this._view.webview.postMessage({
+                type: 'error',
+                message: `Failed to load branches: ${error instanceof Error ? error.message : 'Unknown error'}`
+            });
+        }
     }
 
     /**
@@ -138,15 +146,23 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     private async _sendCommitHistory(branch?: string, skip: number = 0) {
         if (!this._view) return;
         
-        const commits = await this._gitHistoryProvider.getCommitHistory(branch, 50, skip);
-        this._view.webview.postMessage({
-            type: 'commitHistory',
-            data: {
-                commits,
-                skip,
-                hasMore: commits.length === 50
-            }
-        });
+        try {
+            const commits = await this._gitHistoryProvider.getCommitHistory(branch, 50, skip);
+            this._view.webview.postMessage({
+                type: 'commitHistory',
+                data: {
+                    commits,
+                    skip,
+                    hasMore: commits.length === 50
+                }
+            });
+        } catch (error) {
+            console.error('Error getting commit history:', error);
+            this._view.webview.postMessage({
+                type: 'error',
+                message: `Failed to load commit history: ${error instanceof Error ? error.message : 'Unknown error'}`
+            });
+        }
     }
 
     /**
@@ -156,11 +172,20 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     private async _sendTotalCommitCount(branch?: string) {
         if (!this._view) return;
         
-        const totalCount = await this._gitHistoryProvider.getTotalCommitCount(branch);
-        this._view.webview.postMessage({
-            type: 'totalCommitCount',
-            data: totalCount
-        });
+        try {
+            const totalCount = await this._gitHistoryProvider.getTotalCommitCount(branch);
+            this._view.webview.postMessage({
+                type: 'totalCommitCount',
+                data: totalCount
+            });
+        } catch (error) {
+            console.error('Error getting total commit count:', error);
+            // 如果获取总数失败，设置为0，这样前端就不会等待更多提交
+            this._view.webview.postMessage({
+                type: 'totalCommitCount',
+                data: 0
+            });
+        }
     }
 
     /**
@@ -810,10 +835,14 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     
                     <div class="content">
                         <div class="commit-list" id="commitList">
+                            <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
                             <div class="loading">Loading commits...</div>
                         </div>
                         
+                        <div class="resizer" id="resizer"></div>
+                        
                         <div class="commit-details" id="commitDetails">
+                            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
                             <div class="placeholder">Select a commit to view details</div>
                         </div>
                     </div>
