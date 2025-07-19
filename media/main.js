@@ -15,6 +15,8 @@ import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manage
 import { showContextMenu as showContextMenuComponent, hideContextMenu, initializeContextMenu } from './components/context-menu.js';
 // 导入提交操作功能
 import { handleContextMenuAction as handleContextMenuActionComponent } from './features/commit-operations.js';
+// 导入提交比较功能
+import { showCompareResult as showCompareResultComponent, initializeCompareFeature } from './features/commit-compare.js';
 
 (function() {
     'use strict';
@@ -33,8 +35,15 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
     let isLoading = false;      // 是否正在加载
     let fileViewMode = 'list';  // 文件视图模式: 'tree' 或 'list'
     
-    // 将commits暴露到window对象，供模块访问
+    // 将commits和selectedCommits暴露到window对象，供模块访问
     window.commits = commits;
+    window.selectedCommits = selectedCommits;
+    
+    // 辅助函数：更新selectedCommits并同步到window对象
+    function updateSelectedCommits(newSelectedCommits) {
+        selectedCommits = newSelectedCommits;
+        window.selectedCommits = selectedCommits;
+    }
     
     // 性能优化：添加缓存机制
     let commitDetailsCache = new Map(); // 缓存commit详情，避免重复请求
@@ -78,7 +87,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
         loadedCommits = 0;
         commits = [];
         window.commits = commits;
-        selectedCommits = [];
+        updateSelectedCommits([]);
         // 注意：不重置currentCommit，让updateCommitHistory函数来处理
         // 性能优化：切换分支时清理缓存
         commitDetailsCache.clear();
@@ -92,7 +101,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
         loadedCommits = 0;
         commits = [];
         window.commits = commits;
-        selectedCommits = [];
+        updateSelectedCommits([]);
         // 注意：不重置currentCommit，让updateCommitHistory函数来处理
         // 性能优化：刷新时清理缓存
         commitDetailsCache.clear();
@@ -107,10 +116,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
         vscode.postMessage({ type: 'jumpToHead' });
     });
 
-    // 关闭比较面板按钮点击事件
-    closeCompare.addEventListener('click', () => {
-        comparePanel.style.display = 'none';
-    });
+    // 关闭比较面板事件监听器已迁移至 features/commit-compare.js
 
     // ==================== 面板管理器初始化 ====================
     
@@ -123,6 +129,9 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
     
     // 初始化右键菜单
     initializeContextMenu(contextMenu);
+    
+    // 初始化提交比较功能
+    initializeCompareFeature(comparePanel, closeCompare, (message) => vscode.postMessage(message));
 
     /**
      * 处理来自VS Code扩展的消息
@@ -156,7 +165,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
                 updateCommitDetails(message.data); // 更新提交详情信息
                 break;
             case 'compareResult':
-                showCompareResult(message.data);   // 显示提交比较结果
+                showCompareResultComponent(message.data, comparePanel, compareContent);   // 显示提交比较结果
                 break;
             case 'jumpToHead':
                 jumpToHeadCommit(message.data);    // 跳转到HEAD提交
@@ -249,14 +258,14 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
             const previousCurrentCommit = currentCommit; // 保存之前选中的提交
             commits = data.commits;
             window.commits = commits;
-            selectedCommits = [];
+            updateSelectedCommits([]);
             
             // 检查之前选中的提交是否仍然存在于新的提交列表中
             if (previousCurrentCommit && data.commits.some(commit => commit.hash === previousCurrentCommit)) {
                 // 如果之前选中的提交仍然存在，保持选中状态
                 currentCommit = previousCurrentCommit;
                 const commit = data.commits.find(c => c.hash === previousCurrentCommit);
-                selectedCommits = commit ? [commit] : [];
+                updateSelectedCommits(commit ? [commit] : []);
             } else {
                 // 只有当之前选中的提交不存在时才重置
                 currentCommit = null;
@@ -694,7 +703,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
         console.log(`Updating current commit from ${currentCommit ? currentCommit.substring(0, 8) : 'none'} to ${hash.substring(0, 8)}`);
         
         currentCommit = hash;
-        selectedCommits = commit ? [commit] : [];
+        updateSelectedCommits(commit ? [commit] : []);
         
         // 立即更新UI状态
         ensureCommitSelectionUI(hash);
@@ -941,107 +950,9 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
         });
     };
 
-    /**
-     * 显示提交比较结果
-     * @param {Object} data - 比较结果数据
-     * @param {Array} data.commits - 被比较的提交哈希数组
-     * @param {Array} data.changes - 文件变更列表
-     */
-    function showCompareResult(data) {
-        const { commits: compareCommits, changes } = data;
-        
-        // 使用与commitDetails相同的文件渲染逻辑，提供完整的交互功能
-        const changesHtml = renderCompareFileList(changes, compareCommits);
+    // 提交比较功能已迁移至 features/commit-compare.js
 
-        compareContent.innerHTML = `
-            <div class="compare-commits">
-                <div class="compare-commit">
-                    <h4>From: ${compareCommits[0].substring(0, 8)}</h4>
-                    <p class="commit-info">Base commit</p>
-                </div>
-                <div class="compare-arrow">→</div>
-                <div class="compare-commit">
-                    <h4>To: ${compareCommits[1].substring(0, 8)}</h4>
-                    <p class="commit-info">Target commit</p>
-                </div>
-            </div>
-            <div class="file-changes">
-                <div class="file-changes-header">
-                    <h3>Changed Files (${changes.length})</h3>
-                </div>
-                <div class="file-list-container">
-                    ${changes.length > 0 ? changesHtml : '<div class="no-files">No files changed</div>'}
-                </div>
-            </div>
-        `;
-
-        comparePanel.style.display = 'block';
-        
-        // 添加文件交互事件监听器
-        addCompareFileEventListeners(compareCommits);
-    }
-
-    /**
-     * 渲染比较结果的文件列表
-     * @param {Array} files - 文件变更列表
-     * @param {Array} commits - 比较的提交哈希数组
-     * @returns {string} 渲染后的HTML字符串
-     */
-
-    /**
-     * 为比较结果的文件元素添加事件监听器
-     * @param {Array} commits - 比较的提交哈希数组
-     */
-    function addCompareFileEventListeners(commits) {
-        // 文件名点击事件 - 显示文件差异
-        const fileItems = compareContent.querySelectorAll('.file-name');
-        fileItems.forEach(fileItem => {
-            fileItem.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const fileElement = fileItem.closest('[data-file]');
-                const filePath = fileElement.dataset.file;
-                showCompareFileDiff(commits[0], commits[1], filePath);
-            });
-        });
-    }
-
-    /**
-     * 显示比较文件差异
-     * 全局函数，供HTML onclick调用
-     * @param {string} fromHash - 源提交哈希值
-     * @param {string} toHash - 目标提交哈希值
-     * @param {string} filePath - 文件路径
-     */
-    window.showCompareFileDiff = function(fromHash, toHash, filePath) {
-        vscode.postMessage({
-            type: 'showCompareFileDiff',
-            fromHash: fromHash,
-            toHash: toHash,
-            file: filePath
-        });
-    };
-
-    /**
-     * 关闭比较面板
-     * 全局函数，供HTML onclick调用
-     */
-    window.closeComparePanel = function() {
-        comparePanel.style.display = 'none';
-    };
-
-    /**
-     * 比较选中的提交记录
-     * 全局函数，供HTML onclick调用
-     * 仅在选中两个提交时有效
-     */
-    window.compareSelectedCommits = function() {
-        if (selectedCommits.length === 2) {
-            vscode.postMessage({
-                type: 'compareCommits',
-                hashes: selectedCommits.map(c => c.hash)
-            });
-        }
-    };
+    // 比较文件事件监听器和全局函数已迁移至 features/commit-compare.js
 
     /**
      * 跳转到HEAD提交
@@ -1061,7 +972,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
             headElement.classList.add('selected');
             headElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            selectedCommits = [headCommit];
+            updateSelectedCommits([headCommit]);
             currentCommit = headCommit.hash;
             
             // 请求获取提交详情
@@ -1094,7 +1005,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
             
             // 找到对应的提交对象
             const commit = commits.find(c => c.hash === commitHash);
-            selectedCommits = commit ? [commit] : [];
+            updateSelectedCommits(commit ? [commit] : []);
             currentCommit = commitHash;
             
             // 请求获取提交详情
@@ -1385,7 +1296,7 @@ import { handleContextMenuAction as handleContextMenuActionComponent } from './f
          // 重新加载提交历史
          loadedCommits = 0;
          commits = [];
-         selectedCommits = [];
+         updateSelectedCommits([]);
          updateMultiSelectInfo();
          loadCommits(true);
      };
