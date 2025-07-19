@@ -44,8 +44,24 @@ body {
 .header-right {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     flex-shrink: 0; /* 防止收缩 */
+}
+
+/* Git操作按钮容器 */
+.git-operations {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    border-right: 1px solid var(--vscode-panel-border);
+}
+
+/* 头部控制按钮容器 */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 /* 分支选择下拉框 */
@@ -91,6 +107,39 @@ body {
 .icon-btn svg {
     width: 16px;
     height: 16px;
+}
+
+/* Git操作按钮样式 */
+.git-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background-color: transparent;
+    color: var(--vscode-icon-foreground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.1s ease;
+    white-space: nowrap;
+}
+
+.git-btn:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+    border-color: var(--vscode-button-hoverBackground);
+}
+
+.git-btn:active {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.git-btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
 }
 
 /* 刷新按钮样式 */

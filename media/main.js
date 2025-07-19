@@ -48,6 +48,13 @@ import {
     const compareContent = document.getElementById('compareContent');     // 比较内容容器
     const closeCompare = document.getElementById('closeCompare');         // 关闭比较面板按钮
     
+    // Git操作按钮引用
+    const pullBtn = document.getElementById('pullBtn');                   // 拉取按钮
+    const pushBtn = document.getElementById('pushBtn');                   // 推送按钮
+    const fetchBtn = document.getElementById('fetchBtn');                 // 抓取按钮
+    const cloneBtn = document.getElementById('cloneBtn');                 // 克隆按钮
+    const checkoutBtn = document.getElementById('checkoutBtn');           // 签出按钮
+    
     // 新增的拖拽和折叠相关元素（这些元素是动态创建的，不在初始化时获取）
     const resizer = document.getElementById('resizer');                   // 分割线
     // 折叠按钮现在在panel-manager.js中管理
@@ -94,6 +101,39 @@ import {
     // 跳转到HEAD提交按钮点击事件
     jumpToHeadBtn.addEventListener('click', () => {
         vscode.postMessage({ type: 'jumpToHead' });
+    });
+
+    // Git操作按钮事件监听器
+pullBtn.addEventListener('click', (event) => {
+  if (event.ctrlKey || event.metaKey) {
+    // 按住Ctrl/Cmd键显示高级选项
+    vscode.postMessage({ type: 'gitPullAdvanced' });
+  } else {
+    // 直接pull
+    vscode.postMessage({ type: 'gitPull' });
+  }
+});
+
+pushBtn.addEventListener('click', (event) => {
+  if (event.ctrlKey || event.metaKey) {
+    // 按住Ctrl/Cmd键显示高级选项
+    vscode.postMessage({ type: 'gitPushAdvanced' });
+  } else {
+    // 直接push
+    vscode.postMessage({ type: 'gitPush' });
+  }
+});
+
+    fetchBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'gitFetch' });
+    });
+
+    cloneBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'gitClone' });
+    });
+
+    checkoutBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'gitCheckout' });
     });
 
     // 关闭比较面板事件监听器已迁移至 features/commit-compare.js

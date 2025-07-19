@@ -92,6 +92,27 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "saveViewMode":
           await this._saveViewMode(data.viewMode);
           break;
+        case "gitPull":
+          await this._handleGitPull();
+          break;
+        case "gitPush":
+          this._handleGitPush();
+          break;
+        case "gitPullAdvanced":
+          this._handleGitPullAdvanced();
+          break;
+        case "gitPushAdvanced":
+          this._handleGitPushAdvanced();
+          break;
+        case "gitFetch":
+          this._handleGitFetch();
+          break;
+        case "gitClone":
+          await this._handleGitClone();
+          break;
+        case "gitCheckout":
+          await this._handleGitCheckout();
+          break;
       }
     });
 
@@ -1073,18 +1094,55 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             </select>
                         </div>
                         <div class="header-right">
-                            <button id="jumpToHeadBtn" class="icon-btn" title="Jump to HEAD">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M8 1l3 3-3 3V5H3v2h5v2L5 6l3-3V1z"/>
-                                    <path d="M13 8v5H3V8h2v3h6V8h2z"/>
-                                </svg>
-                            </button>
-                            <button id="refreshBtn" class="icon-btn" title="Refresh">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                                    <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                                </svg>
-                            </button>
+                            <div class="git-operations">
+                                <button id="pullBtn" class="git-btn" title="Pull (Ctrl+Click for advanced options)">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M7.5 6.5V1h1v5.5l1.5-1.5.707.707L8 8.414 5.293 5.707 6 5l1.5 1.5z"/>
+                                        <path d="M2 10v3h12v-3h1v4H1v-4h1z"/>
+                                    </svg>
+                                    Pull
+                                </button>
+                                <button id="pushBtn" class="git-btn" title="Push (Ctrl+Click for advanced options)">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M8.5 9.5V15h-1V9.5L6 11l-.707-.707L8 7.586l2.707 2.707L10 11l-1.5-1.5z"/>
+                                        <path d="M14 6V3H2v3H1V2h14v4h-1z"/>
+                                    </svg>
+                                    Push
+                                </button>
+                                <button id="fetchBtn" class="git-btn" title="Fetch">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM7 3v6L5.5 7.5 4.793 8.207 8 11.414l3.207-3.207L10.5 7.5 9 9V3H7z"/>
+                                    </svg>
+                                    Fetch
+                                </button>
+                                <button id="cloneBtn" class="git-btn" title="Clone">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h10V3H3z"/>
+                                        <path d="M5 5h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/>
+                                    </svg>
+                                    Clone
+                                </button>
+                                <button id="checkoutBtn" class="git-btn" title="Checkout">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM4.5 7.5a.5.5 0 0 0 0 1h5.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H4.5z"/>
+                                    </svg>
+                                    Checkout
+                                </button>
+                            </div>
+                            <div class="header-controls">
+                                <button id="jumpToHeadBtn" class="icon-btn" title="Jump to HEAD">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M8 1l3 3-3 3V5H3v2h5v2L5 6l3-3V1z"/>
+                                        <path d="M13 8v5H3V8h2v3h6V8h2z"/>
+                                    </svg>
+                                </button>
+                                <button id="refreshBtn" class="icon-btn" title="Refresh">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
@@ -1128,6 +1186,395 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 <script type="module" src="${scriptUri}"></script>
             </body>
             </html>`;
+  }
+
+  /**
+   * 处理Git Pull操作
+   */
+  private async _handleGitPull() {
+    try {
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Pulling from remote...",
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.pullFromRemote();
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage("Successfully pulled from remote");
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 处理Git Push操作
+   */
+  private async _handleGitPush() {
+    try {
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Pushing to remote...",
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.pushToRemote();
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage("Successfully pushed to remote");
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 处理Git Fetch操作
+   */
+  private async _handleGitFetch() {
+    try {
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Fetching from remote...",
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.fetchFromRemote();
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage("Successfully fetched from remote");
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 处理Git Clone操作
+   */
+  private async _handleGitClone() {
+    try {
+      const repoUrl = await vscode.window.showInputBox({
+        prompt: "Enter repository URL to clone",
+        placeHolder: "https://github.com/user/repo.git",
+        validateInput: (value) => {
+          if (!value || value.trim().length === 0) {
+            return "Repository URL is required";
+          }
+          return null;
+        },
+      });
+
+      if (!repoUrl) {
+        return;
+      }
+
+      const targetFolder = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: "Select Clone Location",
+      });
+
+      if (!targetFolder || targetFolder.length === 0) {
+        return;
+      }
+
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Cloning repository...",
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.cloneRepository(
+            repoUrl.trim(),
+            targetFolder[0].fsPath
+          );
+        }
+      );
+
+      if (result) {
+        const openChoice = await vscode.window.showInformationMessage(
+          "Repository cloned successfully",
+          "Open Folder"
+        );
+        if (openChoice === "Open Folder") {
+          await vscode.commands.executeCommand(
+            "vscode.openFolder",
+            vscode.Uri.file(result)
+          );
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 处理Git Checkout操作
+   */
+  private async _handleGitCheckout() {
+    try {
+      const branches = await this._gitHistoryProvider.getBranches();
+      const branchNames = branches.map((branch) => branch.name);
+      
+      // 添加创建新分支选项
+      const branchOptions = [...branchNames, "+ Create new branch"];
+
+      const selectedOption = await vscode.window.showQuickPick(branchOptions, {
+        placeHolder: "Select a branch to checkout or create new one",
+        canPickMany: false,
+      });
+
+      if (!selectedOption) {
+        return;
+      }
+
+      let targetBranch: string;
+      let isNewBranch = false;
+      
+      if (selectedOption === "+ Create new branch") {
+        // 创建新分支
+        const newBranchName = await vscode.window.showInputBox({
+          prompt: "Enter new branch name",
+          placeHolder: "new-branch-name",
+          validateInput: (value) => {
+            if (!value || value.trim().length === 0) {
+              return "Branch name is required";
+            }
+            if (branchNames.includes(value.trim())) {
+              return "Branch name already exists";
+            }
+            // 检查分支名称格式
+            if (!/^[a-zA-Z0-9._/-]+$/.test(value.trim())) {
+              return "Invalid branch name. Use only letters, numbers, dots, hyphens, underscores, and slashes";
+            }
+            return null;
+          },
+        });
+        
+        if (!newBranchName) {
+          return;
+        }
+        
+        targetBranch = newBranchName.trim();
+        isNewBranch = true;
+      } else {
+        targetBranch = selectedOption;
+      }
+
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: isNewBranch ? `Creating and checking out branch ${targetBranch}...` : `Checking out branch ${targetBranch}...`,
+          cancellable: false,
+        },
+        async () => {
+          if (isNewBranch) {
+            return await this._gitHistoryProvider.createAndCheckoutBranch(targetBranch);
+          } else {
+            return await this._gitHistoryProvider.checkoutBranch(targetBranch);
+          }
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage(
+          isNewBranch ? `Successfully created and checked out branch: ${targetBranch}` : `Successfully checked out branch: ${targetBranch}`
+        );
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 处理Git Pull高级选项
+   */
+  private async _handleGitPullAdvanced() {
+    try {
+      // 获取所有远程分支列表
+      const remoteBranches = await this._gitHistoryProvider.getAllRemoteBranches();
+      if (remoteBranches.length === 0) {
+        vscode.window.showErrorMessage("No remote branches found");
+        return;
+      }
+
+      // 选择远程分支
+      const selectedBranch = await vscode.window.showQuickPick(remoteBranches, {
+        placeHolder: "Select remote branch to pull from (e.g., origin/master)",
+        canPickMany: false,
+      });
+
+      if (!selectedBranch) {
+        return;
+      }
+
+      // 选择操作类型
+      const operation = await vscode.window.showQuickPick(
+        [
+          { label: "Pull (merge)", value: "pull" },
+          { label: "Pull with rebase", value: "rebase" },
+        ],
+        {
+          placeHolder: "Select pull operation",
+          canPickMany: false,
+        }
+      );
+
+      if (!operation) {
+        return;
+      }
+
+      const isRebase = operation.value === "rebase";
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `${isRebase ? 'Pulling with rebase' : 'Pulling'} from ${selectedBranch}...`,
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.pullFromFullRemoteBranch(
+            selectedBranch,
+            isRebase
+          );
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage(
+          `Successfully ${isRebase ? 'pulled with rebase' : 'pulled'} from ${selectedBranch}`
+        );
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 处理Git Push高级选项
+   */
+  private async _handleGitPushAdvanced() {
+    try {
+      // 获取所有远程分支列表
+      const remoteBranches = await this._gitHistoryProvider.getAllRemoteBranches();
+      
+      // 添加"新建分支"选项
+      const branchOptions = [...remoteBranches, "+ Create new branch"];
+      
+      // 选择目标分支
+      const selectedOption = await vscode.window.showQuickPick(branchOptions, {
+        placeHolder: "Select target branch or create new one (e.g., origin/master)",
+        canPickMany: false,
+      });
+
+      if (!selectedOption) {
+        return;
+      }
+
+      let targetBranch: string;
+      if (selectedOption === "+ Create new branch") {
+        // 创建新分支 - 需要用户输入完整的远程分支名称
+        const newBranchName = await vscode.window.showInputBox({
+          prompt: "Enter new remote branch name (format: remote/branch)",
+          placeHolder: "origin/new-branch-name",
+          validateInput: (value) => {
+            if (!value || value.trim().length === 0) {
+              return "Branch name is required";
+            }
+            if (!value.includes('/')) {
+              return "Invalid format. Please use 'remote/branch' format.";
+            }
+            return null;
+          },
+        });
+        if (!newBranchName) {
+          return;
+        }
+        targetBranch = newBranchName;
+      } else {
+        targetBranch = selectedOption;
+      }
+
+      // 选择推送选项
+      const pushOptions = await vscode.window.showQuickPick(
+        [
+          { label: "Normal push", value: "normal" },
+          { label: "Force push (--force)", value: "force" },
+        ],
+        {
+          placeHolder: "Select push option",
+          canPickMany: false,
+        }
+      );
+
+      if (!pushOptions) {
+        return;
+      }
+
+      const isForce = pushOptions.value === "force";
+      
+      // 如果是强制推送，显示警告
+      if (isForce) {
+        const confirm = await vscode.window.showWarningMessage(
+          "Force push can overwrite remote changes and may cause data loss. Are you sure?",
+          { modal: true },
+          "Yes, force push",
+          "Cancel"
+        );
+        
+        if (confirm !== "Yes, force push") {
+          return;
+        }
+      }
+
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `${isForce ? 'Force pushing' : 'Pushing'} to ${targetBranch}...`,
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.pushToFullRemoteBranch(
+            targetBranch,
+            isForce
+          );
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage(
+          `Successfully ${isForce ? 'force pushed' : 'pushed'} to ${targetBranch}`
+        );
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
   }
 
   /**

@@ -1365,4 +1365,288 @@ export class GitHistoryProvider {
       null
     );
   }
+
+  /**
+   * 从远程仓库拉取代码
+   * @returns 是否成功
+   */
+  async pullFromRemote(): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      await this.git.pull();
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Pull failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 从指定远程分支拉取代码
+   * @param remote 远程仓库名称
+   * @param branch 分支名称
+   * @param rebase 是否使用rebase
+   * @returns 是否成功
+   */
+  async pullFromRemoteBranch(remote: string, branch: string, rebase: boolean = false): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      if (rebase) {
+        await this.git.pull(remote, branch, { '--rebase': 'true' });
+      } else {
+        await this.git.pull(remote, branch);
+      }
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const operation = rebase ? 'Pull with rebase' : 'Pull';
+      throw new Error(`${operation} failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 推送代码到远程仓库
+   * @returns 是否成功
+   */
+  async pushToRemote(): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      await this.git.push();
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Push failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 推送代码到指定远程分支
+   * @param remote 远程仓库名称
+   * @param branch 分支名称
+   * @param force 是否强制推送
+   * @returns 是否成功
+   */
+  async pushToRemoteBranch(remote: string, branch: string, force: boolean = false): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const options: any = {};
+      if (force) {
+        options['--force'] = null;
+      }
+      await this.git.push(remote, branch, options);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const operation = force ? 'Force push' : 'Push';
+      throw new Error(`${operation} failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 获取远程仓库列表
+   * @returns 远程仓库列表
+   */
+  async getRemotes(): Promise<string[]> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const remotes = await this.git.getRemotes();
+      return remotes.map(remote => remote.name);
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Get remotes failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 获取远程分支列表
+   * @param remote 远程仓库名称
+   * @returns 远程分支列表
+   */
+  async getRemoteBranches(remote: string): Promise<string[]> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const branches = await this.git.branch(['-r']);
+      return branches.all
+        .filter(branch => branch.startsWith(`${remote}/`))
+        .map(branch => branch.replace(`${remote}/`, ''))
+        .filter(branch => branch !== 'HEAD');
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Get remote branches failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 获取所有远程分支列表（包含远程仓库名称）
+   * @returns 远程分支列表，格式为 remote/branch
+   */
+  async getAllRemoteBranches(): Promise<string[]> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const branches = await this.git.branch(['-r']);
+      return branches.all
+        .filter(branch => !branch.includes('HEAD'))
+        .map(branch => branch.trim());
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Get all remote branches failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 从指定的完整远程分支拉取代码
+   * @param remoteBranch 完整的远程分支名称，格式为 remote/branch
+   * @param rebase 是否使用rebase
+   * @returns 是否成功
+   */
+  async pullFromFullRemoteBranch(remoteBranch: string, rebase: boolean = false): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const [remote, branch] = remoteBranch.split('/', 2);
+      if (!remote || !branch) {
+        throw new Error(`Invalid remote branch format: ${remoteBranch}`);
+      }
+
+      if (rebase) {
+        await this.git.pull(remote, branch, { '--rebase': 'true' });
+      } else {
+        await this.git.pull(remote, branch);
+      }
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const operation = rebase ? 'Pull with rebase' : 'Pull';
+      throw new Error(`${operation} failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 推送到指定的完整远程分支
+   * @param remoteBranch 完整的远程分支名称，格式为 remote/branch
+   * @param force 是否强制推送
+   * @returns 是否成功
+   */
+  async pushToFullRemoteBranch(remoteBranch: string, force: boolean = false): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const [remote, branch] = remoteBranch.split('/', 2);
+      if (!remote || !branch) {
+        throw new Error(`Invalid remote branch format: ${remoteBranch}`);
+      }
+
+      const options: any = {};
+      if (force) {
+        options['--force'] = null;
+      }
+      await this.git.push(remote, branch, options);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const operation = force ? 'Force push' : 'Push';
+      throw new Error(`${operation} failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 从远程仓库抓取代码
+   * @returns 是否成功
+   */
+  async fetchFromRemote(): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      await this.git.fetch();
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Fetch failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 克隆远程仓库
+   * @param repoUrl 仓库URL
+   * @param targetPath 目标路径
+   * @returns 克隆后的路径或null
+   */
+  async cloneRepository(repoUrl: string, targetPath: string): Promise<string | null> {
+    try {
+      const path = require('path');
+      const repoName = repoUrl.split('/').pop()?.replace('.git', '') || 'repository';
+      const clonePath = path.join(targetPath, repoName);
+      
+      await simpleGit().clone(repoUrl, clonePath);
+      return clonePath;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Clone failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 切换到指定分支
+   * @param branchName 分支名称
+   * @returns 是否成功
+   */
+  async checkoutBranch(branchName: string): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      await this.git.checkout(branchName);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Checkout failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 创建并切换到新分支
+   * @param branchName 新分支名称
+   * @returns 是否成功
+   */
+  async createAndCheckoutBranch(branchName: string): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      await this.git.checkoutLocalBranch(branchName);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Create and checkout branch failed: ${errorMessage}`);
+    }
+  }
 }
