@@ -11,6 +11,10 @@ import { createGraphHtml } from './components/commit-graph.js';
 import { buildFileTree, renderFileTree, renderFileList, renderCompareFileList } from './components/file-tree.js';
 // 导入面板管理模块
 import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manager.js';
+// 导入右键菜单组件
+import { showContextMenu as showContextMenuComponent, hideContextMenu, initializeContextMenu } from './components/context-menu.js';
+// 导入提交操作功能
+import { handleContextMenuAction as handleContextMenuActionComponent } from './features/commit-operations.js';
 
 (function() {
     'use strict';
@@ -108,11 +112,6 @@ import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manage
         comparePanel.style.display = 'none';
     });
 
-    // 全局点击事件 - 隐藏右键上下文菜单
-    document.addEventListener('click', () => {
-        contextMenu.style.display = 'none';
-    });
-
     // ==================== 面板管理器初始化 ====================
     
     // 初始化面板管理器
@@ -121,6 +120,9 @@ import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manage
         commitDetails,
         resizer
     });
+    
+    // 初始化右键菜单
+    initializeContextMenu(contextMenu);
 
     /**
      * 处理来自VS Code扩展的消息
@@ -477,7 +479,9 @@ import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manage
         // 添加右键上下文菜单事件
         div.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            showContextMenu(e, commit.hash);
+            showContextMenuComponent(e, commit.hash, selectedCommits, contextMenu, (action, hash) => {
+                handleContextMenuActionComponent(action, hash, selectedCommits, (message) => vscode.postMessage(message));
+            });
         });
         
         // 性能优化：添加hover预加载
@@ -646,138 +650,6 @@ import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manage
         }
         
         // 不再创建操作面板，多选操作通过右键菜单处理
-    }
-
-    /**
-     * 显示右键上下文菜单
-     * @param {MouseEvent} event - 鼠标右键事件
-     * @param {string} hash - 提交哈希值
-     */
-    function showContextMenu(event, hash) {
-        const menuWidth = 150;
-        const menuHeight = 200; // 估算菜单高度
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        
-        let x = event.pageX;
-        let y = event.pageY;
-        
-        // 防止菜单超出右边界
-        if (x + menuWidth > windowWidth) {
-            x = windowWidth - menuWidth - 10;
-        }
-        
-        // 防止菜单超出下边界
-        if (y + menuHeight > windowHeight) {
-            y = windowHeight - menuHeight - 10;
-        }
-        
-        // 确保菜单不会超出左边界和上边界
-        x = Math.max(10, x);
-        y = Math.max(10, y);
-        
-        // 显示菜单并设置位置
-        contextMenu.style.display = 'block';
-        contextMenu.style.left = x + 'px';
-        contextMenu.style.top = y + 'px';
-
-        // 更新Compare菜单项状态
-        const compareMenuItem = contextMenu.querySelector('#compareMenuItem');
-        const canCompare = selectedCommits.length === 2;
-        
-        if (canCompare) {
-            compareMenuItem.classList.remove('disabled');
-            compareMenuItem.textContent = 'Compare Selected (2)';
-        } else {
-            compareMenuItem.classList.add('disabled');
-            compareMenuItem.textContent = `Compare Selected (${selectedCommits.length}/2)`;
-        }
-
-        // 更新squash菜单项状态
-        const squashMenuItem = contextMenu.querySelector('#squashMenuItem');
-        const canSquash = selectedCommits.length > 1;
-        
-        if (canSquash) {
-            squashMenuItem.classList.remove('disabled');
-            squashMenuItem.textContent = `Squash ${selectedCommits.length} Commits`;
-        } else {
-            squashMenuItem.classList.add('disabled');
-            squashMenuItem.textContent = 'Squash Commits';
-        }
-
-        // 移除之前的事件监听器（通过克隆节点）
-        const menuItems = contextMenu.querySelectorAll('.menu-item');
-        menuItems.forEach(item => {
-            const newItem = item.cloneNode(true);
-            item.parentNode.replaceChild(newItem, item);
-        });
-
-        // 添加新的事件监听器
-        contextMenu.querySelectorAll('.menu-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.stopPropagation();
-                
-                // 检查是否是禁用的菜单项
-                if (item.classList.contains('disabled')) {
-                    return;
-                }
-                
-                handleContextMenuAction(item.dataset.action, hash);
-                contextMenu.style.display = 'none';
-            });
-        });
-    }
-
-    /**
-     * 处理上下文菜单操作
-     * @param {string} action - 操作类型
-     * @param {string} hash - 提交哈希值
-     */
-    function handleContextMenuAction(action, hash) {
-        switch (action) {
-            case 'copyHash':
-                // 复制提交哈希值到剪贴板
-                vscode.postMessage({ type: 'copyHash', hash });
-                break;
-            case 'cherryPick':
-                // Cherry-pick 提交
-                vscode.postMessage({ type: 'cherryPick', hash });
-                break;
-            case 'revert':
-                // 回滚提交
-                vscode.postMessage({ type: 'revert', hash });
-                break;
-            case 'compare':
-                // 比较选中的提交（仅在选中2个提交时可用）
-                if (selectedCommits.length === 2) {
-                    vscode.postMessage({
-                        type: 'compareCommits',
-                        hashes: selectedCommits.map(c => c.hash)
-                    });
-                }
-                break;
-            case 'squash':
-                // 压缩多个提交（仅在多选时可用）
-                if (selectedCommits.length > 1) {
-                    vscode.postMessage({ 
-                        type: 'squashCommits', 
-                        commits: selectedCommits 
-                    });
-                }
-                break;
-            case 'resetSoft':
-                // 软重置到指定提交
-                vscode.postMessage({ type: 'reset', hash, mode: 'soft' });
-                break;
-            case 'resetMixed':
-                // 混合重置到指定提交
-                vscode.postMessage({ type: 'reset', hash, mode: 'mixed' });
-                break;
-            case 'resetHard':
-                // 硬重置到指定提交
-                vscode.postMessage({ type: 'reset', hash, mode: 'hard' });
-                break;
-        }
     }
 
     /**
