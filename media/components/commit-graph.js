@@ -132,7 +132,7 @@ export function hasActiveBranch(commit, index, col) {
     }
     
     // 获取全局commits数组的引用
-    const commits = window.commits || [];
+    const commits = window.getState ? window.getState('commits') : (window.commits || []);
     
     // 检查这一列是否有连续的分支线
     // 向上查找
@@ -215,7 +215,7 @@ export function getForkConnections(commit, index, col) {
     // 分叉应该发生在一个提交有多个子提交，且这些子提交在不同列的情况
     if (commit.hash && commit.graphInfo) {
         // 获取全局commits数组的引用
-        const commits = window.commits || [];
+        const commits = window.getState ? window.getState('commits') : (window.commits || []);
         
         // 查找所有以当前提交为父提交的子提交
         const childCommits = [];
@@ -290,8 +290,8 @@ export function getForkConnections(commit, index, col) {
 export function getHorizontalConnections(commit, index, col) {
     const connections = [];
     
-    // 获取全局commits数组的引用
-        const commits = window.commits || [];
+        // 获取全局commits数组的引用
+        const commits = window.getState ? window.getState('commits') : (window.commits || []);
         
         // 如果是合并提交，需要绘制从父提交到当前提交的连接线
         if (commit.parents && commit.parents.length > 1 && commit.graphInfo && commit.graphInfo.column === col) {

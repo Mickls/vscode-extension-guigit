@@ -112,7 +112,7 @@ export function initializeCompareFeature(comparePanel, closeCompare, vscodePostM
     // 比较选中的提交记录，供HTML onclick调用
     window.compareSelectedCommits = function() {
         // 需要从全局获取selectedCommits
-        const selectedCommits = window.selectedCommits || [];
+        const selectedCommits = window.getState ? window.getState('selectedCommits') : (window.selectedCommits || []);
         if (selectedCommits.length === 2) {
             vscodePostMessage({
                 type: 'compareCommits',

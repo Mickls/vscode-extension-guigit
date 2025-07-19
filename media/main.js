@@ -17,6 +17,13 @@ import { showContextMenu as showContextMenuComponent, hideContextMenu, initializ
 import { handleContextMenuAction as handleContextMenuActionComponent } from './features/commit-operations.js';
 // 导入提交比较功能
 import { showCompareResult as showCompareResultComponent, initializeCompareFeature } from './features/commit-compare.js';
+// 导入状态管理模块
+import { 
+    initializeStateManager, getState, setState, setStates,
+    updateSelectedCommits, setCurrentCommit, setCurrentBranch, setLoading, setFileViewMode,
+    resetCommitState, clearAllCache, getCachedCommitDetails, setCachedCommitDetails,
+    hasPendingRequest, setPendingRequest, setSearchingForCommit, setPendingJumpCommit
+} from './core/state-manager.js';
 
 (function() {
     'use strict';
@@ -24,30 +31,11 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
     // 获取VS Code API
     const vscode = acquireVsCodeApi();
     
-    // 全局变量
-    let commits = [];           // 提交记录列表
-    let branches = [];          // 分支列表
-    let selectedCommits = [];   // 选中的提交记录
-    let currentCommit = null;   // 当前查看的提交
-    let currentBranch = '';     // 当前分支
-    let loadedCommits = 0;      // 已加载的提交数量
-    let totalCommits = 0;       // 总提交数量
-    let isLoading = false;      // 是否正在加载
-    let fileViewMode = 'list';  // 文件视图模式: 'tree' 或 'list'
+    // 初始化状态管理器
+    initializeStateManager();
     
-    // 将commits和selectedCommits暴露到window对象，供模块访问
-    window.commits = commits;
-    window.selectedCommits = selectedCommits;
-    
-    // 辅助函数：更新selectedCommits并同步到window对象
-    function updateSelectedCommits(newSelectedCommits) {
-        selectedCommits = newSelectedCommits;
-        window.selectedCommits = selectedCommits;
-    }
-    
-    // 性能优化：添加缓存机制
-    let commitDetailsCache = new Map(); // 缓存commit详情，避免重复请求
-    let pendingRequests = new Map();    // 防止同一commit的重复请求
+    // 状态管理已迁移至 core/state-manager.js
+    // 使用 getState() 和 setState() 函数访问和修改状态
 
     // DOM元素引用
     const branchSelect = document.getElementById('branchSelect');         // 分支选择下拉框
@@ -67,7 +55,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
     // 事件监听器设置
     // 添加滚动监听器以实现无限滚动加载
     commitList.addEventListener('scroll', () => {
-        if (isLoading || loadedCommits >= totalCommits) {
+        if (getState('isLoading') || getState('loadedCommits') >= getState('totalCommits')) {
             return;
         }
         
@@ -83,29 +71,21 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
 
     // 分支选择变更事件
     branchSelect.addEventListener('change', (e) => {
-        currentBranch = e.target.value;
-        loadedCommits = 0;
-        commits = [];
-        window.commits = commits;
-        updateSelectedCommits([]);
+        setCurrentBranch(e.target.value);
+        resetCommitState();
         // 注意：不重置currentCommit，让updateCommitHistory函数来处理
         // 性能优化：切换分支时清理缓存
-        commitDetailsCache.clear();
-        pendingRequests.clear();
+        clearAllCache();
         updateMultiSelectInfo();
         loadCommits(true);
     });
 
     // 刷新按钮点击事件
     refreshBtn.addEventListener('click', () => {
-        loadedCommits = 0;
-        commits = [];
-        window.commits = commits;
-        updateSelectedCommits([]);
+        resetCommitState();
         // 注意：不重置currentCommit，让updateCommitHistory函数来处理
         // 性能优化：刷新时清理缓存
-        commitDetailsCache.clear();
-        pendingRequests.clear();
+        clearAllCache();
         updateMultiSelectInfo();
         vscode.postMessage({ type: 'getBranches' });
         loadCommits(true);
@@ -159,7 +139,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
                 updateCommitHistory(message.data); // 更新提交历史记录
                 break;
             case 'totalCommitCount':
-                totalCommits = message.data;       // 设置总提交数量
+                setState('totalCommits', message.data);       // 设置总提交数量
                 break;
             case 'commitDetails':
                 updateCommitDetails(message.data); // 更新提交详情信息
@@ -178,11 +158,11 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
                 break;
             case 'error':
                 // 重置加载状态
-                isLoading = false;
+                setLoading(false);
                 showError(message.message, commitDetails, commitList);        // 显示错误信息
                 break;
             case 'viewMode':
-                fileViewMode = message.data;       // 设置文件视图模式
+                setFileViewMode(message.data);       // 设置文件视图模式
                 break;
         }
     });
@@ -192,13 +172,13 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * @param {boolean} reset - 是否重置加载状态，true表示重新开始加载
      */
     function loadCommits(reset = false) {
-        if (isLoading) return;
+        if (getState('isLoading')) return;
         
-        isLoading = true;
+        setLoading(true);
         
         if (reset) {
-            loadedCommits = 0;
-            commits = [];
+            setState('loadedCommits', 0);
+            setState('commits', []);
             // 保留折叠按钮，只更新内容
             commitList.innerHTML = `
                 <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
@@ -210,15 +190,15 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
         // 请求获取提交历史记录
         vscode.postMessage({ 
             type: 'getCommitHistory', 
-            branch: currentBranch || undefined,
-            skip: loadedCommits
+            branch: getState('currentBranch') || undefined,
+            skip: getState('loadedCommits')
         });
         
         // 如果还没有总数，请求获取总提交数量
-        if (totalCommits === 0) {
+        if (getState('totalCommits') === 0) {
             vscode.postMessage({ 
                 type: 'getTotalCommitCount', 
-                branch: currentBranch || undefined
+                branch: getState('currentBranch') || undefined
             });
         }
     }
@@ -228,11 +208,11 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * @param {Array} branchData - 分支数据数组
      */
     function updateBranches(branchData) {
-        branches = branchData;
+        setState('branches', branchData);
         branchSelect.innerHTML = '<option value="all">All branches</option>';
         
         // 遍历分支数据，创建选项元素
-        branches.forEach(branch => {
+        branchData.forEach(branch => {
             const option = document.createElement('option');
             option.value = branch.name;
             option.textContent = branch.name + (branch.current ? ' (current)' : '');
@@ -241,7 +221,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
         
         // 默认选择"All branches"
         branchSelect.value = 'all';
-        currentBranch = 'all';
+        setCurrentBranch('all');
     }
 
     /**
@@ -251,24 +231,23 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * @param {number} data.skip - 跳过的提交数量
      */
     function updateCommitHistory(data) {
-        isLoading = false;
+        setLoading(false);
         
         if (data.skip === 0) {
             // 首次加载或刷新
-            const previousCurrentCommit = currentCommit; // 保存之前选中的提交
-            commits = data.commits;
-            window.commits = commits;
+            const previousCurrentCommit = getState('currentCommit'); // 保存之前选中的提交
+            setState('commits', data.commits);
             updateSelectedCommits([]);
             
             // 检查之前选中的提交是否仍然存在于新的提交列表中
             if (previousCurrentCommit && data.commits.some(commit => commit.hash === previousCurrentCommit)) {
                 // 如果之前选中的提交仍然存在，保持选中状态
-                currentCommit = previousCurrentCommit;
+                setCurrentCommit(previousCurrentCommit);
                 const commit = data.commits.find(c => c.hash === previousCurrentCommit);
                 updateSelectedCommits(commit ? [commit] : []);
             } else {
                 // 只有当之前选中的提交不存在时才重置
-                currentCommit = null;
+                setCurrentCommit(null);
                 // 清空右侧详情面板
                 commitDetails.innerHTML = `
                     <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
@@ -286,15 +265,17 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
             renderCommitList();
             
             // 如果保持了选中状态，需要恢复UI状态和详情显示
+            const currentCommit = getState('currentCommit');
             if (currentCommit) {
                 setTimeout(() => {
                     // 使用安全的更新函数确保UI状态正确
+                    const commits = getState('commits');
                     const commit = commits.find(c => c.hash === currentCommit);
                     if (commit) {
                         ensureCommitSelectionUI(currentCommit);
                         // 如果有缓存的详情，直接显示
-                        if (commitDetailsCache.has(currentCommit)) {
-                            updateCommitDetails(commitDetailsCache.get(currentCommit));
+                        if (getCachedCommitDetails(currentCommit)) {
+                            updateCommitDetails(getCachedCommitDetails(currentCommit));
                         } else {
                             // 重新请求详情
                             vscode.postMessage({
@@ -307,12 +288,12 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
             }
         } else {
             // 加载更多提交记录
-            commits = commits.concat(data.commits);
-            window.commits = commits;
+            const currentCommits = getState('commits');
+            setState('commits', currentCommits.concat(data.commits));
             appendCommitList(data.commits);
         }
         
-        loadedCommits = commits.length;
+        setState('loadedCommits', getState('commits').length);
         
         // 检查是否正在搜索特定提交
         if (window.searchingForCommit) {
@@ -525,49 +506,55 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * @param {HTMLElement} element - 提交记录的DOM元素
      */
     function toggleCommitSelection(hash, element) {
+        const commits = getState('commits');
         const commit = commits.find(c => c.hash === hash);
         if (!commit) return;
         
+        const selectedCommits = getState('selectedCommits');
         const index = selectedCommits.findIndex(c => c.hash === hash);
         if (index > -1) {
             // 取消选择：从数组中移除
-            selectedCommits.splice(index, 1);
+            const newSelected = [...selectedCommits];
+            newSelected.splice(index, 1);
+            updateSelectedCommits(newSelected);
             
             // 如果这是当前选中的提交，需要更新 currentCommit
-            if (currentCommit === hash) {
-                if (selectedCommits.length > 0) {
+            if (getState('currentCommit') === hash) {
+                if (newSelected.length > 0) {
                     // 如果还有其他选中的提交，选择第一个作为当前提交
-                    currentCommit = selectedCommits[0].hash;
+                    setCurrentCommit(newSelected[0].hash);
                 } else {
                     // 如果没有选中的提交了，清空当前提交
-                    currentCommit = null;
+                    setCurrentCommit(null);
                 }
             }
         } else {
             // 添加选择：加入数组
-            selectedCommits.push(commit);
+            const newSelected = [...selectedCommits, commit];
+            updateSelectedCommits(newSelected);
             
             // 如果这是第一个选中的提交，设置为当前提交
-            if (selectedCommits.length === 1) {
-                currentCommit = hash;
+            if (newSelected.length === 1) {
+                setCurrentCommit(hash);
             }
         }
         
         // 确保UI状态正确
-        if (selectedCommits.length === 0) {
+        const updatedSelected = getState('selectedCommits');
+        if (updatedSelected.length === 0) {
             // 没有选中的提交，清除所有样式
             document.querySelectorAll('.commit-item').forEach(item => {
                 item.classList.remove('selected', 'multi-selected');
             });
-        } else if (selectedCommits.length === 1) {
+        } else if (updatedSelected.length === 1) {
             // 单选模式
-            ensureCommitSelectionUI(selectedCommits[0].hash);
+            ensureCommitSelectionUI(updatedSelected[0].hash);
         } else {
             // 多选模式
             document.querySelectorAll('.commit-item').forEach(item => {
                 item.classList.remove('selected', 'multi-selected');
             });
-            selectedCommits.forEach(commit => {
+            updatedSelected.forEach(commit => {
                 const element = document.querySelector(`[data-hash="${commit.hash}"]`);
                 if (element) {
                     element.classList.add('multi-selected');
@@ -585,6 +572,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      */
     function selectSingleCommit(hash, element) {
         // 找到对应的提交对象
+        const commits = getState('commits');
         const commit = commits.find(c => c.hash === hash);
         if (!commit) return;
         
@@ -592,15 +580,15 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
         safeUpdateCurrentCommit(hash, commit);
         
         // 性能优化：检查缓存
-        if (commitDetailsCache.has(hash)) {
+        if (getCachedCommitDetails(hash)) {
             // 从缓存中获取详情，立即显示
-            const cachedDetails = commitDetailsCache.get(hash);
+            const cachedDetails = getCachedCommitDetails(hash);
             updateCommitDetails(cachedDetails);
             return;
         }
         
         // 检查是否已有相同请求正在进行
-        if (pendingRequests.has(hash)) {
+        if (hasPendingRequest(hash)) {
             // 如果已有请求在进行，只显示loading状态
             commitDetails.innerHTML = `
                 <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
@@ -618,7 +606,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
         rebindCollapseButtons();
         
         // 标记请求正在进行
-        pendingRequests.set(hash, true);
+        setPendingRequest(hash, true);
         
         // 获取提交详情
         vscode.postMessage({
@@ -633,12 +621,12 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      */
     function preloadCommitDetails(hash) {
         // 如果已经缓存或正在请求，则跳过
-        if (commitDetailsCache.has(hash) || pendingRequests.has(hash)) {
+        if (getCachedCommitDetails(hash) || hasPendingRequest(hash)) {
             return;
         }
         
         // 标记请求正在进行
-        pendingRequests.set(hash, true);
+        setPendingRequest(hash, true);
         
         // 静默请求提交详情
         vscode.postMessage({
@@ -666,6 +654,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * @param {string} hash - 提交哈希值
      */
     function ensureCommitSelectionUI(hash) {
+        const selectedCommits = getState('selectedCommits');
         console.log(`Ensuring UI state for commit ${hash.substring(0, 8)}, selectedCommits: ${selectedCommits.length}`);
         
         // 清除所有选择状态
@@ -700,9 +689,10 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * @param {Object} commit - 提交对象
      */
     function safeUpdateCurrentCommit(hash, commit) {
+        const currentCommit = getState('currentCommit');
         console.log(`Updating current commit from ${currentCommit ? currentCommit.substring(0, 8) : 'none'} to ${hash.substring(0, 8)}`);
         
-        currentCommit = hash;
+        setCurrentCommit(hash);
         updateSelectedCommits(commit ? [commit] : []);
         
         // 立即更新UI状态
@@ -732,19 +722,14 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
         
         // 性能优化：缓存详情数据
         if (commit && commit.hash) {
-            commitDetailsCache.set(commit.hash, data);
+            setCachedCommitDetails(commit.hash, data);
             // 清理pending请求标记
-            pendingRequests.delete(commit.hash);
-            
-            // 限制缓存大小，避免内存泄漏
-            if (commitDetailsCache.size > 50) {
-                const firstKey = commitDetailsCache.keys().next().value;
-                commitDetailsCache.delete(firstKey);
-            }
+            setPendingRequest(commit.hash, false);
         }
         
         // 修复：只有当这个提交是当前选中的提交时，才更新详情页面
         // 这样可以防止预加载或其他异步请求影响当前显示的详情
+        const currentCommit = getState('currentCommit');
         if (commit.hash !== currentCommit) {
             // 如果不是当前选中的提交，只缓存数据，不更新UI
             console.log(`Skipping UI update for ${commit.hash.substring(0, 8)} (current: ${currentCommit ? currentCommit.substring(0, 8) : 'none'})`);
@@ -756,6 +741,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
         
         // 根据视图模式构建文件HTML
         let filesHtml;
+        const fileViewMode = getState('fileViewMode');
         if (fileViewMode === 'tree') {
             // 树形视图：构建文件树结构
             const fileTree = buildFileTree(files);
@@ -831,15 +817,18 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * 全局函数，供HTML onclick调用
      */
     window.toggleFileViewMode = function() {
-        fileViewMode = fileViewMode === 'tree' ? 'list' : 'tree';
+        const currentMode = getState('fileViewMode');
+        const newMode = currentMode === 'tree' ? 'list' : 'tree';
+        setFileViewMode(newMode);
         
         // 保存配置到VS Code设置
         vscode.postMessage({
             type: 'saveViewMode',
-            viewMode: fileViewMode
+            viewMode: newMode
         });
         
         // 重新请求当前提交详情以刷新视图
+        const currentCommit = getState('currentCommit');
         if (currentCommit) {
             vscode.postMessage({
                 type: 'getCommitDetails',
@@ -973,7 +962,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
             headElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
             updateSelectedCommits([headCommit]);
-            currentCommit = headCommit.hash;
+            setCurrentCommit(headCommit.hash);
             
             // 请求获取提交详情
             vscode.postMessage({
@@ -1004,9 +993,10 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
             targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
             // 找到对应的提交对象
+            const commits = getState('commits');
             const commit = commits.find(c => c.hash === commitHash);
             updateSelectedCommits(commit ? [commit] : []);
-            currentCommit = commitHash;
+            setCurrentCommit(commitHash);
             
             // 请求获取提交详情
             vscode.postMessage({
@@ -1032,6 +1022,9 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
         showCommitNotFoundMessage(commitHash);
         
         // 如果还有更多提交可以加载，尝试加载更多
+        const loadedCommits = getState('loadedCommits');
+        const totalCommits = getState('totalCommits');
+        const isLoading = getState('isLoading');
         if (loadedCommits < totalCommits && !isLoading) {
             loadMoreCommitsToFind(commitHash);
         } else {
@@ -1096,15 +1089,15 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      */
     function loadMoreCommitsToFind(commitHash) {
         // 设置一个标记，表示正在查找特定提交
-        window.searchingForCommit = commitHash;
+        setSearchingForCommit(commitHash);
         
         // 加载更多提交
         loadCommits(false);
         
         // 设置超时，避免无限加载
         setTimeout(() => {
-            if (window.searchingForCommit === commitHash) {
-                window.searchingForCommit = null;
+            if (getState('searchingForCommit') === commitHash) {
+                setSearchingForCommit(null);
                 console.log('Search timeout for commit:', commitHash);
             }
         }, 10000); // 10秒超时
@@ -1287,15 +1280,17 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
          }
          
          // 设置要跳转的提交
-         window.pendingJumpCommit = commitHash;
+         setPendingJumpCommit(commitHash);
          
          // 切换分支
-         currentBranch = branchName;
+         setCurrentBranch(branchName);
          branchSelect.value = branchName;
          
          // 重新加载提交历史
-         loadedCommits = 0;
-         commits = [];
+         setStates({
+             loadedCommits: 0,
+             commits: []
+         });
          updateSelectedCommits([]);
          updateMultiSelectInfo();
          loadCommits(true);
@@ -1312,6 +1307,8 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
      * 防止由于异步操作或DOM更新导致的状态丢失
      */
     function checkAndFixSelectionState() {
+        const currentCommit = getState('currentCommit');
+        const selectedCommits = getState('selectedCommits');
         if (currentCommit && selectedCommits.length > 0) {
             const currentElement = document.querySelector(`[data-hash="${currentCommit}"]`);
             if (currentElement && !currentElement.classList.contains('selected') && !currentElement.classList.contains('multi-selected')) {
@@ -1327,6 +1324,7 @@ import { showCompareResult as showCompareResultComponent, initializeCompareFeatu
     // 页面加载完成后的初始化
     document.addEventListener('DOMContentLoaded', function() {
         // 确保初始状态正确
+        const currentCommit = getState('currentCommit');
         if (currentCommit) {
             ensureCommitSelectionUI(currentCommit);
         }
