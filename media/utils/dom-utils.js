@@ -23,14 +23,18 @@ export function escapeHtml(text) {
 export function showError(message, commitDetails, commitList) {
     // 显示错误信息在右侧面板
     commitDetails.innerHTML = `
-        <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+        <div class="panel-header">
+            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+        </div>
         <div class="placeholder" style="color: var(--vscode-errorForeground);">${escapeHtml(message)}</div>
     `;
     
     // 如果左侧面板正在显示"Loading commits..."，则清除并添加折叠按钮
     if (commitList.innerHTML.includes('Loading commits...')) {
         commitList.innerHTML = `
-            <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+            <div class="panel-header">
+                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+            </div>
             <div class="placeholder" style="color: var(--vscode-errorForeground);">Failed to load commits</div>
         `;
     }

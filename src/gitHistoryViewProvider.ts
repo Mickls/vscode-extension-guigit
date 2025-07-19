@@ -1148,14 +1148,18 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     
                     <div class="content">
                         <div class="commit-list" id="commitList">
-                            <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                            <div class="panel-header">
+                                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                            </div>
                             <div class="loading">Loading commits...</div>
                         </div>
                         
                         <div class="resizer" id="resizer"></div>
                         
                         <div class="commit-details" id="commitDetails">
-                            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                            <div class="panel-header">
+                                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                            </div>
                             <div class="placeholder">Select a commit to view details</div>
                         </div>
                     </div>

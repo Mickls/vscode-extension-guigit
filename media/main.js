@@ -221,7 +221,9 @@ pushBtn.addEventListener('click', (event) => {
             setState('commits', []);
             // 保留折叠按钮，只更新内容
             commitList.innerHTML = `
-                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                <div class="panel-header">
+                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                </div>
                 <div class="loading">Loading commits...</div>
             `;
             rebindCollapseButtons();
@@ -290,7 +292,9 @@ pushBtn.addEventListener('click', (event) => {
                 setCurrentCommit(null);
                 // 清空右侧详情面板
                 commitDetails.innerHTML = `
-                    <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                    <div class="panel-header">
+                        <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                    </div>
                     <div class="placeholder">Select a commit to view details</div>
                 `;
                 rebindCollapseButtons();
@@ -299,7 +303,9 @@ pushBtn.addEventListener('click', (event) => {
             commitList.innerHTML = '';
             // 立即添加折叠按钮
             commitList.innerHTML = `
-                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                <div class="panel-header">
+                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                </div>
             `;
             rebindCollapseButtons();
             renderCommitList();
@@ -389,10 +395,12 @@ pushBtn.addEventListener('click', (event) => {
     function renderCommitList() {
         if (commits.length === 0) {
             // 如果没有提交，显示"No commits found"
-            const existingButtons = commitList.querySelectorAll('.panel-collapse-btn');
-            if (existingButtons.length === 0) {
+            const existingHeaders = commitList.querySelectorAll('.panel-header');
+            if (existingHeaders.length === 0) {
                 commitList.innerHTML = `
-                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                    <div class="panel-header">
+                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                    </div>
                     <div class="loading">No commits found</div>
                 `;
                 rebindCollapseButtons();
@@ -631,7 +639,9 @@ pushBtn.addEventListener('click', (event) => {
         if (hasPendingRequest(hash)) {
             // 如果已有请求在进行，只显示loading状态
             commitDetails.innerHTML = `
-                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                <div class="panel-header">
+                    <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                </div>
                 <div class="loading">Loading commit details...</div>
             `;
             rebindCollapseButtons();
@@ -640,7 +650,9 @@ pushBtn.addEventListener('click', (event) => {
         
         // 清除详情区域，显示加载状态
         commitDetails.innerHTML = `
-            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+            <div class="panel-header">
+                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+            </div>
             <div class="loading">Loading commit details...</div>
         `;
         rebindCollapseButtons();
@@ -751,7 +763,9 @@ pushBtn.addEventListener('click', (event) => {
     function updateCommitDetails(data) {
         if (!data) {
             commitDetails.innerHTML = `
-                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                <div class="panel-header">
+                    <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                </div>
                 <div class="placeholder">Failed to load commit details</div>
             `;
             rebindCollapseButtons();
@@ -800,7 +814,9 @@ pushBtn.addEventListener('click', (event) => {
 
         // 构建完整的详情HTML
         const detailsHtml = `
-            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+            <div class="panel-header">
+                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+            </div>
             <div class="details-header">
                 <div class="details-hash">${escapeHtml(commit.hash)}</div>
                 <div class="details-message">${escapeHtml(commit.message)}</div>

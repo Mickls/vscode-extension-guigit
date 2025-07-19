@@ -36,9 +36,9 @@ export function restorePanelLayout() {
         console.error('Failed to restore panel layout:', error);
     }
     
-    // 返回默认值
+    // 返回默认值 - commit list占满宽度，commit details占最小宽度
     return {
-        leftPanelWidth: 50,
+        leftPanelWidth: 80,
         leftPanelCollapsed: false,
         rightPanelCollapsed: false
     };

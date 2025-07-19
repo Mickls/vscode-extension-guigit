@@ -7,7 +7,7 @@ import { savePanelLayout, restorePanelLayout } from '../utils/storage-utils.js';
 
 // 面板状态变量
 let isResizing = false;                    // 是否正在拖拽分割线
-let leftPanelWidth = 50;                   // 左侧面板宽度百分比
+let leftPanelWidth = 80;                   // 左侧面板宽度百分比 - 默认commit list占更多宽度
 let leftPanelCollapsed = false;            // 左侧面板是否折叠
 let rightPanelCollapsed = false;           // 右侧面板是否折叠
 
@@ -259,7 +259,7 @@ export function updateCollapseButtonsVisibility() {
 export function resetPanelLayout() {
     leftPanelCollapsed = false;
     rightPanelCollapsed = false;
-    leftPanelWidth = 50;
+    leftPanelWidth = 80;
     
     if (commitList && commitDetails && resizer) {
         commitList.classList.remove('collapsed');

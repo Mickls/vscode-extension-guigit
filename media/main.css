@@ -69,13 +69,33 @@ body {
     width: 100%;
     max-width: 200px; /* 限制最大宽度 */
     padding: 4px 8px;
-    background-color: var(--vscode-input-background);
-    color: var(--vscode-input-foreground);
-    border: 1px solid var(--vscode-input-border);
+    background-color: var(--vscode-list-background);
+    color: var(--vscode-dropdown-foreground);
+    border: 1px solid var(--vscode-dropdown-border);
     border-radius: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.branch-select:hover {
+    background-color: var(--vscode-dropdown-background);
+}
+
+.branch-select:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+/* 下拉框选项样式 */
+.branch-select option {
+    background-color: var(--vscode-dropdown-background);
+    color: var(--vscode-dropdown-foreground);
+    padding: 4px 8px;
+}
+
+.branch-select option:hover {
+    background-color: var(--vscode-list-hoverBackground);
 }
 
 /* ==================== 按钮样式 ==================== */
@@ -168,10 +188,17 @@ body {
 
 /* 左侧提交列表区域 */
 .commit-list {
-    width: 70%;
+    width: 80%;
     overflow-y: auto;
     position: relative;
     transition: width 0.3s ease;
+    flex-direction: column;
+}
+
+/* 提交列表内容区域 */
+.commit-list > *:not(.panel-header) {
+    flex: 1;
+    overflow-y: auto;
 }
 
 /* 拖拽时禁用过渡动画 */
@@ -183,39 +210,62 @@ body {
 .commit-list.collapsed {
     width: 40px !important;
     min-width: 40px !important;
+    max-width: 40px !important;
     overflow: hidden;
     padding: 0;
 }
 
-/* 隐藏折叠面板中除了折叠按钮之外的所有内容 */
-.commit-list.collapsed > *:not(.panel-collapse-btn) {
+/* 隐藏折叠面板中除了面板头部之外的所有内容 */
+.commit-list.collapsed > *:not(.panel-header) {
     display: none !important;
 }
 
-/* 左侧面板折叠按钮 */
+/* 面板头部容器 */
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 2px;
+    background-color: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+/* 左侧面板头部 */
+.commit-list .panel-header {
+    justify-content: flex-end;
+}
+
+/* 右侧面板头部 */
+.commit-details .panel-header {
+    justify-content: flex-start;
+}
+
+/* 面板折叠按钮 */
 .panel-collapse-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 10;
-    width: 24px;
-    height: 24px;
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    border-radius: 3px;
+    background: none;
+    border: 1px solid var(--vscode-button-border);
+    background-color: transparent;
+    color: var(--vscode-icon-foreground);
     cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 12px;
-    opacity: 0.8;
-    transition: opacity 0.2s ease;
+    transition: all 0.1s ease;
+    min-width: 24px;
+    height: 24px;
 }
 
 .panel-collapse-btn:hover {
-    background-color: var(--vscode-button-hoverBackground);
-    opacity: 1;
+    background-color: var(--vscode-toolbar-hoverBackground);
+    border-color: var(--vscode-button-hoverBackground);
 }
 
 /* 可拖拽分割线 */
@@ -275,10 +325,18 @@ body.resizing .resizer {
 /* 右侧详情面板 */
 .commit-details {
     flex: 1;
-    padding: 16px;
     overflow-y: auto;
     position: relative;
     transition: width 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 详情面板内容区域 */
+.commit-details > *:not(.panel-header) {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
 }
 
 /* 拖拽时禁用过渡动画 */
@@ -290,19 +348,22 @@ body.resizing .resizer {
 .commit-details.collapsed {
     width: 40px !important;
     min-width: 40px !important;
+    max-width: 40px !important;
     overflow: hidden;
     padding: 0;
 }
 
-/* 隐藏折叠面板中除了折叠按钮之外的所有内容 */
-.commit-details.collapsed > *:not(.panel-collapse-btn) {
+/* 隐藏折叠面板中除了面板头部之外的所有内容 */
+.commit-details.collapsed > *:not(.panel-header) {
     display: none !important;
 }
 
-/* 右侧面板折叠按钮 */
-.commit-details .panel-collapse-btn {
-    left: 8px;
-    right: auto;
+/* 折叠状态下的面板头部样式 */
+.commit-list.collapsed .panel-header,
+.commit-details.collapsed .panel-header {
+    border-bottom: none;
+    justify-content: center;
+    min-height: 45px;
 }
 
 /* 当左侧面板折叠时，调整分割线位置 */
@@ -326,18 +387,10 @@ body.resizing .resizer {
 
 /* 当面板折叠时，折叠按钮样式调整 */
 .commit-list.collapsed .panel-collapse-btn {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    right: auto;
     transform: rotate(180deg);
 }
 
 .commit-details.collapsed .panel-collapse-btn {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    right: auto;
     transform: rotate(180deg);
 }
 
@@ -906,7 +959,8 @@ body.resizing .resizer {
 .collapse-all-btn {
     background: none;
     border: 1px solid var(--vscode-button-border);
-    color: var(--vscode-button-foreground);
+    color: var(--vscode-badge-foreground);
+    background-color: transparent;
     cursor: pointer;
     padding: 2px 8px;
     margin-left: 8px;
@@ -915,7 +969,7 @@ body.resizing .resizer {
 }
 
 .collapse-all-btn:hover {
-    background-color: var(--vscode-button-hoverBackground);
+    background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 /* ==================== 文件列表样式 ==================== */
@@ -963,6 +1017,11 @@ body.resizing .resizer {
     cursor: pointer;
     padding: 2px 4px;
     border-radius: 2px;
+    min-width: 0; /* 允许收缩 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: calc(100% - 120px); /* 为按钮预留至少120px空间 */
 }
 
 .file-item .file-name:hover {
@@ -1180,12 +1239,24 @@ body.resizing .resizer {
     display: flex;
     align-items: center;
     gap: 6px;
+    min-width: 0; /* 允许flex子项收缩 */
 }
 
 .file-icon {
     color: var(--vscode-descriptionForeground);
     display: inline-flex;
     align-items: center;
+    flex-shrink: 0; /* 防止图标被压缩 */
+}
+
+/* 文件名样式 - 确保长文件名不会挤压按钮 */
+.file-name {
+    flex: 1;
+    min-width: 0; /* 允许收缩 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: calc(100% - 120px); /* 为按钮预留至少120px空间 */
 }
 
 /* 文件操作按钮 */
@@ -1193,8 +1264,10 @@ body.resizing .resizer {
     margin-left: auto;
     display: flex;
     gap: 4px;
-    opacity: 0;
+    opacity: 1; /* 始终显示按钮 */
     transition: opacity 0.2s ease;
+    flex-shrink: 0; /* 防止按钮被压缩 */
+    min-width: 112px; /* 确保4个按钮的最小宽度 (4 * 22px + 3 * 4px gap) */
 }
 
 .file-item:hover .file-actions,
