@@ -1,6 +1,7 @@
 /**
  * DOM操作工具函数
  */
+import { rebindCollapseButtons } from '../ui/panel-manager.js';
 
 /**
  * HTML转义函数
@@ -18,9 +19,8 @@ export function escapeHtml(text) {
  * @param {string} message - 错误消息
  * @param {HTMLElement} commitDetails - 提交详情容器
  * @param {HTMLElement} commitList - 提交列表容器
- * @param {Function} rebindCollapseButtons - 重新绑定折叠按钮的函数
  */
-export function showError(message, commitDetails, commitList, rebindCollapseButtons) {
+export function showError(message, commitDetails, commitList) {
     // 显示错误信息在右侧面板
     commitDetails.innerHTML = `
         <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
