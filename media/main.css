@@ -799,7 +799,8 @@ body.resizing .resizer {
 .view-toggle-btn {
     background: none;
     border: 1px solid var(--vscode-button-border);
-    color: var(--vscode-button-foreground);
+    background-color: transparent;
+    color: var(--vscode-icon-foreground);
     cursor: pointer;
     padding: 4px 6px;
     border-radius: 3px;
@@ -811,7 +812,7 @@ body.resizing .resizer {
 }
 
 .view-toggle-btn:hover {
-    background-color: var(--vscode-button-hoverBackground);
+    background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .view-toggle-btn svg {
@@ -1147,7 +1148,8 @@ body.resizing .resizer {
     transition: opacity 0.2s ease;
 }
 
-.file-item:hover .file-actions {
+.file-item:hover .file-actions,
+.file-tree-item:hover .file-actions {
     opacity: 1;
 }
 
