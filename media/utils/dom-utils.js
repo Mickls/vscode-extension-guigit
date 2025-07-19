@@ -1,0 +1,39 @@
+/**
+ * DOM操作工具函数
+ */
+
+/**
+ * HTML转义函数
+ * @param {string} text - 需要转义的文本
+ * @returns {string} 转义后的HTML安全文本
+ */
+export function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * 显示错误信息
+ * @param {string} message - 错误消息
+ * @param {HTMLElement} commitDetails - 提交详情容器
+ * @param {HTMLElement} commitList - 提交列表容器
+ * @param {Function} rebindCollapseButtons - 重新绑定折叠按钮的函数
+ */
+export function showError(message, commitDetails, commitList, rebindCollapseButtons) {
+    // 显示错误信息在右侧面板
+    commitDetails.innerHTML = `
+        <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+        <div class="placeholder" style="color: var(--vscode-errorForeground);">${escapeHtml(message)}</div>
+    `;
+    
+    // 如果左侧面板正在显示"Loading commits..."，则清除并添加折叠按钮
+    if (commitList.innerHTML.includes('Loading commits...')) {
+        commitList.innerHTML = `
+            <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+            <div class="placeholder" style="color: var(--vscode-errorForeground);">Failed to load commits</div>
+        `;
+    }
+    
+    rebindCollapseButtons();
+}

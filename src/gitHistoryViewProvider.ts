@@ -1125,7 +1125,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     <div class="menu-item" data-action="resetHard">Reset (Hard)</div>
                 </div>
 
-                <script src="${scriptUri}"></script>
+                <script type="module" src="${scriptUri}"></script>
             </body>
             </html>`;
   }

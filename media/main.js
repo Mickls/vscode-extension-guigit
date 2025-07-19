@@ -2,6 +2,11 @@
  * Git History View - Main JavaScript Module
  * 处理Git历史记录的前端交互逻辑
  */
+import { parseRefs, getRefClass } from './utils/git-utils.js';
+import { formatDate } from './utils/date-utils.js';
+import { escapeHtml, showError } from './utils/dom-utils.js';
+import { savePanelLayout, restorePanelLayout } from './utils/storage-utils.js';
+
 (function() {
     'use strict';
     
@@ -234,7 +239,9 @@
                 handleCommitBranchesFound(message.data); // 处理找到提交所在分支的响应
                 break;
             case 'error':
-                showError(message.message);        // 显示错误信息
+                // 重置加载状态
+                isLoading = false;
+                showError(message.message, commitDetails, commitList, rebindCollapseButtons);        // 显示错误信息
                 break;
             case 'viewMode':
                 fileViewMode = message.data;       // 设置文件视图模式
@@ -1837,63 +1844,13 @@
 
     // ==================== 工具函数 ====================
     
-    /**
-     * 解析Git引用字符串
-     * @param {string} refs - 引用字符串（如分支、标签）
-     * @returns {Array} 引用数组
-     */
-    function parseRefs(refs) {
-        if (!refs) return [];
-        return refs.split(', ').filter(ref => ref.trim());
-    }
 
-    /**
-     * 根据引用类型获取对应的CSS类名
-     * @param {string} ref - Git引用字符串
-     * @returns {string} CSS类名
-     */
-    function getRefClass(ref) {
-        if (!ref) return '';
-        
-        // HEAD 指针
-        if (ref.includes('HEAD')) {
-            return 'ref-head';
-        }
-        
-        // 远程分支 (origin/xxx, upstream/xxx 等)
-        if (ref.includes('origin/') || ref.includes('upstream/') || ref.includes('remote/')) {
-            return 'ref-remote';
-        }
-        
-        // 标签 (tag: xxx)
-        if (ref.startsWith('tag:') || ref.includes('tags/')) {
-            return 'ref-tag-label';
-        }
-        
-        // 本地分支 (其他情况)
-        return 'ref-local';
-    }
 
-    /**
-     * 格式化日期字符串
-     * @param {string} dateString - ISO日期字符串
-     * @returns {string} 格式化后的日期时间字符串
-     */
-    function formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-    }
 
-    /**
-     * HTML转义函数
-     * @param {string} text - 需要转义的文本
-     * @returns {string} 转义后的HTML安全文本
-     */
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+
+
+
+
 
     /**
      * 跳转到HEAD提交
@@ -2242,30 +2199,7 @@
          loadCommits(true);
      };
 
-    /**
-     * 显示错误信息
-     * @param {string} message - 错误消息
-     */
-    function showError(message) {
-        // 重置加载状态
-        isLoading = false;
-        
-        // 显示错误信息在右侧面板
-        commitDetails.innerHTML = `
-            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
-            <div class="placeholder" style="color: var(--vscode-errorForeground);">${escapeHtml(message)}</div>
-        `;
-        
-        // 如果左侧面板正在显示"Loading commits..."，则清除并添加折叠按钮
-        if (commitList.innerHTML.includes('Loading commits...')) {
-            commitList.innerHTML = `
-                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
-                <div class="placeholder" style="color: var(--vscode-errorForeground);">Failed to load commits</div>
-            `;
-        }
-        
-        rebindCollapseButtons();
-    }
+
 
     // ==================== 拖拽和折叠功能实现 ====================
     
@@ -2385,48 +2319,15 @@
         updateCollapseButtonsVisibility();
     }
     
-    /**
-     * 保存面板布局状态到localStorage
-     */
-    function savePanelLayout() {
-        const layoutState = {
-            leftPanelWidth: leftPanelWidth,
-            leftPanelCollapsed: leftPanelCollapsed,
-            rightPanelCollapsed: rightPanelCollapsed
-        };
-        localStorage.setItem('gitHistoryPanelLayout', JSON.stringify(layoutState));
-    }
+
     
-    /**
-     * 从localStorage恢复面板布局状态
-     */
-    function restorePanelLayout() {
-        try {
-            const savedLayout = localStorage.getItem('gitHistoryPanelLayout');
-            if (savedLayout) {
-                const layoutState = JSON.parse(savedLayout);
-                leftPanelWidth = layoutState.leftPanelWidth || 50;
-                leftPanelCollapsed = layoutState.leftPanelCollapsed || false;
-                rightPanelCollapsed = layoutState.rightPanelCollapsed || false;
-                
-                if (leftPanelCollapsed) {
-                    commitList.classList.add('collapsed');
-                }
-                if (rightPanelCollapsed) {
-                    commitDetails.classList.add('collapsed');
-                }
-                
-                updatePanelWidths();
-                updateCollapseButtonsVisibility();
-            }
-        } catch (error) {
-            console.warn('Failed to restore panel layout:', error);
-            resetPanelLayout();
-        }
-    }
+
+
     
     // 监听窗口大小变化，保存布局状态
-    window.addEventListener('beforeunload', savePanelLayout);
+    window.addEventListener('beforeunload', () => {
+        savePanelLayout(leftPanelWidth, leftPanelCollapsed, rightPanelCollapsed);
+    });
     
     // 监听窗口大小变化，调整面板宽度
     window.addEventListener('resize', () => {
@@ -2458,7 +2359,20 @@
     initializeCollapseButtons();
     
     // 恢复面板布局状态
-    restorePanelLayout();
+    const layoutState = restorePanelLayout();
+    leftPanelWidth = layoutState.leftPanelWidth;
+    leftPanelCollapsed = layoutState.leftPanelCollapsed;
+    rightPanelCollapsed = layoutState.rightPanelCollapsed;
+    
+    if (leftPanelCollapsed) {
+        commitList.classList.add('collapsed');
+    }
+    if (rightPanelCollapsed) {
+        commitDetails.classList.add('collapsed');
+    }
+    
+    updatePanelWidths();
+    updateCollapseButtonsVisibility();
     
     // 请求数据
     vscode.postMessage({ type: 'getBranches' });
