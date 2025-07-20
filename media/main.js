@@ -413,6 +413,8 @@ pushBtn.addEventListener('click', (event) => {
      * 将所有提交记录渲染到DOM中
      */
     function renderCommitList() {
+        const commits = getState('commits');
+        
         if (commits.length === 0) {
             // 如果没有提交，显示"No commits found"
             const existingHeaders = commitList.querySelectorAll('.panel-header');
@@ -460,6 +462,10 @@ pushBtn.addEventListener('click', (event) => {
         // 先移除加载指示器
         hideLoadingIndicator();
         
+        const commits = getState('commits');
+        const loadedCommits = getState('loadedCommits');
+        const totalCommits = getState('totalCommits');
+        
         newCommits.forEach((commit, index) => {
             const commitElement = createCommitElement(commit, commits.length - newCommits.length + index);
             commitList.appendChild(commitElement);
@@ -468,6 +474,11 @@ pushBtn.addEventListener('click', (event) => {
         // 重新检查是否需要显示加载指示器
         if (loadedCommits < totalCommits) {
             showLoadingIndicator();
+        }
+        
+        // 检查新添加元素的宽度显示
+        if (checkCommitListWidth) {
+            setTimeout(checkCommitListWidth, 0);
         }
     }
 
@@ -542,6 +553,7 @@ pushBtn.addEventListener('click', (event) => {
         // 添加右键上下文菜单事件
         div.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+            const selectedCommits = getState('selectedCommits');
             showContextMenuComponent(e, commit.hash, selectedCommits, contextMenu, (action, hash) => {
                 handleContextMenuActionComponent(action, hash, selectedCommits, (message) => vscode.postMessage(message));
             });
@@ -1410,5 +1422,57 @@ pushBtn.addEventListener('click', (event) => {
             ensureCommitSelectionUI(currentCommit);
         }
     });
+    
+    // 全局宽度检查函数
+    let checkCommitListWidth;
+    
+    /**
+     * 初始化宽度监控功能
+     * 监控commit-list的宽度变化，动态控制tags的显示
+     */
+    function initializeWidthMonitoring() {
+        let lastWidth = 0;
+        
+        checkCommitListWidth = function() {
+            const commitListWidth = commitList.clientWidth;
+            
+            // 只有当宽度发生变化时才处理
+            if (commitListWidth !== lastWidth) {
+                lastWidth = commitListWidth;
+                
+                // 获取所有commit-refs元素
+                const allRefs = document.querySelectorAll('.commit-refs');
+                
+                // 根据宽度调整遮罩效果的强度
+                // 当commit-list宽度小于800px时增强遮罩效果
+                const shouldEnhanceMask = commitListWidth < 800;
+                
+                allRefs.forEach(refs => {
+                    if (shouldEnhanceMask) {
+                        // 增强遮罩效果，让渐变更明显
+                        refs.style.setProperty('--mask-opacity', '1');
+                    } else {
+                        // 减弱遮罩效果
+                        refs.style.setProperty('--mask-opacity', '0');
+                    }
+                });
+            }
+        };
+        
+        // 使用ResizeObserver监控宽度变化
+        if (window.ResizeObserver) {
+            const resizeObserver = new ResizeObserver(checkCommitListWidth);
+            resizeObserver.observe(commitList);
+        } else {
+            // 降级方案：使用定时器
+            setInterval(checkCommitListWidth, 100);
+        }
+        
+        // 初始检查
+        checkCommitListWidth();
+    }
+    
+    // 初始化宽度监控
+    initializeWidthMonitoring();
 
 })(); // 立即执行函数表达式结束

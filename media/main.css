@@ -287,6 +287,7 @@ body {
 /* 左侧提交列表区域 */
 .commit-list {
     width: 80%;
+    min-width: 650px; /* 设置commit-list的最小宽度，确保所有元素都能正常显示 */
     overflow-y: auto;
     position: relative;
     transition: width 0.3s ease;
@@ -679,13 +680,30 @@ body.resizing .resizer {
 /* 提交内容部分 */
 .commit-content {
     flex: 1;
-    min-width: 0;
+    min-width: 550px; /* 设置整个commit-content的最小宽度 */
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
     background-color: var(--vscode-editor-background);
+}
+
+/* 当commit-content宽度小于阈值时隐藏tags */
+@container (max-width: 700px) {
+    .commit-refs {
+        display: none;
+    }
+}
+
+/* 使用媒体查询作为容器查询的备选方案 */
+@media (max-width: 800px) {
+    .commit-refs {
+        opacity: 0;
+        width: 0;
+        min-width: 0;
+        overflow: hidden;
+    }
 }
 
 /* 提交项内部元素样式 */
@@ -696,6 +714,7 @@ body.resizing .resizer {
     margin: 0;
     flex-shrink: 0;
     width: 80px;
+    min-width: 80px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -707,7 +726,7 @@ body.resizing .resizer {
     margin: 0;
     line-height: 1.3;
     flex: 1;
-    min-width: 0;
+    min-width: 20px; /* 设置commit-message的最小宽度 */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -717,12 +736,53 @@ body.resizing .resizer {
 .commit-refs {
     font-size: 10px;
     margin: 0;
-    flex-shrink: 0;
+    flex-shrink: 1; /* 允许收缩 */
     min-width: 0;
     overflow: hidden;
     display: flex;
     gap: 4px;
     position: relative;
+    /* 当空间不足时隐藏tags */
+    transition: opacity 0.2s ease, width 0.2s ease;
+    white-space: nowrap; /* 禁止换行 */
+}
+
+/* 渐变遮罩效果 */
+.commit-refs {
+    --mask-opacity: 0;
+}
+
+.commit-refs::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 40px;
+    height: 100%;
+    background: linear-gradient(to right, 
+        transparent 0%, 
+        rgba(0, 0, 0, 0.1) 20%, 
+        rgba(0, 0, 0, 0.2) 40%, 
+        rgba(0, 0, 0, 0.4) 70%, 
+        var(--vscode-editor-background) 90%,
+        var(--vscode-editor-background) 100%);
+    pointer-events: none;
+    opacity: var(--mask-opacity, 0);
+    transition: opacity 0.3s ease;
+    z-index: 1;
+}
+
+/* 当空间不足时显示渐变遮罩 */
+@container (max-width: 700px) {
+    .commit-refs {
+        --mask-opacity: 1;
+    }
+}
+
+@media (max-width: 800px) {
+    .commit-refs {
+        --mask-opacity: 1;
+    }
 }
 
 .commit-author {
@@ -730,6 +790,7 @@ body.resizing .resizer {
     color: var(--vscode-descriptionForeground);
     flex-shrink: 0;
     width: 120px;
+    min-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -742,6 +803,7 @@ body.resizing .resizer {
     color: var(--vscode-descriptionForeground);
     flex-shrink: 0;
     width: 100px;
+    min-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -757,6 +819,8 @@ body.resizing .resizer {
     border-radius: 10px;
     background-color: var(--vscode-badge-background);
     color: var(--vscode-badge-foreground);
+    white-space: nowrap; /* 禁止标签内文本换行 */
+    flex-shrink: 0; /* 禁止标签收缩 */
 }
 
 /* HEAD 指针样式 - 红色 */
