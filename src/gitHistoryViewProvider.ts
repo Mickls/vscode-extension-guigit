@@ -129,10 +129,54 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    // 初始化加载数据
+    // 检查Git仓库状态并初始化加载数据
+    this._initializeView();
+  }
+
+  /**
+   * 初始化视图
+   */
+  private async _initializeView() {
+    if (!this._view) return;
+
+    // 检查是否有Git仓库
+    const hasGitRepo = await this._checkForGitRepository();
+    if (!hasGitRepo) {
+      // 显示无Git仓库的提示
+      this._view.webview.postMessage({
+        type: "noGitRepository",
+        message: "No Git repository found in the current workspace."
+      });
+      return;
+    }
+
+    // 有Git仓库，正常初始化
     this._sendBranches();
     this._sendCommitHistory();
     this._sendViewMode();
+  }
+
+  /**
+   * 检查是否有Git仓库
+   */
+  private async _checkForGitRepository(): Promise<boolean> {
+    try {
+      const gitExtension = vscode.extensions.getExtension("vscode.git");
+      if (!gitExtension) {
+        return false;
+      }
+
+      // 确保Git扩展已激活
+      if (!gitExtension.isActive) {
+        await gitExtension.activate();
+      }
+
+      const git = gitExtension.exports.getAPI(1);
+      return git.repositories.length > 0;
+    } catch (error) {
+      console.error("Error checking Git repositories:", error);
+      return false;
+    }
   }
 
   /**
@@ -148,8 +192,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       if (this._view) {
         // 清理后端缓存
         this._gitHistoryProvider.clearCache();
-        this._sendBranches();
-        this._sendCommitHistory();
+        this._initializeView();
       }
     }, 300);
   }

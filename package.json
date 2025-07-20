@@ -2,7 +2,7 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.0.6",
+  "version": "0.0.8",
   "publisher": "Mickls",
   "icon": "gui-git-history-high-resolution-logo-transparent.png",
   "repository": {
@@ -15,9 +15,7 @@
   "categories": [
     "SCM Providers"
   ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
+  "activationEvents": [],
   "extensionDependencies": [
     "vscode.git"
   ],
@@ -49,8 +47,7 @@
         {
           "type": "webview",
           "id": "guigit.historyView",
-          "name": "Commit History",
-          "when": "gitOpenRepositoryCount != 0"
+          "name": "Commit History"
         }
       ]
     },

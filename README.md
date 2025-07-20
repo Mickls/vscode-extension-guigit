@@ -1,5 +1,7 @@
 # GUI Git History - VSCode Extension
 
+![GUI Git History 展示](./GUI_git_history_show.png)
+
 一个功能强大的可视化Git历史记录查看器，为VSCode提供专业级的Git操作界面和丰富的交互功能。
 
 ## ✨ 核心功能
