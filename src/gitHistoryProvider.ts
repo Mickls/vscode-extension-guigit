@@ -440,6 +440,8 @@ export class GitHistoryProvider {
   private parseShowOutput(showOutput: string, hash: string): any {
     const lines = showOutput.split("\n");
     const commitInfo: any = { hash };
+    const messageLines: string[] = [];
+    let inMessageSection = false;
 
     for (const line of lines) {
       if (line.startsWith("Author:")) {
@@ -457,15 +459,38 @@ export class GitHistoryProvider {
         !line.startsWith("Commit") &&
         !line.startsWith("Date")
       ) {
-        if (!commitInfo.message) {
-          commitInfo.message = line.trim();
-        } else if (!commitInfo.body) {
-          commitInfo.body = line.trim();
-        }
+        // 收集所有commit message行
+        messageLines.push(line.trim());
+        inMessageSection = true;
+      } else if (inMessageSection && line.trim() === "") {
+        // 空行也是commit message的一部分
+        messageLines.push("");
       }
     }
 
-    if (!commitInfo.message) {
+    // 处理完整的commit message
+    if (messageLines.length > 0) {
+      // 第一行作为主要message
+      commitInfo.message = messageLines[0] || "No commit message";
+      
+      // 如果有多行，将剩余部分作为body
+      if (messageLines.length > 1) {
+        // 移除第一行，剩余的作为body
+        const bodyLines = messageLines.slice(1);
+        // 移除开头的空行
+        while (bodyLines.length > 0 && bodyLines[0] === "") {
+          bodyLines.shift();
+        }
+        // 移除结尾的空行
+        while (bodyLines.length > 0 && bodyLines[bodyLines.length - 1] === "") {
+          bodyLines.pop();
+        }
+        
+        if (bodyLines.length > 0) {
+          commitInfo.body = bodyLines.join("\n");
+        }
+      }
+    } else {
       commitInfo.message = "No commit message";
     }
 
