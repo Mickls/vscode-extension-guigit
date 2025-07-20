@@ -113,6 +113,12 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "gitCheckout":
           await this._handleGitCheckout();
           break;
+        case "createBranchFromCommit":
+          await this._createBranchFromCommit(data.hash);
+          break;
+        case "pushAllCommitsToHere":
+          await this._pushAllCommitsToHere(data.hash);
+          break;
       }
     });
 
@@ -1149,6 +1155,13 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     <div class="content">
                         <div class="commit-list" id="commitList">
                             <div class="panel-header">
+                                <div class="commit-list-headers">
+                                    <div class="header-hash">Hash</div>
+                                    <div class="header-message">Message</div>
+                                    <div class="header-refs">Tags</div>
+                                    <div class="header-author">Author</div>
+                                    <div class="header-date">Date</div>
+                                </div>
                                 <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
                             </div>
                             <div class="loading">Loading commits...</div>
@@ -1181,6 +1194,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     <div class="menu-separator"></div>
                     <div class="menu-item" data-action="compare" id="compareMenuItem">Compare Selected</div>
                     <div class="menu-item" data-action="squash" id="squashMenuItem">Squash Commits</div>
+                    <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="createBranch">Create Branch from Here</div>
+                    <div class="menu-item" data-action="pushToCommit">Push All Commits to Here</div>
                     <div class="menu-separator"></div>
                     <div class="menu-item" data-action="resetSoft">Reset (Soft)</div>
                     <div class="menu-item" data-action="resetMixed">Reset (Mixed)</div>
@@ -1572,6 +1588,140 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       if (result) {
         vscode.window.showInformationMessage(
           `Successfully ${isForce ? 'force pushed' : 'pushed'} to ${targetBranch}`
+        );
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 从指定提交创建新分支
+   */
+  private async _createBranchFromCommit(hash: string) {
+    try {
+      const branchName = await vscode.window.showInputBox({
+        prompt: "Enter new branch name",
+        placeHolder: "feature/new-branch",
+        validateInput: (value) => {
+          if (!value || value.trim().length === 0) {
+            return "Branch name is required";
+          }
+          if (!/^[a-zA-Z0-9/_-]+$/.test(value)) {
+            return "Invalid branch name. Use only letters, numbers, hyphens, underscores and slashes";
+          }
+          return null;
+        },
+      });
+
+      if (!branchName) {
+        return;
+      }
+
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Creating branch '${branchName}' from commit ${hash.substring(0, 8)}...`,
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.createBranchFromCommit(hash, branchName);
+        }
+      );
+
+      if (result) {
+        const checkoutResult = await vscode.window.showInformationMessage(
+          `Successfully created branch '${branchName}' from commit ${hash.substring(0, 8)}`,
+          "Checkout branch",
+          "Stay on current branch"
+        );
+        
+        if (checkoutResult === "Checkout branch") {
+          await this._gitHistoryProvider.checkoutBranch(branchName);
+          vscode.window.showInformationMessage(`Checked out to branch '${branchName}'`);
+        }
+        
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
+
+  /**
+   * 推送此前所有提交到指定分支
+   */
+  private async _pushAllCommitsToHere(hash: string) {
+    try {
+      // 获取所有远程分支列表
+      const remoteBranches = await this._gitHistoryProvider.getAllRemoteBranches();
+      
+      // 添加"新建分支"选项
+      const branchOptions = [...remoteBranches, "+ Create new remote branch"];
+      
+      // 选择目标分支
+      const selectedOption = await vscode.window.showQuickPick(branchOptions, {
+        placeHolder: "Select target remote branch or create new one",
+        canPickMany: false,
+      });
+
+      if (!selectedOption) {
+        return;
+      }
+
+      let targetBranch: string;
+      if (selectedOption === "+ Create new remote branch") {
+        // 创建新远程分支
+        const newBranchName = await vscode.window.showInputBox({
+          prompt: "Enter new remote branch name (format: remote/branch)",
+          placeHolder: "origin/feature-branch",
+          validateInput: (value) => {
+            if (!value || value.trim().length === 0) {
+              return "Branch name is required";
+            }
+            if (!value.includes('/')) {
+              return "Invalid format. Please use 'remote/branch' format.";
+            }
+            return null;
+          },
+        });
+        if (!newBranchName) {
+          return;
+        }
+        targetBranch = newBranchName;
+      } else {
+        targetBranch = selectedOption;
+      }
+
+      // 确认操作
+      const confirm = await vscode.window.showWarningMessage(
+        `This will push all commits up to ${hash.substring(0, 8)} to ${targetBranch}. Continue?`,
+        { modal: true },
+        "Yes, push commits",
+        "Cancel"
+      );
+      
+      if (confirm !== "Yes, push commits") {
+        return;
+      }
+
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Pushing commits to ${targetBranch}...`,
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.pushCommitsToRemoteBranch(hash, targetBranch);
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage(
+          `Successfully pushed commits to ${targetBranch}`
         );
         this.refresh();
       }

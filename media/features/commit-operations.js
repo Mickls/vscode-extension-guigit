@@ -27,6 +27,12 @@ export function handleContextMenuAction(action, hash, selectedCommits, vscodePos
         case 'squash':
             squashSelectedCommits(selectedCommits, vscodePostMessage);
             break;
+        case 'createBranch':
+            createBranchFromCommit(hash, vscodePostMessage);
+            break;
+        case 'pushToCommit':
+            pushAllCommitsToHere(hash, vscodePostMessage);
+            break;
         case 'resetSoft':
             resetToCommit(hash, vscodePostMessage, 'soft');
             break;
@@ -151,5 +157,29 @@ function resetToCommit(hash, vscodePostMessage, mode = 'mixed') {
         type: 'reset',
         hash: hash,
         mode: mode
+    });
+}
+
+/**
+ * 从指定提交创建新分支
+ * @param {string} hash - 提交哈希值
+ * @param {Function} vscodePostMessage - VS Code消息发送函数
+ */
+function createBranchFromCommit(hash, vscodePostMessage) {
+    vscodePostMessage({
+        type: 'createBranchFromCommit',
+        hash: hash
+    });
+}
+
+/**
+ * 推送此前所有提交到指定位置
+ * @param {string} hash - 提交哈希值
+ * @param {Function} vscodePostMessage - VS Code消息发送函数
+ */
+function pushAllCommitsToHere(hash, vscodePostMessage) {
+    vscodePostMessage({
+        type: 'pushAllCommitsToHere',
+        hash: hash
     });
 }

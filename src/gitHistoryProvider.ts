@@ -1649,4 +1649,51 @@ export class GitHistoryProvider {
       throw new Error(`Create and checkout branch failed: ${errorMessage}`);
     }
   }
+
+  /**
+   * 从指定提交创建新分支
+   * @param hash 提交哈希值
+   * @param branchName 新分支名称
+   * @returns 是否成功
+   */
+  async createBranchFromCommit(hash: string, branchName: string): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      await this.git.checkoutBranch(branchName, hash);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Create branch from commit failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 推送指定提交及其之前的所有提交到远程分支
+   * @param hash 目标提交哈希值
+   * @param remoteBranch 远程分支名称，格式为 remote/branch
+   * @returns 是否成功
+   */
+  async pushCommitsToRemoteBranch(hash: string, remoteBranch: string): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const [remote, branch] = remoteBranch.split('/', 2);
+      if (!remote || !branch) {
+        throw new Error(`Invalid remote branch format: ${remoteBranch}`);
+      }
+
+      // 推送指定提交到远程分支
+      // 使用 git push remote hash:refs/heads/branch 格式
+      await this.git.push(remote, `${hash}:refs/heads/${branch}`);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Push commits to remote branch failed: ${errorMessage}`);
+    }
+  }
 }

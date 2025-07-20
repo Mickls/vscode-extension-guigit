@@ -186,6 +186,104 @@ body {
     position: relative;
 }
 
+/* Hover显示完整内容的tooltip样式 */
+.commit-hash:hover::after,
+.commit-message:hover::after,
+.commit-author:hover::after,
+.commit-date:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background-color: var(--vscode-editorHoverWidget-background);
+    color: var(--vscode-editorHoverWidget-foreground);
+    border: 1px solid var(--vscode-editorHoverWidget-border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+    word-break: break-all;
+}
+
+/* 确保tooltip不会被遮挡 */
+.commit-content > * {
+    z-index: 1;
+}
+
+.commit-content > *:hover {
+    z-index: 1001;
+}
+
+/* ==================== 提交列表标题样式 ==================== */
+
+/* 提交列表标题容器 */
+.commit-list-headers {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    margin-left: 50px; /* 与commit-graph宽度对齐 */
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex: 1;
+    height: 100%;
+}
+
+/* 标题列样式 */
+.header-hash {
+    flex-shrink: 0;
+    width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-message {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-refs {
+    flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-author {
+    flex-shrink: 0;
+    width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: auto;
+}
+
+.header-date {
+    flex-shrink: 0;
+    width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    order: 999;
+}
+
+
+/* 折叠时隐藏列标题 */
+.commit-list.collapsed .commit-list-headers {
+    display: none;
+}
+
 /* 左侧提交列表区域 */
 .commit-list {
     width: 80%;
@@ -233,11 +331,15 @@ body {
     max-height: 40px;
     flex-shrink: 0;
     box-sizing: border-box;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 /* 左侧面板头部 */
 .commit-list .panel-header {
-    justify-content: flex-end;
+    justify-content: space-between;
+    padding: 2px 2px 2px 12px;
 }
 
 /* 右侧面板头部 */
@@ -404,7 +506,7 @@ body.resizing .resizer {
     cursor: pointer;
     user-select: none;
     position: relative;
-    min-height: 60px;
+    min-height: 36px;
 }
 
 /* 让图形部分的垂直线能够穿过分割线 */
@@ -439,7 +541,7 @@ body.resizing .resizer {
 .commit-graph {
     display: flex;
     align-items: stretch;
-    min-width: 120px;
+    min-width: 50px;
     flex-shrink: 0;
     position: relative;
     background-color: var(--vscode-editor-background);
@@ -579,8 +681,9 @@ body.resizing .resizer {
     flex: 1;
     min-width: 0;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
     padding: 8px 12px;
     background-color: var(--vscode-editor-background);
 }
@@ -591,29 +694,59 @@ body.resizing .resizer {
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
     margin: 0;
+    flex-shrink: 0;
+    width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
 }
 
 .commit-message {
     font-weight: 500;
     margin: 0;
     line-height: 1.3;
-}
-
-.commit-author {
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    display: flex;
-    justify-content: space-between;
-}
-
-.commit-date {
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
 }
 
 .commit-refs {
     font-size: 10px;
     margin: 0;
+    flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    gap: 4px;
+    position: relative;
+}
+
+.commit-author {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    flex-shrink: 0;
+    width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+    margin-left: auto;
+}
+
+.commit-date {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    flex-shrink: 0;
+    width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+    order: 999;
 }
 
 /* Git引用标签样式 */
@@ -1059,8 +1192,7 @@ body.resizing .resizer {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     z-index: 1000;
     min-width: 150px;
-    max-height: 300px;
-    overflow-y: auto;
+    /* 移除max-height和overflow-y，让菜单完整显示 */
     /* 防止超出屏幕边界 */
     max-width: calc(100vw - 20px);
 }

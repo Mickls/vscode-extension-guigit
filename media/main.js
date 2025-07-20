@@ -219,9 +219,16 @@ pushBtn.addEventListener('click', (event) => {
         if (reset) {
             setState('loadedCommits', 0);
             setState('commits', []);
-            // 保留折叠按钮，只更新内容
+            // 保留折叠按钮和headers，只更新内容
             commitList.innerHTML = `
                 <div class="panel-header">
+                    <div class="commit-list-headers">
+                        <div class="header-hash">Hash</div>
+                        <div class="header-message">Message</div>
+                        <div class="header-refs">Tags</div>
+                        <div class="header-author">Author</div>
+                        <div class="header-date">Date</div>
+                    </div>
                     <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
                 </div>
                 <div class="loading">Loading commits...</div>
@@ -300,13 +307,26 @@ pushBtn.addEventListener('click', (event) => {
                 rebindCollapseButtons();
             }
             
+            // 清空提交列表，但保留panel-header
+            const panelHeader = commitList.querySelector('.panel-header');
             commitList.innerHTML = '';
-            // 立即添加折叠按钮
-            commitList.innerHTML = `
-                <div class="panel-header">
-                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
-                </div>
-            `;
+            if (panelHeader) {
+                commitList.appendChild(panelHeader);
+            } else {
+                // 如果没有panel-header，创建一个包含headers的
+                commitList.innerHTML = `
+                    <div class="panel-header">
+                        <div class="commit-list-headers">
+                            <div class="header-hash">Hash</div>
+                            <div class="header-message">Message</div>
+                            <div class="header-refs">Tags</div>
+                            <div class="header-author">Author</div>
+                            <div class="header-date">Date</div>
+                        </div>
+                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                    </div>
+                `;
+            }
             rebindCollapseButtons();
             renderCommitList();
             
@@ -399,6 +419,13 @@ pushBtn.addEventListener('click', (event) => {
             if (existingHeaders.length === 0) {
                 commitList.innerHTML = `
                     <div class="panel-header">
+                        <div class="commit-list-headers">
+                            <div class="header-hash">Hash</div>
+                            <div class="header-message">Message</div>
+                            <div class="header-refs">Tags</div>
+                            <div class="header-author">Author</div>
+                            <div class="header-date">Date</div>
+                        </div>
                         <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
                     </div>
                     <div class="loading">No commits found</div>
@@ -493,13 +520,11 @@ pushBtn.addEventListener('click', (event) => {
         div.innerHTML = `
             <div class="commit-graph">${graphHtml}</div>
             <div class="commit-content">
-                <div class="commit-hash">${commit.hash.substring(0, 8)}</div>
-                <div class="commit-message">${escapeHtml(commit.message)}</div>
-                <div class="commit-author">
-                    <span>${escapeHtml(commit.author)}</span>
-                    <span class="commit-date">${formatDate(commit.date)}</span>
-                </div>
-                ${refsHtml ? `<div class="commit-refs">${refsHtml}</div>` : ''}
+                <div class="commit-hash" title="${commit.hash}">${commit.hash.substring(0, 8)}</div>
+                <div class="commit-message" title="${escapeHtml(commit.message)}">${escapeHtml(commit.message)}</div>
+                ${refsHtml ? `<div class="commit-refs">${refsHtml}</div>` : '<div class="commit-refs"></div>'}
+                <div class="commit-author" title="${escapeHtml(commit.author)}">${escapeHtml(commit.author)}</div>
+                <div class="commit-date" title="${formatDate(commit.date)}">${formatDate(commit.date)}</div>
             </div>
         `;
 

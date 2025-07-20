@@ -13,7 +13,6 @@
  */
 export function showContextMenu(event, hash, selectedCommits, contextMenu, handleContextMenuAction) {
     const menuWidth = 150;
-    const menuHeight = 200; // 估算菜单高度
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     
@@ -25,19 +24,24 @@ export function showContextMenu(event, hash, selectedCommits, contextMenu, handl
         x = windowWidth - menuWidth - 10;
     }
     
-    // 防止菜单超出下边界
-    if (y + menuHeight > windowHeight) {
-        y = windowHeight - menuHeight - 10;
-    }
-    
-    // 确保菜单不会超出左边界和上边界
+    // 确保菜单不会超出左边界
     x = Math.max(10, x);
-    y = Math.max(10, y);
     
-    // 显示菜单并设置位置
+    // 显示菜单以获取实际高度
     contextMenu.style.display = 'block';
     contextMenu.style.left = x + 'px';
     contextMenu.style.top = y + 'px';
+    
+    // 获取菜单实际高度
+    const menuHeight = contextMenu.offsetHeight;
+    
+    // 如果菜单超出下边界，调整位置让底部贴近屏幕底部
+    if (y + menuHeight > windowHeight) {
+        y = windowHeight - menuHeight - 10;
+        // 确保菜单顶部不会超出屏幕上边界
+        y = Math.max(10, y);
+        contextMenu.style.top = y + 'px';
+    }
 
     // 更新Compare菜单项状态
     const compareMenuItem = contextMenu.querySelector('#compareMenuItem');
