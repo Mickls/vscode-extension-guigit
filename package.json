@@ -2,8 +2,8 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.0.3",
-  "publisher": "guigit",
+  "version": "0.0.5",
+  "publisher": "Mickls",
   "repository": {
     "type": "git",
     "url": "https://github.com/Mickls/vscode-extension-guigit.git"
@@ -34,15 +34,6 @@
         "icon": "$(refresh)"
       }
     ],
-    "views": {
-      "explorer": [
-        {
-          "id": "guigit.gitHistory",
-          "name": "Git History",
-          "when": "gitOpenRepositoryCount != 0"
-        }
-      ]
-    },
     "viewsContainers": {
       "panel": [
         {
