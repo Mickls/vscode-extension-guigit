@@ -59,26 +59,42 @@ export class GitHistoryProvider {
     { commit: GitCommit; files: GitFileChange[] }
   >();
   private readonly CACHE_SIZE_LIMIT = 100;
+  // 缓存当前用户信息，避免重复执行git命令
+  private currentUserCache: { name: string; email: string } | null = null;
+  private userCacheTimestamp: number = 0;
+  private readonly USER_CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
 
   constructor() {
     this.initializeGit();
   }
 
   /**
-   * 获取当前Git用户信息
+   * 获取当前Git用户信息（带缓存优化）
    */
   private async getCurrentUserInfo(): Promise<{ name: string; email: string } | null> {
     if (!this.git) {
       return null;
     }
 
+    // 检查缓存是否有效
+    const now = Date.now();
+    if (this.currentUserCache && (now - this.userCacheTimestamp) < this.USER_CACHE_TTL) {
+      return this.currentUserCache;
+    }
+
     try {
       const name = await this.git.raw(['config', 'user.name']);
       const email = await this.git.raw(['config', 'user.email']);
-      return {
+      const userInfo = {
         name: name.trim(),
         email: email.trim()
       };
+      
+      // 更新缓存
+      this.currentUserCache = userInfo;
+      this.userCacheTimestamp = now;
+      
+      return userInfo;
     } catch (error) {
       console.warn('Failed to get current user info:', error);
       return null;
@@ -558,7 +574,10 @@ export class GitHistoryProvider {
    */
   public clearCache() {
     this.commitDetailsCache.clear();
-    console.log("Commit details cache cleared");
+    // 清除用户信息缓存
+    this.currentUserCache = null;
+    this.userCacheTimestamp = 0;
+    console.log("All caches cleared");
   }
 
   /**
@@ -1961,5 +1980,20 @@ export class GitHistoryProvider {
       const errorMessage = error?.message || error?.toString() || "Unknown error";
       throw new Error(`Amend commit message failed: ${errorMessage}`);
     }
+  }
+
+  /**
+   * 获取当前Git用户信息
+   * @returns 当前用户的姓名和邮箱
+   */
+  async getCurrentUser(): Promise<{ name: string; email: string } | null> {
+    return this.executeGitCommand(
+      async () => {
+        const userInfo = await this.getCurrentUserInfo();
+        return userInfo;
+      },
+      "Error getting current user",
+      null
+    );
   }
 }

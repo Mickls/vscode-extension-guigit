@@ -22,7 +22,8 @@ import {
     initializeStateManager, getState, setState, setStates,
     updateSelectedCommits, setCurrentCommit, setCurrentBranch, setLoading, setFileViewMode,
     resetCommitState, clearAllCache, getCachedCommitDetails, setCachedCommitDetails,
-    hasPendingRequest, setPendingRequest, setSearchingForCommit, setPendingJumpCommit
+    hasPendingRequest, setPendingRequest, setSearchingForCommit, setPendingJumpCommit,
+    addAuthorFilter, clearAuthorFilter
 } from './core/state-manager.js';
 
 (function () {
@@ -227,13 +228,15 @@ import {
                         <div class="header-hash">Hash</div>
                         <div class="header-message">Message</div>
                         <div class="header-refs">Tags</div>
-                        <div class="header-author">Author</div>
+                        <div class="header-author clickable" id="headerAuthor">Author</div>
                         <div class="header-date">Date</div>
                     </div>
                     <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
                 </div>
                 <div class="loading">Loading commits...</div>
             `;
+            // 绑定作者筛选点击事件
+            bindAuthorFilterEvent();
             rebindCollapseButtons();
         }
 
@@ -321,12 +324,14 @@ import {
                             <div class="header-hash">Hash</div>
                             <div class="header-message">Message</div>
                             <div class="header-refs">Tags</div>
-                            <div class="header-author">Author</div>
+                            <div class="header-author clickable" id="headerAuthor">Author</div>
                             <div class="header-date">Date</div>
                         </div>
                         <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
                     </div>
                 `;
+                // 绑定作者筛选点击事件
+                bindAuthorFilterEvent();
             }
             rebindCollapseButtons();
             renderCommitList();
@@ -1475,5 +1480,276 @@ import {
 
     // 初始化宽度监控
     initializeWidthMonitoring();
+
+    // ==================== 作者筛选功能 ====================
+
+    /**
+     * 绑定作者筛选点击事件
+     */
+    function bindAuthorFilterEvent() {
+        // 事件绑定现在由updateHeaderAuthorDisplay函数处理
+        // 这里只需要确保初始状态正确
+        updateHeaderAuthorDisplay();
+    }
+
+    /**
+     * 显示作者筛选下拉框
+     */
+    function showAuthorFilterDropdown(event) {
+        // 阻止事件冒泡
+        if (event) {
+            event.stopPropagation();
+        }
+
+        // 移除现有的下拉框
+        const existingDropdown = document.querySelector('.author-filter-dropdown');
+        if (existingDropdown) {
+            existingDropdown.remove();
+            return;
+        }
+
+        const headerAuthor = document.getElementById('headerAuthor');
+        if (!headerAuthor) return;
+
+        // 创建下拉框
+        const dropdown = document.createElement('div');
+        dropdown.className = 'author-filter-dropdown';
+
+        const currentFilter = getState('authorFilter');
+        const filterDisplay = currentFilter.length > 0 ?
+            `Current Filter: ${currentFilter.join(', ')}` : 'No Filter';
+
+        dropdown.innerHTML = `
+            <div class="dropdown-content">
+                <div class="dropdown-header">${filterDisplay}</div>
+                <input type="text" placeholder="Enter author names (separate multiple authors with |)..." class="filter-input">
+                <div class="filter-options">
+                    <div class="filter-option me-option">
+                        <span class="filter-option-icon"></span>
+                        <span>me</span>
+                    </div>
+                    ${currentFilter.length > 0 ? '<div class="filter-option clear-option"><span class="filter-option-icon"></span><span>清除筛选</span></div>' : ''}
+                </div>
+            </div>
+        `;
+
+        // 将下拉框添加到body，然后定位到headerAuthor下方
+        document.body.appendChild(dropdown);
+
+        // 获取headerAuthor的位置信息
+        const rect = headerAuthor.getBoundingClientRect();
+        dropdown.style.position = 'fixed';
+        dropdown.style.top = (rect.bottom + 2) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.zIndex = '1000';
+
+        // 获取输入框并聚焦
+        const filterInput = dropdown.querySelector('.filter-input');
+        filterInput.focus();
+
+        // 绑定事件
+        const meOption = dropdown.querySelector('.me-option');
+        const clearOption = dropdown.querySelector('.clear-option');
+
+        meOption.addEventListener('click', () => {
+            // 立即关闭下拉框并显示加载状态
+            dropdown.remove();
+            
+            // 显示临时的加载状态
+            const headerAuthor = document.getElementById('headerAuthor');
+            if (headerAuthor) {
+                const originalContent = headerAuthor.innerHTML;
+                headerAuthor.innerHTML = '<span class="filter-loading">Loading...</span>';
+                headerAuthor.classList.add('loading');
+                
+                // 设置超时恢复，防止请求失败时界面卡住
+                const timeoutId = setTimeout(() => {
+                    if (headerAuthor.classList.contains('loading')) {
+                        headerAuthor.innerHTML = originalContent;
+                        headerAuthor.classList.remove('loading');
+                    }
+                }, 5000);
+                
+                // 存储超时ID以便在成功时清除
+                headerAuthor._loadingTimeoutId = timeoutId;
+            }
+            
+            vscode.postMessage({ type: 'getCurrentUser' });
+        });
+
+        if (clearOption) {
+            clearOption.addEventListener('click', () => {
+                clearAuthorFilter();
+                updateHeaderAuthorDisplay();
+                applyAuthorFilter();
+                dropdown.remove();
+            });
+        }
+
+        filterInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const input = filterInput.value.trim();
+                if (input) {
+                    // 支持竖线分割多个作者
+                    const authors = input.split('|').map(author => author.trim()).filter(author => author);
+                    authors.forEach(author => {
+                        addAuthorFilter(author);
+                    });
+                    updateHeaderAuthorDisplay();
+                    applyAuthorFilter();
+                    dropdown.remove();
+                }
+            }
+        });
+
+        // 点击外部关闭下拉框
+        function closeDropdown(e) {
+            if (!dropdown.contains(e.target) && e.target !== headerAuthor) {
+                dropdown.remove();
+                document.removeEventListener('click', closeDropdown);
+            }
+        }
+
+        setTimeout(() => {
+            document.addEventListener('click', closeDropdown);
+        }, 0);
+
+        // 监听窗口滚动和resize，关闭下拉框
+        function closeOnScroll() {
+            dropdown.remove();
+            window.removeEventListener('scroll', closeOnScroll);
+            window.removeEventListener('resize', closeOnScroll);
+        }
+
+        window.addEventListener('scroll', closeOnScroll);
+        window.addEventListener('resize', closeOnScroll);
+    }
+
+    /**
+     * 应用作者筛选
+     */
+    function applyAuthorFilter() {
+        const authorFilter = getState('authorFilter');
+        const commits = getState('commits');
+
+        // 更新header显示
+        updateHeaderAuthorDisplay();
+
+        // 筛选提交列表
+        const commitItems = document.querySelectorAll('.commit-item');
+        commitItems.forEach(item => {
+            const hash = item.dataset.hash;
+            const commit = commits.find(c => c.hash === hash);
+
+            if (commit) {
+                const shouldShow = authorFilter.length === 0 ||
+                    authorFilter.some(author => commit.author.toLowerCase().includes(author.toLowerCase()));
+
+                item.style.display = shouldShow ? 'flex' : 'none';
+            }
+        });
+    }
+
+    /**
+     * 更新header作者显示
+     */
+    function updateHeaderAuthorDisplay() {
+        const headerAuthor = document.getElementById('headerAuthor');
+        const authorFilter = getState('authorFilter');
+
+        if (headerAuthor) {
+            // 移除之前的事件监听器
+            const oldHandler = headerAuthor._clickHandler;
+            if (oldHandler) {
+                headerAuthor.removeEventListener('click', oldHandler);
+            }
+
+            if (authorFilter.length === 0) {
+                headerAuthor.innerHTML = 'Author';
+                headerAuthor.classList.remove('filtered');
+                // 重新绑定下拉框事件
+                headerAuthor._clickHandler = showAuthorFilterDropdown;
+                headerAuthor.addEventListener('click', headerAuthor._clickHandler);
+            } else {
+                const authorNames = authorFilter.map(author => escapeHtml(author)).join('|');
+                headerAuthor.innerHTML = `
+                    <span class="filter-display">
+                        <span class="filter-prefix">AUTHOR: </span>
+                        <span class="filter-authors">${authorNames}</span>
+                        <span class="filter-clear">×</span>
+                    </span>
+                `;
+                headerAuthor.classList.add('filtered');
+
+                // 创建新的事件处理器，处理清除和下拉框事件
+                headerAuthor._clickHandler = function (e) {
+                    if (e.target.classList.contains('filter-clear')) {
+                        e.stopPropagation();
+                        clearAuthorFilter();
+                        updateHeaderAuthorDisplay();
+                        applyAuthorFilter();
+
+                        // 清除后没有筛选条件了，需要更新下拉框状态
+                        const dropdown = document.querySelector('.author-filter-dropdown');
+                        if (dropdown) {
+                            dropdown.remove();
+                        }
+                    } else {
+                        showAuthorFilterDropdown(e);
+                    }
+                };
+                headerAuthor.addEventListener('click', headerAuthor._clickHandler);
+            }
+        }
+    }
+
+    // 监听状态变化，自动应用筛选
+    window.addEventListener('message', event => {
+        const message = event.data;
+
+        if (message.type === 'currentUser') {
+            // 清除加载状态
+            const headerAuthor = document.getElementById('headerAuthor');
+            if (headerAuthor && headerAuthor.classList.contains('loading')) {
+                headerAuthor.classList.remove('loading');
+                if (headerAuthor._loadingTimeoutId) {
+                    clearTimeout(headerAuthor._loadingTimeoutId);
+                    delete headerAuthor._loadingTimeoutId;
+                }
+            }
+            
+            // 收到当前用户信息，添加到筛选条件
+            const currentUser = message.data;
+            if (currentUser && currentUser.name) {
+                addAuthorFilter(currentUser.name);
+                updateHeaderAuthorDisplay();
+                applyAuthorFilter();
+
+                // 关闭下拉框
+                const dropdown = document.querySelector('.author-filter-dropdown');
+                if (dropdown) {
+                    dropdown.remove();
+                }
+            }
+        }
+    });
+
+    // 在渲染提交列表后应用筛选
+    const originalRenderCommitList = renderCommitList;
+    renderCommitList = function () {
+        originalRenderCommitList.apply(this, arguments);
+        setTimeout(() => {
+            applyAuthorFilter();
+        }, 0);
+    };
+
+    // 在追加提交列表后应用筛选
+    const originalAppendCommitList = appendCommitList;
+    appendCommitList = function () {
+        originalAppendCommitList.apply(this, arguments);
+        setTimeout(() => {
+            applyAuthorFilter();
+        }, 0);
+    };
 
 })(); // 立即执行函数表达式结束

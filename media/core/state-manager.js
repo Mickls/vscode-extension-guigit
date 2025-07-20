@@ -23,6 +23,9 @@ const state = {
     // UI状态
     fileViewMode: 'list',  // 文件视图模式: 'tree' 或 'list'
     
+    // 筛选状态
+    authorFilter: [],      // 作者筛选条件数组
+    
     // 缓存和性能优化
     commitDetailsCache: new Map(), // 缓存commit详情，避免重复请求
     pendingRequests: new Map(),    // 防止同一commit的重复请求
@@ -40,7 +43,8 @@ const listeners = {
     selectedCommits: [],
     currentCommit: [],
     currentBranch: [],
-    isLoading: []
+    isLoading: [],
+    authorFilter: []
 };
 
 /**
@@ -216,6 +220,7 @@ export function resetAllState() {
         totalCommits: 0,
         isLoading: false,
         fileViewMode: 'list',
+        authorFilter: [],
         searchingForCommit: null,
         pendingJumpCommit: null
     });
@@ -293,6 +298,41 @@ export function setSearchingForCommit(commitHash) {
  */
 export function setPendingJumpCommit(commitHash) {
     setState('pendingJumpCommit', commitHash);
+}
+
+/**
+ * 设置作者筛选条件
+ * @param {Array} authors - 作者筛选条件数组
+ */
+export function setAuthorFilter(authors) {
+    setState('authorFilter', authors);
+}
+
+/**
+ * 添加作者筛选条件
+ * @param {string} author - 作者名称
+ */
+export function addAuthorFilter(author) {
+    const currentFilter = getState('authorFilter');
+    if (!currentFilter.includes(author)) {
+        setState('authorFilter', [...currentFilter, author]);
+    }
+}
+
+/**
+ * 移除作者筛选条件
+ * @param {string} author - 作者名称
+ */
+export function removeAuthorFilter(author) {
+    const currentFilter = getState('authorFilter');
+    setState('authorFilter', currentFilter.filter(a => a !== author));
+}
+
+/**
+ * 清空作者筛选条件
+ */
+export function clearAuthorFilter() {
+    setState('authorFilter', []);
 }
 
 /**

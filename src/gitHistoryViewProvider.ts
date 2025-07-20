@@ -122,6 +122,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "editCommitMessage":
           await this._editCommitMessage(data.hash);
           break;
+        case "getCurrentUser":
+          await this._sendCurrentUser();
+          break;
         // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
@@ -1799,6 +1802,29 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   // 删除了_checkCommitEditable方法，现在直接使用预计算的canEditMessage值
+
+  /**
+   * 发送当前用户信息到WebView
+   */
+  private async _sendCurrentUser() {
+    if (!this._view) return;
+
+    try {
+      const currentUser = await this._gitHistoryProvider.getCurrentUser();
+      this._view.webview.postMessage({
+        type: "currentUser",
+        data: currentUser,
+      });
+    } catch (error) {
+      console.error("Error getting current user:", error);
+      this._view.webview.postMessage({
+        type: "error",
+        message: `Failed to get current user: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      });
+    }
+  }
 
   /**
    * 释放资源

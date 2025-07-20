@@ -270,6 +270,77 @@ body {
   margin-left: auto;
 }
 
+.header-author.clickable {
+  cursor: pointer;
+  transition: color 0.2s ease;
+  padding: 2px 4px;
+  border-radius: 3px;
+  position: relative;
+}
+
+.header-author.clickable:hover {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+}
+
+.header-author.filtered {
+  color: var(--vscode-inputValidation-infoForeground);
+  width: auto;
+  min-width: 120px;
+  max-width: 300px;
+  overflow: visible;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-display {
+  display: flex;
+  align-items: center;
+  max-width: 200px;
+  overflow: hidden;
+}
+
+.filter-prefix {
+  color: var(--vscode-foreground);
+  font-weight: normal;
+  flex-shrink: 0;
+}
+
+.filter-authors {
+  color: var(--vscode-textLink-foreground);
+  font-weight: 500;
+  background-color: var(--vscode-textCodeBlock-background);
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin: 0 4px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.filter-clear {
+  background: none;
+  border: none;
+  color: var(--vscode-icon-foreground);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  min-width: 16px;
+  text-align: center;
+}
+
+.filter-clear:hover {
+  color: var(--vscode-errorForeground);
+  background-color: var(--vscode-toolbar-hoverBackground);
+  border-radius: 2px;
+}
+
 .header-date {
   flex-shrink: 0;
   width: 100px;
@@ -406,6 +477,131 @@ body.resizing * {
 body.resizing .resizer {
   pointer-events: auto !important;
 }
+
+/* 加载状态样式 */
+.filter-loading {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.header-item.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* 作者筛选下拉框样式 - VSCode风格 */
+.author-filter-dropdown {
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 2px;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+  min-width: 200px;
+  max-width: 300px;
+  max-height: 300px;
+  overflow: hidden;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+.author-filter-dropdown .dropdown-content {
+  padding: 4px 0;
+}
+
+.author-filter-dropdown .dropdown-header {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+  padding: 8px 12px 4px 12px;
+  border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.author-filter-dropdown .filter-input {
+  width: calc(100% - 24px);
+  margin: 4px 12px 8px 12px;
+  padding: 4px 8px;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  color: var(--vscode-input-foreground);
+  font-size: 13px;
+  font-family: var(--vscode-font-family);
+}
+
+.author-filter-dropdown .filter-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+  border-color: var(--vscode-focusBorder);
+}
+
+.author-filter-dropdown .filter-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.author-filter-dropdown .filter-option {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vscode-foreground);
+  position: relative;
+}
+
+.author-filter-dropdown .filter-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.author-filter-dropdown .filter-option:active {
+  background: var(--vscode-list-activeSelectionBackground);
+}
+
+.author-filter-dropdown .filter-option.me-option {
+  color: var(--vscode-foreground);
+}
+
+.author-filter-dropdown .filter-option.clear-option {
+  color: var(--vscode-foreground);
+  border-top: 1px solid var(--vscode-menu-separatorBackground);
+  margin-top: 4px;
+}
+
+/* VSCode风格图标 */
+.author-filter-dropdown .filter-option-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.author-filter-dropdown .filter-option-icon::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  background-color: var(--vscode-icon-foreground);
+  mask-size: 16px 16px;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+/* 用户图标 */
+.author-filter-dropdown .me-option .filter-option-icon::before {
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8c1.66 0 3-1.34 3-3S9.66 2 8 2 5 3.34 5 5s1.34 3 3 3zm0 1c-2.33 0-7 1.17-7 3.5V14h14v-1.5c0-2.33-4.67-3.5-7-3.5z"/></svg>');
+}
+
+/* 清除图标 */
+.author-filter-dropdown .clear-option .filter-option-icon::before {
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>');
+}
+
+/* 旧的对话框样式已删除，现在使用下拉框样式 */
 
 /* 分割线中央指示器 */
 .resizer::after {
