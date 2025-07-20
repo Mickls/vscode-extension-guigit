@@ -42,6 +42,9 @@ export function handleContextMenuAction(action, hash, selectedCommits, vscodePos
         case 'resetHard':
             resetToCommit(hash, vscodePostMessage, 'hard');
             break;
+        case 'editCommitMessage':
+            editCommitMessage(hash, vscodePostMessage);
+            break;
         default:
             console.warn('Unknown context menu action:', action);
     }
@@ -73,7 +76,7 @@ function fallbackCopyTextToClipboard(text) {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    
+
     try {
         const successful = document.execCommand('copy');
         if (successful) {
@@ -84,7 +87,7 @@ function fallbackCopyTextToClipboard(text) {
     } catch (err) {
         console.error('Failed to copy commit hash (fallback):', err);
     }
-    
+
     document.body.removeChild(textArea);
 }
 
@@ -122,7 +125,7 @@ function compareSelectedCommits(selectedCommits, vscodePostMessage) {
         console.warn('Exactly 2 commits must be selected for comparison');
         return;
     }
-    
+
     vscodePostMessage({
         type: 'compareCommits',
         hashes: selectedCommits.map(c => c.hash)
@@ -139,7 +142,7 @@ function squashSelectedCommits(selectedCommits, vscodePostMessage) {
         console.warn('At least 2 commits must be selected for squashing');
         return;
     }
-    
+
     vscodePostMessage({
         type: 'squashCommits',
         commits: selectedCommits
@@ -180,6 +183,18 @@ function createBranchFromCommit(hash, vscodePostMessage) {
 function pushAllCommitsToHere(hash, vscodePostMessage) {
     vscodePostMessage({
         type: 'pushAllCommitsToHere',
+        hash: hash
+    });
+}
+
+/**
+ * 编辑提交信息
+ * @param {string} hash - 提交哈希值
+ * @param {Function} vscodePostMessage - VS Code消息发送函数
+ */
+function editCommitMessage(hash, vscodePostMessage) {
+    vscodePostMessage({
+        type: 'editCommitMessage',
         hash: hash
     });
 }

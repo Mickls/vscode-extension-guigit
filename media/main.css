@@ -7,183 +7,184 @@
 /* ==================== 基础样式 ==================== */
 
 body {
-    font-family: var(--vscode-font-family), "Microsoft YaHei", "SimHei", "Arial Unicode MS", sans-serif;
-    font-size: var(--vscode-font-size);
-    color: var(--vscode-foreground);
-    background-color: var(--vscode-editor-background);
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
+  font-family: var(--vscode-font-family), "Microsoft YaHei", "SimHei",
+    "Arial Unicode MS", sans-serif;
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-editor-background);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 /* ==================== 布局容器 ==================== */
 
 .container {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 顶部工具栏 */
 .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px;
-    border-bottom: 1px solid var(--vscode-panel-border);
-    background-color: var(--vscode-panel-background);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background-color: var(--vscode-panel-background);
 }
 
 /* 头部左侧区域 - 分支选择器 */
 .header-left {
-    flex: 1;
-    min-width: 0; /* 允许收缩 */
+  flex: 1;
+  min-width: 0; /* 允许收缩 */
 }
 
 /* 头部右侧区域 - 操作按钮 */
 .header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0; /* 防止收缩 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0; /* 防止收缩 */
 }
 
 /* Git操作按钮容器 */
 .git-operations {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0 8px;
-    border-right: 1px solid var(--vscode-panel-border);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-right: 1px solid var(--vscode-panel-border);
 }
 
 /* 头部控制按钮容器 */
 .header-controls {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* 分支选择下拉框 */
 .branch-select {
-    width: 100%;
-    max-width: 200px; /* 限制最大宽度 */
-    padding: 4px 8px;
-    background-color: var(--vscode-list-background);
-    color: var(--vscode-dropdown-foreground);
-    border: 1px solid var(--vscode-dropdown-border);
-    border-radius: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  width: 100%;
+  max-width: 200px; /* 限制最大宽度 */
+  padding: 4px 8px;
+  background-color: var(--vscode-list-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .branch-select:hover {
-    background-color: var(--vscode-dropdown-background);
+  background-color: var(--vscode-dropdown-background);
 }
 
 .branch-select:focus {
-    outline: 1px solid var(--vscode-focusBorder);
-    outline-offset: -1px;
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 /* 下拉框选项样式 */
 .branch-select option {
-    background-color: var(--vscode-dropdown-background);
-    color: var(--vscode-dropdown-foreground);
-    padding: 4px 8px;
+  background-color: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  padding: 4px 8px;
 }
 
 .branch-select option:hover {
-    background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 /* ==================== 按钮样式 ==================== */
 
 /* 图标按钮基础样式 */
 .icon-btn {
-    width: 28px;
-    height: 28px;
-    padding: 6px;
-    background-color: transparent;
-    color: var(--vscode-icon-foreground);
-    border: none;
-    border-radius: 2px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.1s ease;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  background-color: transparent;
+  color: var(--vscode-icon-foreground);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.1s ease;
 }
 
 .icon-btn:hover {
-    background-color: var(--vscode-toolbar-hoverBackground);
+  background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .icon-btn:active {
-    background-color: var(--vscode-toolbar-activeBackground);
+  background-color: var(--vscode-toolbar-activeBackground);
 }
 
 .icon-btn svg {
-    width: 16px;
-    height: 16px;
+  width: 16px;
+  height: 16px;
 }
 
 /* Git操作按钮样式 */
 .git-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    background-color: transparent;
-    color: var(--vscode-icon-foreground);
-    border: 1px solid var(--vscode-button-border);
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 500;
-    transition: all 0.1s ease;
-    white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: transparent;
+  color: var(--vscode-icon-foreground);
+  border: 1px solid var(--vscode-button-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.1s ease;
+  white-space: nowrap;
 }
 
 .git-btn:hover {
-    background-color: var(--vscode-button-secondaryHoverBackground);
-    border-color: var(--vscode-button-hoverBackground);
+  background-color: var(--vscode-button-secondaryHoverBackground);
+  border-color: var(--vscode-button-hoverBackground);
 }
 
 .git-btn:active {
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
 }
 
 .git-btn svg {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 /* 刷新按钮样式 */
 .refresh-btn {
-    padding: 4px 8px;
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    border-radius: 2px;
-    cursor: pointer;
+  padding: 4px 8px;
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
 }
 
 .refresh-btn:hover {
-    background-color: var(--vscode-button-hoverBackground);
+  background-color: var(--vscode-button-hoverBackground);
 }
 
 /* ==================== 主要内容区域 ==================== */
 
 /* 内容容器 - 左右分栏布局 */
 .content {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-    position: relative;
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
 }
 
 /* Hover显示完整内容的tooltip样式 */
@@ -191,1307 +192,1320 @@ body {
 .commit-message:hover::after,
 .commit-author:hover::after,
 .commit-date:hover::after {
-    content: attr(title);
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    background-color: var(--vscode-editorHoverWidget-background);
-    color: var(--vscode-editorHoverWidget-foreground);
-    border: 1px solid var(--vscode-editorHoverWidget-border);
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 12px;
-    white-space: nowrap;
-    z-index: 1000;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    max-width: 400px;
-    word-break: break-all;
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background-color: var(--vscode-editorHoverWidget-background);
+  color: var(--vscode-editorHoverWidget-foreground);
+  border: 1px solid var(--vscode-editorHoverWidget-border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  word-break: break-all;
 }
 
 /* 确保tooltip不会被遮挡 */
 .commit-content > * {
-    z-index: 1;
+  z-index: 1;
 }
 
 .commit-content > *:hover {
-    z-index: 1001;
+  z-index: 1001;
 }
 
 /* ==================== 提交列表标题样式 ==================== */
 
 /* 提交列表标题容器 */
 .commit-list-headers {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0;
-    margin-left: 50px; /* 与commit-graph宽度对齐 */
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--vscode-descriptionForeground);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    flex: 1;
-    height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  margin-left: 50px; /* 与commit-graph宽度对齐 */
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
+  height: 100%;
 }
 
 /* 标题列样式 */
 .header-hash {
-    flex-shrink: 0;
-    width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  flex-shrink: 0;
+  width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-message {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-refs {
-    flex-shrink: 0;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-author {
-    flex-shrink: 0;
-    width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    margin-left: auto;
+  flex-shrink: 0;
+  width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: auto;
 }
 
 .header-date {
-    flex-shrink: 0;
-    width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    order: 999;
+  flex-shrink: 0;
+  width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  order: 999;
 }
-
 
 /* 折叠时隐藏列标题 */
 .commit-list.collapsed .commit-list-headers {
-    display: none;
+  display: none;
 }
 
 /* 左侧提交列表区域 */
 .commit-list {
-    width: 80%;
-    min-width: 650px; /* 设置commit-list的最小宽度，确保所有元素都能正常显示 */
-    overflow-y: auto;
-    position: relative;
-    transition: width 0.3s ease;
-    flex-direction: column;
+  width: 80%;
+  min-width: 650px; /* 设置commit-list的最小宽度，确保所有元素都能正常显示 */
+  overflow-y: auto;
+  position: relative;
+  transition: width 0.3s ease;
+  flex-direction: column;
 }
 
 /* 提交列表内容区域 */
 .commit-list > *:not(.panel-header) {
-    flex: 1;
-    overflow-y: auto;
+  flex: 1;
+  overflow-y: auto;
 }
 
 /* 拖拽时禁用过渡动画 */
 .commit-list.no-transition {
-    transition: none !important;
+  transition: none !important;
 }
 
 /* 左侧面板折叠状态 */
 .commit-list.collapsed {
-    width: 40px !important;
-    min-width: 40px !important;
-    max-width: 40px !important;
-    overflow: hidden;
-    padding: 0;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  overflow: hidden;
+  padding: 0;
 }
 
 /* 隐藏折叠面板中除了面板头部之外的所有内容 */
 .commit-list.collapsed > *:not(.panel-header) {
-    display: none !important;
+  display: none !important;
 }
 
 /* 面板头部容器 */
 .panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 2px;
-    background-color: var(--vscode-editor-background);
-    border-bottom: 1px solid var(--vscode-panel-border);
-    height: 40px;
-    min-height: 40px;
-    max-height: 40px;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    position: sticky;
-    top: 0;
-    z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 2px;
+  background-color: var(--vscode-editor-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 /* 左侧面板头部 */
 .commit-list .panel-header {
-    justify-content: space-between;
-    padding: 2px 2px 2px 12px;
+  justify-content: space-between;
+  padding: 2px 2px 2px 12px;
 }
 
 /* 右侧面板头部 */
 .commit-details .panel-header {
-    justify-content: flex-start;
+  justify-content: flex-start;
 }
 
 /* 面板折叠按钮 */
 .panel-collapse-btn {
-    background: none;
-    border: 1px solid var(--vscode-button-border);
-    background-color: transparent;
-    color: var(--vscode-icon-foreground);
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    transition: all 0.1s ease;
-    min-width: 24px;
-    height: 24px;
+  background: none;
+  border: 1px solid var(--vscode-button-border);
+  background-color: transparent;
+  color: var(--vscode-icon-foreground);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.1s ease;
+  min-width: 24px;
+  height: 24px;
 }
 
 .panel-collapse-btn:hover {
-    background-color: var(--vscode-toolbar-hoverBackground);
-    border-color: var(--vscode-button-hoverBackground);
+  background-color: var(--vscode-toolbar-hoverBackground);
+  border-color: var(--vscode-button-hoverBackground);
 }
 
 /* 可拖拽分割线 */
 .resizer {
-    width: 4px;
-    background-color: var(--vscode-panel-border);
-    cursor: col-resize;
-    position: relative;
-    flex-shrink: 0;
-    transition: background-color 0.2s ease;
-    z-index: 10; /* 确保分割线在最上层 */
+  width: 4px;
+  background-color: var(--vscode-panel-border);
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease;
+  z-index: 10; /* 确保分割线在最上层 */
 }
 
 .resizer:hover {
-    background-color: var(--vscode-focusBorder);
+  background-color: var(--vscode-focusBorder);
 }
 
 .resizer.dragging {
-    background-color: var(--vscode-focusBorder);
+  background-color: var(--vscode-focusBorder);
 }
 
 /* 拖拽时的全局样式 */
 body.resizing {
-    cursor: col-resize !important;
-    user-select: none !important;
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 body.resizing * {
-    cursor: col-resize !important;
-    user-select: none !important;
-    pointer-events: none !important;
+  cursor: col-resize !important;
+  user-select: none !important;
+  pointer-events: none !important;
 }
 
 /* 拖拽时分割线保持可交互 */
 body.resizing .resizer {
-    pointer-events: auto !important;
+  pointer-events: auto !important;
 }
 
 /* 分割线中央指示器 */
 .resizer::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 2px;
-    height: 20px;
-    background-color: var(--vscode-icon-foreground);
-    opacity: 0.3;
-    border-radius: 1px;
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 20px;
+  background-color: var(--vscode-icon-foreground);
+  opacity: 0.3;
+  border-radius: 1px;
 }
 
 .resizer:hover::after {
-    opacity: 0.6;
+  opacity: 0.6;
 }
 
 /* 右侧详情面板 */
 .commit-details {
-    flex: 1;
-    overflow-y: auto;
-    position: relative;
-    transition: width 0.3s ease;
-    display: flex;
-    flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  transition: width 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 详情面板内容区域 */
 .commit-details > *:not(.panel-header) {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
 }
 
 /* 拖拽时禁用过渡动画 */
 .commit-details.no-transition {
-    transition: none !important;
+  transition: none !important;
 }
 
 /* 右侧面板折叠状态 */
 .commit-details.collapsed {
-    width: 40px !important;
-    min-width: 40px !important;
-    max-width: 40px !important;
-    overflow: hidden;
-    padding: 0;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  overflow: hidden;
+  padding: 0;
 }
 
 /* 隐藏折叠面板中除了面板头部之外的所有内容 */
 .commit-details.collapsed > *:not(.panel-header) {
-    display: none !important;
+  display: none !important;
 }
 
 /* 折叠状态下的面板头部样式 */
 .commit-list.collapsed .panel-header,
 .commit-details.collapsed .panel-header {
-    border-bottom: none;
-    justify-content: center;
-    min-height: 45px;
+  border-bottom: none;
+  justify-content: center;
+  min-height: 45px;
 }
 
 /* 当左侧面板折叠时，调整分割线位置 */
 .commit-list.collapsed + .resizer {
-    display: block;
+  display: block;
 }
 
 /* 当右侧面板折叠时，调整分割线位置 */
 .resizer + .commit-details.collapsed {
-    display: block;
+  display: block;
 }
 
 .resizer.hidden {
-    display: none;
+  display: none;
 }
 
 /* 展开按钮（当面板折叠时显示） - 移除这些样式，因为我们不再需要展开按钮 */
 .expand-btn {
-    display: none !important;
+  display: none !important;
 }
 
 /* 当面板折叠时，折叠按钮样式调整 */
 .commit-list.collapsed .panel-collapse-btn {
-    transform: rotate(180deg);
+  transform: rotate(180deg);
 }
 
 .commit-details.collapsed .panel-collapse-btn {
-    transform: rotate(180deg);
+  transform: rotate(180deg);
 }
 
 /* ==================== 提交列表样式 ==================== */
 
 /* 提交项基础样式 */
 .commit-item {
-    display: flex;
-    align-items: stretch;
-    border-bottom: 1px solid var(--vscode-panel-border);
-    cursor: pointer;
-    user-select: none;
-    position: relative;
-    min-height: 36px;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  min-height: 36px;
 }
 
 /* 让图形部分的垂直线能够穿过分割线 */
 .commit-item .commit-graph {
-    position: relative;
-    z-index: 5;
+  position: relative;
+  z-index: 5;
 }
 
 /* 确保分割线在垂直线条下方 */
 .commit-item {
-    position: relative;
-    z-index: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .commit-item:hover .commit-content {
-    background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 /* 单选状态 */
 .commit-item.selected .commit-content {
-    background-color: var(--vscode-list-activeSelectionBackground);
-    color: var(--vscode-list-activeSelectionForeground);
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
 }
 
 /* 多选状态 */
 .commit-item.multi-selected .commit-content {
-    background-color: var(--vscode-list-inactiveSelectionBackground);
-    color: var(--vscode-list-inactiveSelectionForeground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
+  color: var(--vscode-list-inactiveSelectionForeground);
 }
 
 /* 图形部分 */
 .commit-graph {
-    display: flex;
-    align-items: stretch;
-    min-width: 50px;
-    flex-shrink: 0;
-    position: relative;
-    background-color: var(--vscode-editor-background);
+  display: flex;
+  align-items: stretch;
+  min-width: 50px;
+  flex-shrink: 0;
+  position: relative;
+  background-color: var(--vscode-editor-background);
 }
 
 .graph-column {
-    width: 16px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    flex-grow: 0;
+  width: 16px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 /* 垂直线条 - 连续的分支线 */
 .graph-vertical-line {
-    position: absolute;
-    left: 50%;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    transform: translateX(-50%);
-    z-index: 1;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  z-index: 1;
 }
 
 /* 水平连接线 - 用于分支合并 */
 .graph-horizontal-line {
-    position: absolute;
-    height: 2px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 1;
-    background-color: currentColor;
+  position: absolute;
+  height: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  background-color: currentColor;
 }
 
 /* 提交节点 */
 .commit-node {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 2px solid var(--vscode-editor-background);
-    z-index: 3;
-    position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--vscode-editor-background);
+  z-index: 3;
+  position: relative;
 }
 
 /* 合并节点 */
 .merge-node {
-    width: 10px;
-    height: 10px;
-    border-radius: 1px;
-    border: 2px solid var(--vscode-editor-background);
-    z-index: 3;
-    position: relative;
-    transform: rotate(45deg);
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  border: 2px solid var(--vscode-editor-background);
+  z-index: 3;
+  position: relative;
+  transform: rotate(45deg);
 }
 
 /* 弯曲连接线 - 用于分支分叉和合并的圆滑过渡 */
 .graph-curve {
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    border: 2px solid transparent;
-    z-index: 2;
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid transparent;
+  z-index: 2;
 }
 
 /* 各种弯曲方向 */
 .graph-curve.top-left {
-    top: 0;
-    left: 0;
-    border-top-color: inherit;
-    border-left-color: inherit;
-    border-top-left-radius: 12px;
+  top: 0;
+  left: 0;
+  border-top-color: inherit;
+  border-left-color: inherit;
+  border-top-left-radius: 12px;
 }
 
 .graph-curve.top-right {
-    top: 0;
-    right: 0;
-    border-top-color: inherit;
-    border-right-color: inherit;
-    border-top-right-radius: 12px;
+  top: 0;
+  right: 0;
+  border-top-color: inherit;
+  border-right-color: inherit;
+  border-top-right-radius: 12px;
 }
 
 .graph-curve.bottom-left {
-    bottom: 0;
-    left: 0;
-    border-bottom-color: inherit;
-    border-left-color: inherit;
-    border-bottom-left-radius: 12px;
+  bottom: 0;
+  left: 0;
+  border-bottom-color: inherit;
+  border-left-color: inherit;
+  border-bottom-left-radius: 12px;
 }
 
 .graph-curve.bottom-right {
-    bottom: 0;
-    right: 0;
-    border-bottom-color: inherit;
-    border-right-color: inherit;
-    border-bottom-right-radius: 12px;
+  bottom: 0;
+  right: 0;
+  border-bottom-color: inherit;
+  border-right-color: inherit;
+  border-bottom-right-radius: 12px;
 }
 
 /* 分支分叉弯曲连接线样式 */
 .graph-fork-curve {
-    position: absolute;
-    z-index: 2;
-    border: none;
-    box-sizing: border-box;
+  position: absolute;
+  z-index: 2;
+  border: none;
+  box-sizing: border-box;
 }
 
 .graph-fork-curve.right {
-    top: 0%;
-    left: 50%;
-    width: calc(var(--target-distance) * 16px + 1px);
-    height: 50%;
-    border-bottom: 2px solid;
-    border-right: 2px solid;
-    border-bottom-right-radius: 20px;
-    transform: translateX(0%);
+  top: 0%;
+  left: 50%;
+  width: calc(var(--target-distance) * 16px + 1px);
+  height: 50%;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+  border-bottom-right-radius: 20px;
+  transform: translateX(0%);
 }
 
 .graph-fork-curve.left {
-    top: 0%;
-    right: 50%;
-    width: calc(var(--target-distance) * 16px + 1px);
-    height: 50%;
-    border-bottom: 2px solid;
-    border-left: 2px solid;
-    border-bottom-left-radius: 20px;
-    transform: translateX(0%);
+  top: 0%;
+  right: 50%;
+  width: calc(var(--target-distance) * 16px + 1px);
+  height: 50%;
+  border-bottom: 2px solid;
+  border-left: 2px solid;
+  border-bottom-left-radius: 20px;
+  transform: translateX(0%);
 }
 
 .graph-placeholder {
-    width: 120px;
-    height: 50px;
+  width: 120px;
+  height: 50px;
 }
 
 /* 提交内容部分 */
 .commit-content {
-    flex: 1;
-    min-width: 550px; /* 设置整个commit-content的最小宽度 */
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    background-color: var(--vscode-editor-background);
+  flex: 1;
+  min-width: 550px; /* 设置整个commit-content的最小宽度 */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background-color: var(--vscode-editor-background);
 }
 
 /* 当commit-content宽度小于阈值时隐藏tags */
 @container (max-width: 700px) {
-    .commit-refs {
-        display: none;
-    }
+  .commit-refs {
+    display: none;
+  }
 }
 
 /* 使用媒体查询作为容器查询的备选方案 */
 @media (max-width: 800px) {
-    .commit-refs {
-        opacity: 0;
-        width: 0;
-        min-width: 0;
-        overflow: hidden;
-    }
+  .commit-refs {
+    opacity: 0;
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
 }
 
 /* 提交项内部元素样式 */
 .commit-hash {
-    font-family: var(--vscode-editor-font-family);
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    margin: 0;
-    flex-shrink: 0;
-    width: 80px;
-    min-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    position: relative;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin: 0;
+  flex-shrink: 0;
+  width: 80px;
+  min-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
 }
 
 .commit-message {
-    font-weight: 500;
-    margin: 0;
-    line-height: 1.3;
-    flex: 1;
-    min-width: 20px; /* 设置commit-message的最小宽度 */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    position: relative;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 20px; /* 设置commit-message的最小宽度 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
 }
 
 .commit-refs {
-    font-size: 10px;
-    margin: 0;
-    flex-shrink: 1; /* 允许收缩 */
-    min-width: 0;
-    overflow: hidden;
-    display: flex;
-    gap: 4px;
-    position: relative;
-    /* 当空间不足时隐藏tags */
-    transition: opacity 0.2s ease, width 0.2s ease;
-    white-space: nowrap; /* 禁止换行 */
+  font-size: 10px;
+  margin: 0;
+  flex-shrink: 1; /* 允许收缩 */
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  gap: 4px;
+  position: relative;
+  /* 当空间不足时隐藏tags */
+  transition: opacity 0.2s ease, width 0.2s ease;
+  white-space: nowrap; /* 禁止换行 */
 }
 
 /* 渐变遮罩效果 */
 .commit-refs {
-    --mask-opacity: 0;
+  --mask-opacity: 0;
 }
 
 .commit-refs::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 40px;
-    height: 100%;
-    background: linear-gradient(to right, 
-        transparent 0%, 
-        rgba(0, 0, 0, 0.1) 20%, 
-        rgba(0, 0, 0, 0.2) 40%, 
-        rgba(0, 0, 0, 0.4) 70%, 
-        var(--vscode-editor-background) 90%,
-        var(--vscode-editor-background) 100%);
-    pointer-events: none;
-    opacity: var(--mask-opacity, 0);
-    transition: opacity 0.3s ease;
-    z-index: 1;
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.1) 20%,
+    rgba(0, 0, 0, 0.2) 40%,
+    rgba(0, 0, 0, 0.4) 70%,
+    var(--vscode-editor-background) 90%,
+    var(--vscode-editor-background) 100%
+  );
+  pointer-events: none;
+  opacity: var(--mask-opacity, 0);
+  transition: opacity 0.3s ease;
+  z-index: 1;
 }
 
 /* 当空间不足时显示渐变遮罩 */
 @container (max-width: 700px) {
-    .commit-refs {
-        --mask-opacity: 1;
-    }
+  .commit-refs {
+    --mask-opacity: 1;
+  }
 }
 
 @media (max-width: 800px) {
-    .commit-refs {
-        --mask-opacity: 1;
-    }
+  .commit-refs {
+    --mask-opacity: 1;
+  }
 }
 
 .commit-author {
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    flex-shrink: 0;
-    width: 120px;
-    min-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    position: relative;
-    margin-left: auto;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  flex-shrink: 0;
+  width: 120px;
+  min-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  margin-left: auto;
 }
 
 .commit-date {
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    flex-shrink: 0;
-    width: 100px;
-    min-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    position: relative;
-    order: 999;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  flex-shrink: 0;
+  width: 100px;
+  min-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  order: 999;
 }
 
 /* Git引用标签样式 */
 .ref-tag {
-    display: inline-block;
-    padding: 2px 6px;
-    margin-right: 4px;
-    border-radius: 10px;
-    background-color: var(--vscode-badge-background);
-    color: var(--vscode-badge-foreground);
-    white-space: nowrap; /* 禁止标签内文本换行 */
-    flex-shrink: 0; /* 禁止标签收缩 */
+  display: inline-block;
+  padding: 2px 6px;
+  margin-right: 4px;
+  border-radius: 10px;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  white-space: nowrap; /* 禁止标签内文本换行 */
+  flex-shrink: 0; /* 禁止标签收缩 */
 }
 
 /* HEAD 指针样式 - 红色 */
 .ref-tag.ref-head {
-    background-color: #f56565;
-    color: #ffffff;
+  background-color: #f56565;
+  color: #ffffff;
 }
 
 /* 远程分支样式 - 蓝色 */
 .ref-tag.ref-remote {
-    background-color: #4299e1;
-    color: #ffffff;
+  background-color: #4299e1;
+  color: #ffffff;
 }
 
 /* 标签样式 - 绿色 */
 .ref-tag.ref-tag-label {
-    background-color: #48bb78;
-    color: #ffffff;
+  background-color: #48bb78;
+  color: #ffffff;
 }
 
 /* 本地分支样式 - 紫色 */
 .ref-tag.ref-local {
-    background-color: #9f7aea;
-    color: #ffffff;
+  background-color: #9f7aea;
+  color: #ffffff;
 }
 
 /* ==================== 右侧详情面板内容样式 ==================== */
 
 /* 占位符文本 */
 .placeholder {
-    text-align: center;
-    color: var(--vscode-descriptionForeground);
-    margin-top: 50px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 50px;
 }
 
 /* 加载状态提示 */
 .loading {
-    text-align: center;
-    color: var(--vscode-descriptionForeground);
-    padding: 20px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  padding: 20px;
 }
 
 /* 详情头部区域 */
 .details-header {
-    border-bottom: 1px solid var(--vscode-panel-border);
-    padding-bottom: 16px;
-    margin-bottom: 16px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
 }
 
 /* 详情内容元素 */
 .details-hash {
-    font-family: var(--vscode-editor-font-family);
-    font-size: 12px;
-    color: var(--vscode-descriptionForeground);
-    margin-bottom: 8px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 8px;
 }
 
 .details-message {
-    font-size: 16px;
-    font-weight: 500;
-    margin-bottom: 8px;
-    line-height: 1.4;
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  line-height: 1.4;
 }
 
 .details-author {
-    font-size: 12px;
-    color: var(--vscode-descriptionForeground);
-    margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
 }
 
 .details-date {
-    font-size: 12px;
-    color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
 }
 
 .details-refs {
-    font-size: 10px;
-    margin-top: 8px;
+  font-size: 10px;
+  margin-top: 8px;
 }
 
 .details-refs .ref-tag {
-    display: inline-block;
-    padding: 2px 6px;
-    margin-right: 4px;
-    border-radius: 10px;
+  display: inline-block;
+  padding: 2px 6px;
+  margin-right: 4px;
+  border-radius: 10px;
 }
 
 .details-body {
-    font-size: 12px;
-    color: var(--vscode-descriptionForeground);
-    margin-top: 8px;
-    white-space: pre-wrap;
-    line-height: 1.4;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 8px;
+  white-space: pre-wrap;
+  line-height: 1.4;
 }
 
 /* ==================== 文件变更区域 ==================== */
 
 /* 无文件提示 */
 .no-files {
-    text-align: center;
-    color: var(--vscode-descriptionForeground);
-    font-style: italic;
-    padding: 20px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  padding: 20px;
 }
 
 /* 文件变更容器 */
 .file-changes {
-    margin-top: 16px;
+  margin-top: 16px;
 }
 
 /* 文件变更头部 */
 .file-changes-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px 0;
 }
 
 .file-changes-header h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 500;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 /* ==================== 文件树样式 ==================== */
 
 /* 文件树容器 */
 .file-tree-container {
-    background-color: var(--vscode-sideBar-background);
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 6px;
-    padding: 8px;
-    margin: 4px 0;
+  background-color: var(--vscode-sideBar-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  padding: 8px;
+  margin: 4px 0;
 }
 
 /* 文件夹样式 */
 .file-tree-folder {
-    margin-left: 16px;
+  margin-left: 16px;
 }
 
 /* 压缩目录样式 */
 .file-tree-folder.compressed-folder {
-    position: relative;
+  position: relative;
 }
 
 .file-tree-folder.compressed-folder .folder-name {
-    color: var(--vscode-textLink-foreground);
-    font-style: italic;
-    opacity: 0.9;
+  color: var(--vscode-textLink-foreground);
+  font-style: italic;
+  opacity: 0.9;
 }
 
 .file-tree-folder.compressed-folder .folder-header {
-    background-color: var(--vscode-editor-inactiveSelectionBackground);
-    border-radius: 3px;
-    padding: 4px 6px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  border-radius: 3px;
+  padding: 4px 6px;
 }
 
 .file-tree-folder.compressed-folder .folder-header:hover {
-    background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 .folder-header {
-    display: flex;
-    align-items: center;
-    padding: 4px 0;
-    cursor: pointer;
-    font-size: 12px;
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 12px;
 }
 
 .folder-header:hover {
-    background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 /* 文件夹展开/折叠图标 */
 .folder-icon {
-    margin-right: 6px;
-    font-size: 10px;
-    transition: transform 0.2s ease;
+  margin-right: 6px;
+  font-size: 10px;
+  transition: transform 0.2s ease;
 }
 
 .folder-icon.collapsed {
-    transform: rotate(-90deg);
+  transform: rotate(-90deg);
 }
 
 .folder-icon.expanded {
-    transform: rotate(0deg);
+  transform: rotate(0deg);
 }
 
 .folder-name {
-    font-weight: 500;
-    color: var(--vscode-foreground);
+  font-weight: 500;
+  color: var(--vscode-foreground);
 }
 
 /* 文件夹内文件数量 */
 .folder-count {
-    margin-left: 6px;
-    color: var(--vscode-descriptionForeground);
-    font-size: 11px;
+  margin-left: 6px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
 }
 
 .folder-content {
-    margin-left: 12px;
+  margin-left: 12px;
 }
 
 /* 文件树项样式 */
 .file-tree-item {
-    margin-left: 16px;
-    padding: 4px 0;
-    border-bottom: 1px solid var(--vscode-panel-border);
-    position: relative;
+  margin-left: 16px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  position: relative;
 }
 
 /* 文件树连接线 */
 .file-tree-item::before {
-    content: '';
-    position: absolute;
-    left: -12px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background-color: var(--vscode-panel-border);
-    opacity: 0.3;
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--vscode-panel-border);
+  opacity: 0.3;
 }
 
 /* 根级文件特殊样式 */
 .file-tree-item[data-level="0"] {
-    margin-left: 8px;
-    padding-left: 12px;
-    background-color: var(--vscode-editor-background);
-    border-left: 3px solid var(--vscode-textLink-foreground);
-    border-radius: 0 4px 4px 0;
+  margin-left: 8px;
+  padding-left: 12px;
+  background-color: var(--vscode-editor-background);
+  border-left: 3px solid var(--vscode-textLink-foreground);
+  border-radius: 0 4px 4px 0;
 }
 
 .file-tree-item[data-level="0"]::before {
-    display: none;
+  display: none;
 }
 
 /* 文件信息容器 */
 .file-info {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 /* 文件图标 */
 .file-icon {
-    margin-right: 6px;
-    font-size: 12px;
+  margin-right: 6px;
+  font-size: 12px;
 }
 
 /* 文件名样式 */
 .file-name {
-    flex: 1;
-    font-family: var(--vscode-editor-font-family);
-    font-size: 12px;
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 2px;
+  flex: 1;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
 }
 
 .file-name:hover {
-    background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 /* ==================== 文件视图控制 ==================== */
 
 /* 视图控制容器 */
 .file-view-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* 视图切换按钮 (树形/列表) */
 .view-toggle-btn {
-    background: none;
-    border: 1px solid var(--vscode-button-border);
-    background-color: transparent;
-    color: var(--vscode-icon-foreground);
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    transition: background-color 0.2s ease;
+  background: none;
+  border: 1px solid var(--vscode-button-border);
+  background-color: transparent;
+  color: var(--vscode-icon-foreground);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: background-color 0.2s ease;
 }
 
 .view-toggle-btn:hover {
-    background-color: var(--vscode-toolbar-hoverBackground);
+  background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .view-toggle-btn svg {
-    width: 16px;
-    height: 16px;
+  width: 16px;
+  height: 16px;
 }
 
 /* ==================== 文件操作按钮 ==================== */
 
 /* 文件操作按钮容器 */
 .file-actions {
-    display: flex;
-    gap: 4px;
-    opacity: 1;
+  display: flex;
+  gap: 4px;
+  opacity: 1;
 }
 
 /* 文件操作按钮样式 */
 .file-action-btn {
-    background: none;
-    border: none;
-    color: var(--vscode-icon-foreground);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 22px;
-    height: 22px;
-    font-size: 14px;
-    transition: all 0.1s ease;
-    opacity: 0.7;
+  background: none;
+  border: none;
+  color: var(--vscode-icon-foreground);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  font-size: 14px;
+  transition: all 0.1s ease;
+  opacity: 0.7;
 }
 
 .file-action-btn:hover {
-    background-color: var(--vscode-toolbar-hoverBackground);
-    opacity: 1;
-    transform: scale(1.05);
+  background-color: var(--vscode-toolbar-hoverBackground);
+  opacity: 1;
+  transform: scale(1.05);
 }
 
 /* 全部折叠按钮 */
 .collapse-all-btn {
-    background: none;
-    border: 1px solid var(--vscode-button-border);
-    color: var(--vscode-badge-foreground);
-    background-color: transparent;
-    cursor: pointer;
-    padding: 2px 8px;
-    margin-left: 8px;
-    border-radius: 2px;
-    font-size: 11px;
+  background: none;
+  border: 1px solid var(--vscode-button-border);
+  color: var(--vscode-badge-foreground);
+  background-color: transparent;
+  cursor: pointer;
+  padding: 2px 8px;
+  margin-left: 8px;
+  border-radius: 2px;
+  font-size: 11px;
 }
 
 .collapse-all-btn:hover {
-    background-color: var(--vscode-button-secondaryHoverBackground);
+  background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 /* ==================== 文件列表样式 ==================== */
 
 /* 文件列表容器 */
 .file-list-container {
-    background-color: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 4px;
-    margin: 4px 0;
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  margin: 4px 0;
 }
 
 /* 文件列表项 */
 .file-item {
-    display: flex;
-    flex-direction: column;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--vscode-panel-border);
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .file-item:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 /* 可点击文件项 */
 .file-item.clickable-file {
-    cursor: pointer;
-    padding: 8px 6px;
-    border-radius: 3px;
-    transition: background-color 0.1s ease;
+  cursor: pointer;
+  padding: 8px 6px;
+  border-radius: 3px;
+  transition: background-color 0.1s ease;
 }
 
 .file-item.clickable-file:hover {
-    background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 .file-item.clickable-file:active {
-    background-color: var(--vscode-list-activeSelectionBackground);
+  background-color: var(--vscode-list-activeSelectionBackground);
 }
 
 .file-item .file-name {
-    flex: 1;
-    font-family: var(--vscode-editor-font-family);
-    font-size: 12px;
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 2px;
-    min-width: 0; /* 允许收缩 */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: calc(100% - 120px); /* 为按钮预留至少120px空间 */
+  flex: 1;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+  min-width: 0; /* 允许收缩 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100% - 120px); /* 为按钮预留至少120px空间 */
 }
 
 .file-item .file-name:hover {
-    background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 /* ==================== 文件统计信息 ==================== */
 
 /* 文件变更统计 */
 .file-stats {
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    margin-top: 2px;
-    margin-left: 18px; /* 与文件图标对齐 */
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 2px;
+  margin-left: 18px; /* 与文件图标对齐 */
 }
 
 /* 新增行数 */
 .insertions {
-    color: #28a745;
+  color: #28a745;
 }
 
 /* 删除行数 */
 .deletions {
-    color: #dc3545;
+  color: #dc3545;
 }
 
 /* ==================== 上下文菜单 ==================== */
 
 /* 右键菜单容器 */
 .context-menu {
-    position: fixed;
-    background-color: var(--vscode-menu-background);
-    border: 1px solid var(--vscode-menu-border);
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    z-index: 1000;
-    min-width: 150px;
-    /* 移除max-height和overflow-y，让菜单完整显示 */
-    /* 防止超出屏幕边界 */
-    max-width: calc(100vw - 20px);
+  position: fixed;
+  background-color: var(--vscode-menu-background);
+  border: 1px solid var(--vscode-menu-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  min-width: 150px;
+  /* 移除max-height和overflow-y，让菜单完整显示 */
+  /* 防止超出屏幕边界 */
+  max-width: calc(100vw - 20px);
 }
 
 /* 菜单项 */
 .menu-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
 }
 
 .menu-item:hover {
-    background-color: var(--vscode-menu-selectionBackground);
-    color: var(--vscode-menu-selectionForeground);
+  background-color: var(--vscode-menu-selectionBackground);
+  color: var(--vscode-menu-selectionForeground);
 }
 
 /* 禁用的菜单项 */
 .menu-item.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .menu-item.disabled:hover {
-    background-color: transparent;
-    color: inherit;
+  background-color: transparent;
+  color: inherit;
+}
+
+/* 高亮的菜单项 */
+.menu-item.highlighted {
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  font-weight: bold;
+}
+
+.menu-item.highlighted:hover {
+  background-color: var(--vscode-list-hoverBackground);
+  color: var(--vscode-list-hoverForeground);
 }
 
 /* 菜单分隔线 */
 .menu-separator {
-    height: 1px;
-    background-color: var(--vscode-menu-separatorBackground);
-    margin: 4px 0;
+  height: 1px;
+  background-color: var(--vscode-menu-separatorBackground);
+  margin: 4px 0;
 }
 
 /* ==================== 比较面板 ==================== */
 
 /* 全屏比较面板 */
 .compare-panel {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: var(--vscode-editor-background);
-    z-index: 999;
-    display: flex;
-    flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--vscode-editor-background);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 比较面板头部 */
 .compare-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--vscode-panel-border);
-    background-color: var(--vscode-panel-background);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background-color: var(--vscode-panel-background);
 }
 
 .compare-header h3 {
-    margin: 0;
-    font-size: 14px;
+  margin: 0;
+  font-size: 14px;
 }
 
 /* 关闭比较按钮 */
 #closeCompare {
-    background: none;
-    border: none;
-    color: var(--vscode-foreground);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #closeCompare:hover {
-    background-color: var(--vscode-toolbar-hoverBackground);
-    border-radius: 2px;
+  background-color: var(--vscode-toolbar-hoverBackground);
+  border-radius: 2px;
 }
 
 /* 比较内容区域 */
 .compare-content {
-    flex: 1;
-    padding: 16px;
-    overflow-y: auto;
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
 }
 
 /* 比较的提交信息 */
 .compare-commits {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 16px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--vscode-panel-border);
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .compare-commit {
-    flex: 1;
-    padding: 12px;
-    background-color: var(--vscode-input-background);
-    border-radius: 4px;
+  flex: 1;
+  padding: 12px;
+  background-color: var(--vscode-input-background);
+  border-radius: 4px;
 }
 
 .compare-commit h4 {
-    margin: 0 0 4px 0;
-    font-size: 14px;
-    font-family: var(--vscode-editor-font-family);
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-family: var(--vscode-editor-font-family);
 }
 
 .compare-commit .commit-info {
-    margin: 0;
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
+  margin: 0;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* 比较箭头 */
 .compare-arrow {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    color: var(--vscode-descriptionForeground);
-    min-width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 30px;
 }
 
 /* 文件变更头部 */
 .file-changes-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 
 .file-changes-header h3 {
-    margin: 0;
-    font-size: 14px;
+  margin: 0;
+  font-size: 14px;
 }
 
 /* 文件状态样式 */
 .file-status-icon {
-    margin-right: 6px;
-    display: inline-flex;
-    align-items: center;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .file-item.file-added {
-    border-left: 3px solid #28a745;
+  border-left: 3px solid #28a745;
 }
 
 .file-item.file-added .file-status-icon {
-    color: #28a745;
+  color: #28a745;
 }
 
 .file-item.file-deleted {
-    border-left: 3px solid #dc3545;
+  border-left: 3px solid #dc3545;
 }
 
 .file-item.file-deleted .file-status-icon {
-    color: #dc3545;
+  color: #dc3545;
 }
 
 .file-item.file-modified {
-    border-left: 3px solid #ffc107;
+  border-left: 3px solid #ffc107;
 }
 
 .file-item.file-modified .file-status-icon {
-    color: #ffc107;
+  color: #ffc107;
 }
 
 /* 文件信息布局 */
 .file-info {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0; /* 允许flex子项收缩 */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0; /* 允许flex子项收缩 */
 }
 
 .file-icon {
-    color: var(--vscode-descriptionForeground);
-    display: inline-flex;
-    align-items: center;
-    flex-shrink: 0; /* 防止图标被压缩 */
+  color: var(--vscode-descriptionForeground);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0; /* 防止图标被压缩 */
 }
 
 /* 文件名样式 - 确保长文件名不会挤压按钮 */
 .file-name {
-    flex: 1;
-    min-width: 0; /* 允许收缩 */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: calc(100% - 120px); /* 为按钮预留至少120px空间 */
+  flex: 1;
+  min-width: 0; /* 允许收缩 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100% - 120px); /* 为按钮预留至少120px空间 */
 }
 
 /* 文件操作按钮 */
 .file-actions {
-    margin-left: auto;
-    display: flex;
-    gap: 4px;
-    opacity: 1; /* 始终显示按钮 */
-    transition: opacity 0.2s ease;
-    flex-shrink: 0; /* 防止按钮被压缩 */
-    min-width: 112px; /* 确保4个按钮的最小宽度 (4 * 22px + 3 * 4px gap) */
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  opacity: 1; /* 始终显示按钮 */
+  transition: opacity 0.2s ease;
+  flex-shrink: 0; /* 防止按钮被压缩 */
+  min-width: 112px; /* 确保4个按钮的最小宽度 (4 * 22px + 3 * 4px gap) */
 }
 
 .file-item:hover .file-actions,
 .file-tree-item:hover .file-actions {
-    opacity: 1;
+  opacity: 1;
 }
 
 .file-action-btn {
-    background: none;
-    border: none;
-    color: var(--vscode-descriptionForeground);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .file-action-btn:hover {
-    background-color: var(--vscode-toolbar-hoverBackground);
-    color: var(--vscode-foreground);
+  background-color: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
 }
 
 /* 无文件变更提示 */
 .no-files {
-    text-align: center;
-    color: var(--vscode-descriptionForeground);
-    font-style: italic;
-    padding: 20px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  padding: 20px;
 }

@@ -8,32 +8,32 @@ import { escapeHtml, showError } from './utils/dom-utils.js';
 // 导入Git图谱绘制模块
 import { createGraphHtml } from './components/commit-graph.js';
 // 导入文件树组件模块
-import { buildFileTree, renderFileTree, renderFileList, renderCompareFileList } from './components/file-tree.js';
+import { buildFileTree, renderFileTree, renderFileList } from './components/file-tree.js';
 // 导入面板管理模块
 import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manager.js';
 // 导入右键菜单组件
-import { showContextMenu as showContextMenuComponent, hideContextMenu, initializeContextMenu } from './components/context-menu.js';
+import { showContextMenu as showContextMenuComponent, initializeContextMenu } from './components/context-menu.js';
 // 导入提交操作功能
 import { handleContextMenuAction as handleContextMenuActionComponent } from './features/commit-operations.js';
 // 导入提交比较功能
 import { showCompareResult as showCompareResultComponent, initializeCompareFeature } from './features/commit-compare.js';
 // 导入状态管理模块
-import { 
+import {
     initializeStateManager, getState, setState, setStates,
     updateSelectedCommits, setCurrentCommit, setCurrentBranch, setLoading, setFileViewMode,
     resetCommitState, clearAllCache, getCachedCommitDetails, setCachedCommitDetails,
     hasPendingRequest, setPendingRequest, setSearchingForCommit, setPendingJumpCommit
 } from './core/state-manager.js';
 
-(function() {
+(function () {
     'use strict';
-    
+
     // 获取VS Code API
     const vscode = acquireVsCodeApi();
-    
+
     // 初始化状态管理器
     initializeStateManager();
-    
+
     // 状态管理已迁移至 core/state-manager.js
     // 使用 getState() 和 setState() 函数访问和修改状态
 
@@ -47,29 +47,29 @@ import {
     const comparePanel = document.getElementById('comparePanel');         // 比较面板
     const compareContent = document.getElementById('compareContent');     // 比较内容容器
     const closeCompare = document.getElementById('closeCompare');         // 关闭比较面板按钮
-    
+
     // Git操作按钮引用
     const pullBtn = document.getElementById('pullBtn');                   // 拉取按钮
     const pushBtn = document.getElementById('pushBtn');                   // 推送按钮
     const fetchBtn = document.getElementById('fetchBtn');                 // 抓取按钮
     const cloneBtn = document.getElementById('cloneBtn');                 // 克隆按钮
     const checkoutBtn = document.getElementById('checkoutBtn');           // 签出按钮
-    
+
     // 新增的拖拽和折叠相关元素（这些元素是动态创建的，不在初始化时获取）
     const resizer = document.getElementById('resizer');                   // 分割线
     // 折叠按钮现在在panel-manager.js中管理
-    
+
     // 事件监听器设置
     // 添加滚动监听器以实现无限滚动加载
     commitList.addEventListener('scroll', () => {
         if (getState('isLoading') || getState('loadedCommits') >= getState('totalCommits')) {
             return;
         }
-        
+
         const scrollTop = commitList.scrollTop;
         const scrollHeight = commitList.scrollHeight;
         const clientHeight = commitList.clientHeight;
-        
+
         // 当滚动到距离底部50px时开始加载更多提交
         if (scrollTop + clientHeight >= scrollHeight - 50) {
             loadCommits(false);
@@ -104,25 +104,25 @@ import {
     });
 
     // Git操作按钮事件监听器
-pullBtn.addEventListener('click', (event) => {
-  if (event.ctrlKey || event.metaKey) {
-    // 按住Ctrl/Cmd键显示高级选项
-    vscode.postMessage({ type: 'gitPullAdvanced' });
-  } else {
-    // 直接pull
-    vscode.postMessage({ type: 'gitPull' });
-  }
-});
+    pullBtn.addEventListener('click', (event) => {
+        if (event.ctrlKey || event.metaKey) {
+            // 按住Ctrl/Cmd键显示高级选项
+            vscode.postMessage({ type: 'gitPullAdvanced' });
+        } else {
+            // 直接pull
+            vscode.postMessage({ type: 'gitPull' });
+        }
+    });
 
-pushBtn.addEventListener('click', (event) => {
-  if (event.ctrlKey || event.metaKey) {
-    // 按住Ctrl/Cmd键显示高级选项
-    vscode.postMessage({ type: 'gitPushAdvanced' });
-  } else {
-    // 直接push
-    vscode.postMessage({ type: 'gitPush' });
-  }
-});
+    pushBtn.addEventListener('click', (event) => {
+        if (event.ctrlKey || event.metaKey) {
+            // 按住Ctrl/Cmd键显示高级选项
+            vscode.postMessage({ type: 'gitPushAdvanced' });
+        } else {
+            // 直接push
+            vscode.postMessage({ type: 'gitPush' });
+        }
+    });
 
     fetchBtn.addEventListener('click', () => {
         vscode.postMessage({ type: 'gitFetch' });
@@ -139,17 +139,17 @@ pushBtn.addEventListener('click', (event) => {
     // 关闭比较面板事件监听器已迁移至 features/commit-compare.js
 
     // ==================== 面板管理器初始化 ====================
-    
+
     // 初始化面板管理器
     initializePanelManager({
         commitList,
         commitDetails,
         resizer
     });
-    
+
     // 初始化右键菜单
     initializeContextMenu(contextMenu);
-    
+
     // 初始化提交比较功能
     initializeCompareFeature(comparePanel, closeCompare, (message) => vscode.postMessage(message));
 
@@ -159,7 +159,7 @@ pushBtn.addEventListener('click', (event) => {
      */
     window.addEventListener('message', event => {
         const message = event.data;
-        
+
         switch (message.type) {
             case 'branches':
                 updateBranches(message.data);      // 更新分支列表
@@ -204,6 +204,7 @@ pushBtn.addEventListener('click', (event) => {
             case 'viewMode':
                 setFileViewMode(message.data);       // 设置文件视图模式
                 break;
+            // 删除了commitEditableStatus处理，现在直接使用预计算的canEditMessage值
         }
     });
 
@@ -213,9 +214,9 @@ pushBtn.addEventListener('click', (event) => {
      */
     function loadCommits(reset = false) {
         if (getState('isLoading')) return;
-        
+
         setLoading(true);
-        
+
         if (reset) {
             setState('loadedCommits', 0);
             setState('commits', []);
@@ -235,18 +236,18 @@ pushBtn.addEventListener('click', (event) => {
             `;
             rebindCollapseButtons();
         }
-        
+
         // 请求获取提交历史记录
-        vscode.postMessage({ 
-            type: 'getCommitHistory', 
+        vscode.postMessage({
+            type: 'getCommitHistory',
             branch: getState('currentBranch') || undefined,
             skip: getState('loadedCommits')
         });
-        
+
         // 如果还没有总数，请求获取总提交数量
         if (getState('totalCommits') === 0) {
-            vscode.postMessage({ 
-                type: 'getTotalCommitCount', 
+            vscode.postMessage({
+                type: 'getTotalCommitCount',
                 branch: getState('currentBranch') || undefined
             });
         }
@@ -259,7 +260,7 @@ pushBtn.addEventListener('click', (event) => {
     function updateBranches(branchData) {
         setState('branches', branchData);
         branchSelect.innerHTML = '<option value="all">All branches</option>';
-        
+
         // 遍历分支数据，创建选项元素
         branchData.forEach(branch => {
             const option = document.createElement('option');
@@ -267,7 +268,7 @@ pushBtn.addEventListener('click', (event) => {
             option.textContent = branch.name + (branch.current ? ' (current)' : '');
             branchSelect.appendChild(option);
         });
-        
+
         // 默认选择"All branches"
         branchSelect.value = 'all';
         setCurrentBranch('all');
@@ -281,13 +282,13 @@ pushBtn.addEventListener('click', (event) => {
      */
     function updateCommitHistory(data) {
         setLoading(false);
-        
+
         if (data.skip === 0) {
             // 首次加载或刷新
             const previousCurrentCommit = getState('currentCommit'); // 保存之前选中的提交
             setState('commits', data.commits);
             updateSelectedCommits([]);
-            
+
             // 检查之前选中的提交是否仍然存在于新的提交列表中
             if (previousCurrentCommit && data.commits.some(commit => commit.hash === previousCurrentCommit)) {
                 // 如果之前选中的提交仍然存在，保持选中状态
@@ -306,7 +307,7 @@ pushBtn.addEventListener('click', (event) => {
                 `;
                 rebindCollapseButtons();
             }
-            
+
             // 清空提交列表，但保留panel-header
             const panelHeader = commitList.querySelector('.panel-header');
             commitList.innerHTML = '';
@@ -329,7 +330,7 @@ pushBtn.addEventListener('click', (event) => {
             }
             rebindCollapseButtons();
             renderCommitList();
-            
+
             // 如果保持了选中状态，需要恢复UI状态和详情显示
             const currentCommit = getState('currentCommit');
             if (currentCommit) {
@@ -358,9 +359,9 @@ pushBtn.addEventListener('click', (event) => {
             setState('commits', currentCommits.concat(data.commits));
             appendCommitList(data.commits);
         }
-        
+
         setState('loadedCommits', getState('commits').length);
-        
+
         // 检查是否正在搜索特定提交
         if (window.searchingForCommit) {
             const foundCommit = data.commits.find(commit => commit.hash === window.searchingForCommit);
@@ -371,7 +372,7 @@ pushBtn.addEventListener('click', (event) => {
                     // 清除搜索标记
                     const searchHash = window.searchingForCommit;
                     window.searchingForCommit = null;
-                    
+
                     // 跳转到找到的提交
                     setTimeout(() => {
                         jumpToSpecificCommit(searchHash);
@@ -383,7 +384,7 @@ pushBtn.addEventListener('click', (event) => {
                 console.log('Commit not found after loading all commits');
             }
         }
-        
+
         // 检查是否有待跳转的提交（切换分支后）
         if (window.pendingJumpCommit && data.skip === 0) {
             const foundCommit = data.commits.find(commit => commit.hash === window.pendingJumpCommit);
@@ -391,7 +392,7 @@ pushBtn.addEventListener('click', (event) => {
                 // 找到了待跳转的提交，立即跳转
                 const jumpHash = window.pendingJumpCommit;
                 window.pendingJumpCommit = null;
-                
+
                 setTimeout(() => {
                     jumpToSpecificCommit(jumpHash);
                 }, 100); // 稍微延迟以确保DOM已更新
@@ -401,7 +402,7 @@ pushBtn.addEventListener('click', (event) => {
                 window.pendingJumpCommit = null;
             }
         }
-        
+
         // 只在初始加载时显示加载状态指示器
         if (data.skip === 0 && loadedCommits < totalCommits) {
             showLoadingIndicator();
@@ -414,7 +415,7 @@ pushBtn.addEventListener('click', (event) => {
      */
     function renderCommitList() {
         const commits = getState('commits');
-        
+
         if (commits.length === 0) {
             // 如果没有提交，显示"No commits found"
             const existingHeaders = commitList.querySelectorAll('.panel-header');
@@ -461,21 +462,21 @@ pushBtn.addEventListener('click', (event) => {
     function appendCommitList(newCommits) {
         // 先移除加载指示器
         hideLoadingIndicator();
-        
+
         const commits = getState('commits');
         const loadedCommits = getState('loadedCommits');
         const totalCommits = getState('totalCommits');
-        
+
         newCommits.forEach((commit, index) => {
             const commitElement = createCommitElement(commit, commits.length - newCommits.length + index);
             commitList.appendChild(commitElement);
         });
-        
+
         // 重新检查是否需要显示加载指示器
         if (loadedCommits < totalCommits) {
             showLoadingIndicator();
         }
-        
+
         // 检查新添加元素的宽度显示
         if (checkCommitListWidth) {
             setTimeout(checkCommitListWidth, 0);
@@ -556,9 +557,9 @@ pushBtn.addEventListener('click', (event) => {
             const selectedCommits = getState('selectedCommits');
             showContextMenuComponent(e, commit.hash, selectedCommits, contextMenu, (action, hash) => {
                 handleContextMenuActionComponent(action, hash, selectedCommits, (message) => vscode.postMessage(message));
-            });
+            }, vscode);
         });
-        
+
         // 性能优化：添加hover预加载
         let hoverTimeout;
         div.addEventListener('mouseenter', () => {
@@ -567,7 +568,7 @@ pushBtn.addEventListener('click', (event) => {
                 preloadCommitDetails(commit.hash);
             }, 500);
         });
-        
+
         div.addEventListener('mouseleave', () => {
             // 清除预加载定时器
             if (hoverTimeout) {
@@ -594,7 +595,7 @@ pushBtn.addEventListener('click', (event) => {
         const commits = getState('commits');
         const commit = commits.find(c => c.hash === hash);
         if (!commit) return;
-        
+
         const selectedCommits = getState('selectedCommits');
         const index = selectedCommits.findIndex(c => c.hash === hash);
         if (index > -1) {
@@ -602,7 +603,7 @@ pushBtn.addEventListener('click', (event) => {
             const newSelected = [...selectedCommits];
             newSelected.splice(index, 1);
             updateSelectedCommits(newSelected);
-            
+
             // 如果这是当前选中的提交，需要更新 currentCommit
             if (getState('currentCommit') === hash) {
                 if (newSelected.length > 0) {
@@ -617,13 +618,13 @@ pushBtn.addEventListener('click', (event) => {
             // 添加选择：加入数组
             const newSelected = [...selectedCommits, commit];
             updateSelectedCommits(newSelected);
-            
+
             // 如果这是第一个选中的提交，设置为当前提交
             if (newSelected.length === 1) {
                 setCurrentCommit(hash);
             }
         }
-        
+
         // 确保UI状态正确
         const updatedSelected = getState('selectedCommits');
         if (updatedSelected.length === 0) {
@@ -646,7 +647,7 @@ pushBtn.addEventListener('click', (event) => {
                 }
             });
         }
-        
+
         updateMultiSelectInfo();
     }
 
@@ -660,10 +661,10 @@ pushBtn.addEventListener('click', (event) => {
         const commits = getState('commits');
         const commit = commits.find(c => c.hash === hash);
         if (!commit) return;
-        
+
         // 使用安全的更新函数
         safeUpdateCurrentCommit(hash, commit);
-        
+
         // 性能优化：检查缓存
         if (getCachedCommitDetails(hash)) {
             // 从缓存中获取详情，立即显示
@@ -671,7 +672,7 @@ pushBtn.addEventListener('click', (event) => {
             updateCommitDetails(cachedDetails);
             return;
         }
-        
+
         // 检查是否已有相同请求正在进行
         if (hasPendingRequest(hash)) {
             // 如果已有请求在进行，只显示loading状态
@@ -684,7 +685,7 @@ pushBtn.addEventListener('click', (event) => {
             rebindCollapseButtons();
             return;
         }
-        
+
         // 清除详情区域，显示加载状态
         commitDetails.innerHTML = `
             <div class="panel-header">
@@ -693,17 +694,17 @@ pushBtn.addEventListener('click', (event) => {
             <div class="loading">Loading commit details...</div>
         `;
         rebindCollapseButtons();
-        
+
         // 标记请求正在进行
         setPendingRequest(hash, true);
-        
+
         // 获取提交详情
         vscode.postMessage({
             type: 'getCommitDetails',
             hash: hash
         });
     }
-    
+
     /**
      * 预加载提交详情（用于hover优化）
      * @param {string} hash - 提交哈希值
@@ -713,10 +714,10 @@ pushBtn.addEventListener('click', (event) => {
         if (getCachedCommitDetails(hash) || hasPendingRequest(hash)) {
             return;
         }
-        
+
         // 标记请求正在进行
         setPendingRequest(hash, true);
-        
+
         // 静默请求提交详情
         vscode.postMessage({
             type: 'getCommitDetails',
@@ -734,7 +735,7 @@ pushBtn.addEventListener('click', (event) => {
         if (existingInfo) {
             existingInfo.remove();
         }
-        
+
         // 不再创建操作面板，多选操作通过右键菜单处理
     }
 
@@ -745,12 +746,12 @@ pushBtn.addEventListener('click', (event) => {
     function ensureCommitSelectionUI(hash) {
         const selectedCommits = getState('selectedCommits');
         console.log(`Ensuring UI state for commit ${hash.substring(0, 8)}, selectedCommits: ${selectedCommits.length}`);
-        
+
         // 清除所有选择状态
         document.querySelectorAll('.commit-item').forEach(item => {
             item.classList.remove('selected', 'multi-selected');
         });
-        
+
         // 确保当前选中的提交有正确的样式
         const currentElement = document.querySelector(`[data-hash="${hash}"]`);
         if (currentElement) {
@@ -780,13 +781,13 @@ pushBtn.addEventListener('click', (event) => {
     function safeUpdateCurrentCommit(hash, commit) {
         const currentCommit = getState('currentCommit');
         console.log(`Updating current commit from ${currentCommit ? currentCommit.substring(0, 8) : 'none'} to ${hash.substring(0, 8)}`);
-        
+
         setCurrentCommit(hash);
         updateSelectedCommits(commit ? [commit] : []);
-        
+
         // 立即更新UI状态
         ensureCommitSelectionUI(hash);
-        
+
         // 更新多选信息
         updateMultiSelectInfo();
     }
@@ -810,14 +811,14 @@ pushBtn.addEventListener('click', (event) => {
         }
 
         const { commit, files } = data;
-        
+
         // 性能优化：缓存详情数据
         if (commit && commit.hash) {
             setCachedCommitDetails(commit.hash, data);
             // 清理pending请求标记
             setPendingRequest(commit.hash, false);
         }
-        
+
         // 修复：只有当这个提交是当前选中的提交时，才更新详情页面
         // 这样可以防止预加载或其他异步请求影响当前显示的详情
         const currentCommit = getState('currentCommit');
@@ -826,10 +827,10 @@ pushBtn.addEventListener('click', (event) => {
             console.log(`Skipping UI update for ${commit.hash.substring(0, 8)} (current: ${currentCommit ? currentCommit.substring(0, 8) : 'none'})`);
             return;
         }
-        
+
         // 确保当前选中的 commit 元素仍然有正确的样式
         ensureCommitSelectionUI(commit.hash);
-        
+
         // 根据视图模式构建文件HTML
         let filesHtml;
         const fileViewMode = getState('fileViewMode');
@@ -839,8 +840,8 @@ pushBtn.addEventListener('click', (event) => {
             filesHtml = renderFileTree(fileTree, commit.hash);
         } else {
             // 列表视图：简单的文件列表
-             filesHtml = `<div class="file-list-container">${renderFileList(files, commit.hash)}</div>`;
-         }
+            filesHtml = `<div class="file-list-container">${renderFileList(files, commit.hash)}</div>`;
+        }
 
         // 解析refs信息
         const refs = commit.refs ? parseRefs(commit.refs) : [];
@@ -878,13 +879,13 @@ pushBtn.addEventListener('click', (event) => {
 
         // 完全替换内容
         commitDetails.innerHTML = detailsHtml;
-        
+
         // 重新绑定折叠按钮事件监听器
         rebindCollapseButtons();
-        
+
         // 添加事件监听器
         addFileEventListeners(commit.hash);
-        
+
         console.log('Updated commit details for:', commit.hash.substring(0, 8), commit.message);
     }
 
@@ -909,17 +910,17 @@ pushBtn.addEventListener('click', (event) => {
      * 切换文件视图模式（树形/列表）
      * 全局函数，供HTML onclick调用
      */
-    window.toggleFileViewMode = function() {
+    window.toggleFileViewMode = function () {
         const currentMode = getState('fileViewMode');
         const newMode = currentMode === 'tree' ? 'list' : 'tree';
         setFileViewMode(newMode);
-        
+
         // 保存配置到VS Code设置
         vscode.postMessage({
             type: 'saveViewMode',
             viewMode: newMode
         });
-        
+
         // 重新请求当前提交详情以刷新视图
         const currentCommit = getState('currentCommit');
         if (currentCommit) {
@@ -935,10 +936,10 @@ pushBtn.addEventListener('click', (event) => {
      * 全局函数，供HTML onclick调用
      * @param {HTMLElement} folderHeader - 文件夹头部元素
      */
-    window.toggleFolder = function(folderHeader) {
+    window.toggleFolder = function (folderHeader) {
         const folderIcon = folderHeader.querySelector('.folder-icon');
         const folderContent = folderHeader.parentElement.querySelector('.folder-content');
-        
+
         if (folderContent.style.display === 'none') {
             // 展开文件夹
             folderContent.style.display = 'block';
@@ -956,16 +957,16 @@ pushBtn.addEventListener('click', (event) => {
      * 切换所有文件夹的展开/折叠状态
      * 全局函数，供HTML onclick调用
      */
-    window.toggleAllFolders = function() {
+    window.toggleAllFolders = function () {
         const folders = commitDetails.querySelectorAll('.file-tree-folder');
-        const isAnyExpanded = Array.from(folders).some(folder => 
+        const isAnyExpanded = Array.from(folders).some(folder =>
             folder.querySelector('.folder-content').style.display !== 'none'
         );
-        
+
         folders.forEach(folder => {
             const folderContent = folder.querySelector('.folder-content');
             const folderIcon = folder.querySelector('.folder-icon');
-            
+
             if (isAnyExpanded) {
                 // 如果有展开的文件夹，则全部折叠
                 folderContent.style.display = 'none';
@@ -986,7 +987,7 @@ pushBtn.addEventListener('click', (event) => {
      * @param {string} commitHash - 提交哈希值
      * @param {string} filePath - 文件路径
      */
-    window.showFileDiff = function(commitHash, filePath) {
+    window.showFileDiff = function (commitHash, filePath) {
         vscode.postMessage({
             type: 'showFileDiff',
             hash: commitHash,
@@ -999,7 +1000,7 @@ pushBtn.addEventListener('click', (event) => {
      * 全局函数，供HTML onclick调用
      * @param {string} filePath - 文件路径
      */
-    window.openFile = function(filePath) {
+    window.openFile = function (filePath) {
         vscode.postMessage({
             type: 'openFile',
             file: filePath
@@ -1011,7 +1012,7 @@ pushBtn.addEventListener('click', (event) => {
      * 全局函数，供HTML onclick调用
      * @param {string} filePath - 文件路径
      */
-    window.showFileHistory = function(filePath) {
+    window.showFileHistory = function (filePath) {
         vscode.postMessage({
             type: 'showFileHistory',
             file: filePath
@@ -1024,7 +1025,7 @@ pushBtn.addEventListener('click', (event) => {
      * @param {string} commitHash - 提交哈希值
      * @param {string} filePath - 文件路径
      */
-    window.viewFileOnline = function(commitHash, filePath) {
+    window.viewFileOnline = function (commitHash, filePath) {
         vscode.postMessage({
             type: 'viewFileOnline',
             hash: commitHash,
@@ -1042,27 +1043,27 @@ pushBtn.addEventListener('click', (event) => {
      */
     function jumpToHeadCommit(headCommit) {
         if (!headCommit) return;
-        
+
         // 清除所有选择状态
         document.querySelectorAll('.commit-item').forEach(item => {
             item.classList.remove('selected', 'multi-selected');
         });
-        
+
         // 找到HEAD提交并选中
         const headElement = document.querySelector(`[data-hash="${headCommit.hash}"]`);
         if (headElement) {
             headElement.classList.add('selected');
             headElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+
             updateSelectedCommits([headCommit]);
             setCurrentCommit(headCommit.hash);
-            
+
             // 请求获取提交详情
             vscode.postMessage({
                 type: 'getCommitDetails',
                 hash: headCommit.hash
             });
-            
+
             updateMultiSelectInfo();
         }
     }
@@ -1073,30 +1074,30 @@ pushBtn.addEventListener('click', (event) => {
      */
     function jumpToSpecificCommit(commitHash) {
         if (!commitHash) return;
-        
+
         // 清除所有选择状态
         document.querySelectorAll('.commit-item').forEach(item => {
             item.classList.remove('selected', 'multi-selected');
         });
-        
+
         // 找到指定提交并选中
         const targetElement = document.querySelector(`[data-hash="${commitHash}"]`);
         if (targetElement) {
             targetElement.classList.add('selected');
             targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+
             // 找到对应的提交对象
             const commits = getState('commits');
             const commit = commits.find(c => c.hash === commitHash);
             updateSelectedCommits(commit ? [commit] : []);
             setCurrentCommit(commitHash);
-            
+
             // 请求获取提交详情
             vscode.postMessage({
                 type: 'getCommitDetails',
                 hash: commitHash
             });
-            
+
             updateMultiSelectInfo();
         } else {
             // 如果当前页面没有找到该提交，尝试处理
@@ -1110,10 +1111,10 @@ pushBtn.addEventListener('click', (event) => {
      */
     function handleCommitNotFound(commitHash) {
         console.log('Commit not found in current view:', commitHash);
-        
+
         // 显示提示信息
         showCommitNotFoundMessage(commitHash);
-        
+
         // 如果还有更多提交可以加载，尝试加载更多
         const loadedCommits = getState('loadedCommits');
         const totalCommits = getState('totalCommits');
@@ -1150,7 +1151,7 @@ pushBtn.addEventListener('click', (event) => {
                 <button class="message-close" onclick="this.parentElement.parentElement.remove()">×</button>
             </div>
         `;
-        
+
         // 添加样式
         message.style.cssText = `
             position: fixed;
@@ -1165,9 +1166,9 @@ pushBtn.addEventListener('click', (event) => {
             max-width: 350px;
             font-size: 14px;
         `;
-        
+
         document.body.appendChild(message);
-        
+
         // 5秒后自动移除
         setTimeout(() => {
             if (message.parentElement) {
@@ -1183,10 +1184,10 @@ pushBtn.addEventListener('click', (event) => {
     function loadMoreCommitsToFind(commitHash) {
         // 设置一个标记，表示正在查找特定提交
         setSearchingForCommit(commitHash);
-        
+
         // 加载更多提交
         loadCommits(false);
-        
+
         // 设置超时，避免无限加载
         setTimeout(() => {
             if (getState('searchingForCommit') === commitHash) {
@@ -1200,48 +1201,48 @@ pushBtn.addEventListener('click', (event) => {
       * 建议用户切换分支查找提交
       * @param {string} commitHash - 提交哈希值
       */
-     function suggestBranchSwitch(commitHash) {
-         // 请求后端查找该提交在哪个分支
-         vscode.postMessage({
-             type: 'findCommitInBranches',
-             hash: commitHash
-         });
-     }
+    function suggestBranchSwitch(commitHash) {
+        // 请求后端查找该提交在哪个分支
+        vscode.postMessage({
+            type: 'findCommitInBranches',
+            hash: commitHash
+        });
+    }
 
-     /**
-      * 处理找到提交所在分支的响应
-      * @param {Object} data - 包含提交哈希和分支信息的数据
-      * @param {string} data.hash - 提交哈希值
-      * @param {Array} data.branches - 包含该提交的分支列表
-      */
-     function handleCommitBranchesFound(data) {
-         const { hash, branches: commitBranches } = data;
-         
-         if (!commitBranches || commitBranches.length === 0) {
-             // 没有找到包含该提交的分支
-             showCommitNotFoundInAnyBranch(hash);
-             return;
-         }
-         
-         // 显示分支切换建议
-         showBranchSwitchSuggestion(hash, commitBranches);
-     }
+    /**
+     * 处理找到提交所在分支的响应
+     * @param {Object} data - 包含提交哈希和分支信息的数据
+     * @param {string} data.hash - 提交哈希值
+     * @param {Array} data.branches - 包含该提交的分支列表
+     */
+    function handleCommitBranchesFound(data) {
+        const { hash, branches: commitBranches } = data;
 
-     /**
-      * 显示提交在任何分支中都未找到的消息
-      * @param {string} commitHash - 提交哈希值
-      */
-     function showCommitNotFoundInAnyBranch(commitHash) {
-         // 移除现有的提示信息
-         const existingMessage = document.querySelector('.commit-not-found-message');
-         if (existingMessage) {
-             existingMessage.remove();
-         }
+        if (!commitBranches || commitBranches.length === 0) {
+            // 没有找到包含该提交的分支
+            showCommitNotFoundInAnyBranch(hash);
+            return;
+        }
 
-         // 创建提示信息元素
-         const message = document.createElement('div');
-         message.className = 'commit-not-found-message';
-         message.innerHTML = `
+        // 显示分支切换建议
+        showBranchSwitchSuggestion(hash, commitBranches);
+    }
+
+    /**
+     * 显示提交在任何分支中都未找到的消息
+     * @param {string} commitHash - 提交哈希值
+     */
+    function showCommitNotFoundInAnyBranch(commitHash) {
+        // 移除现有的提示信息
+        const existingMessage = document.querySelector('.commit-not-found-message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+
+        // 创建提示信息元素
+        const message = document.createElement('div');
+        message.className = 'commit-not-found-message';
+        message.innerHTML = `
              <div class="message-content">
                  <div class="message-icon">❌</div>
                  <div class="message-text">
@@ -1251,9 +1252,9 @@ pushBtn.addEventListener('click', (event) => {
                  <button class="message-close" onclick="this.parentElement.parentElement.remove()">×</button>
              </div>
          `;
-         
-         // 添加样式
-         message.style.cssText = `
+
+        // 添加样式
+        message.style.cssText = `
              position: fixed;
              top: 20px;
              right: 20px;
@@ -1266,38 +1267,38 @@ pushBtn.addEventListener('click', (event) => {
              max-width: 350px;
              font-size: 14px;
          `;
-         
-         document.body.appendChild(message);
-         
-         // 8秒后自动移除
-         setTimeout(() => {
-             if (message.parentElement) {
-                 message.remove();
-             }
-         }, 8000);
-     }
 
-     /**
-      * 显示分支切换建议
-      * @param {string} commitHash - 提交哈希值
-      * @param {Array} commitBranches - 包含该提交的分支列表
-      */
-     function showBranchSwitchSuggestion(commitHash, commitBranches) {
-         // 移除现有的提示信息
-         const existingMessage = document.querySelector('.commit-not-found-message');
-         if (existingMessage) {
-             existingMessage.remove();
-         }
+        document.body.appendChild(message);
 
-         // 创建分支选项HTML
-         const branchOptions = commitBranches.map(branch => 
-             `<button class="branch-option" onclick="switchToBranchAndJump('${branch}', '${commitHash}')">${branch}</button>`
-         ).join('');
+        // 8秒后自动移除
+        setTimeout(() => {
+            if (message.parentElement) {
+                message.remove();
+            }
+        }, 8000);
+    }
 
-         // 创建提示信息元素
-         const message = document.createElement('div');
-         message.className = 'commit-not-found-message';
-         message.innerHTML = `
+    /**
+     * 显示分支切换建议
+     * @param {string} commitHash - 提交哈希值
+     * @param {Array} commitBranches - 包含该提交的分支列表
+     */
+    function showBranchSwitchSuggestion(commitHash, commitBranches) {
+        // 移除现有的提示信息
+        const existingMessage = document.querySelector('.commit-not-found-message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+
+        // 创建分支选项HTML
+        const branchOptions = commitBranches.map(branch =>
+            `<button class="branch-option" onclick="switchToBranchAndJump('${branch}', '${commitHash}')">${branch}</button>`
+        ).join('');
+
+        // 创建提示信息元素
+        const message = document.createElement('div');
+        message.className = 'commit-not-found-message';
+        message.innerHTML = `
              <div class="message-content">
                  <div class="message-icon">🔍</div>
                  <div class="message-text">
@@ -1308,9 +1309,9 @@ pushBtn.addEventListener('click', (event) => {
                  <button class="message-close" onclick="this.parentElement.parentElement.remove()">×</button>
              </div>
          `;
-         
-         // 添加样式
-         message.style.cssText = `
+
+        // 添加样式
+        message.style.cssText = `
              position: fixed;
              top: 20px;
              right: 20px;
@@ -1323,10 +1324,10 @@ pushBtn.addEventListener('click', (event) => {
              max-width: 350px;
              font-size: 14px;
          `;
-         
-         // 添加分支选项按钮样式
-         const style = document.createElement('style');
-         style.textContent = `
+
+        // 添加分支选项按钮样式
+        const style = document.createElement('style');
+        style.textContent = `
              .branch-options {
                  margin-top: 8px;
                  display: flex;
@@ -1347,54 +1348,54 @@ pushBtn.addEventListener('click', (event) => {
                  background: #005a9e;
              }
          `;
-         document.head.appendChild(style);
-         
-         document.body.appendChild(message);
-         
-         // 10秒后自动移除
-         setTimeout(() => {
-             if (message.parentElement) {
-                 message.remove();
-             }
-         }, 10000);
-     }
+        document.head.appendChild(style);
 
-     /**
-      * 切换到指定分支并跳转到提交
-      * 全局函数，供HTML onclick调用
-      * @param {string} branchName - 分支名称
-      * @param {string} commitHash - 提交哈希值
-      */
-     window.switchToBranchAndJump = function(branchName, commitHash) {
-         // 移除提示消息
-         const message = document.querySelector('.commit-not-found-message');
-         if (message) {
-             message.remove();
-         }
-         
-         // 设置要跳转的提交
-         setPendingJumpCommit(commitHash);
-         
-         // 切换分支
-         setCurrentBranch(branchName);
-         branchSelect.value = branchName;
-         
-         // 重新加载提交历史
-         setStates({
-             loadedCommits: 0,
-             commits: []
-         });
-         updateSelectedCommits([]);
-         updateMultiSelectInfo();
-         loadCommits(true);
-     };
+        document.body.appendChild(message);
+
+        // 10秒后自动移除
+        setTimeout(() => {
+            if (message.parentElement) {
+                message.remove();
+            }
+        }, 10000);
+    }
+
+    /**
+     * 切换到指定分支并跳转到提交
+     * 全局函数，供HTML onclick调用
+     * @param {string} branchName - 分支名称
+     * @param {string} commitHash - 提交哈希值
+     */
+    window.switchToBranchAndJump = function (branchName, commitHash) {
+        // 移除提示消息
+        const message = document.querySelector('.commit-not-found-message');
+        if (message) {
+            message.remove();
+        }
+
+        // 设置要跳转的提交
+        setPendingJumpCommit(commitHash);
+
+        // 切换分支
+        setCurrentBranch(branchName);
+        branchSelect.value = branchName;
+
+        // 重新加载提交历史
+        setStates({
+            loadedCommits: 0,
+            commits: []
+        });
+        updateSelectedCommits([]);
+        updateMultiSelectInfo();
+        loadCommits(true);
+    };
 
     // ==================== 初始化 ====================
-    
+
     // 请求数据
     vscode.postMessage({ type: 'getBranches' });
     loadCommits(true);
-    
+
     /**
      * 定期检查并修复选中状态
      * 防止由于异步操作或DOM更新导致的状态丢失
@@ -1415,38 +1416,38 @@ pushBtn.addEventListener('click', (event) => {
     setInterval(checkAndFixSelectionState, 2000); // 每2秒检查一次
 
     // 页面加载完成后的初始化
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // 确保初始状态正确
         const currentCommit = getState('currentCommit');
         if (currentCommit) {
             ensureCommitSelectionUI(currentCommit);
         }
     });
-    
+
     // 全局宽度检查函数
     let checkCommitListWidth;
-    
+
     /**
      * 初始化宽度监控功能
      * 监控commit-list的宽度变化，动态控制tags的显示
      */
     function initializeWidthMonitoring() {
         let lastWidth = 0;
-        
-        checkCommitListWidth = function() {
+
+        checkCommitListWidth = function () {
             const commitListWidth = commitList.clientWidth;
-            
+
             // 只有当宽度发生变化时才处理
             if (commitListWidth !== lastWidth) {
                 lastWidth = commitListWidth;
-                
+
                 // 获取所有commit-refs元素
                 const allRefs = document.querySelectorAll('.commit-refs');
-                
+
                 // 根据宽度调整遮罩效果的强度
                 // 当commit-list宽度小于800px时增强遮罩效果
                 const shouldEnhanceMask = commitListWidth < 800;
-                
+
                 allRefs.forEach(refs => {
                     if (shouldEnhanceMask) {
                         // 增强遮罩效果，让渐变更明显
@@ -1458,7 +1459,7 @@ pushBtn.addEventListener('click', (event) => {
                 });
             }
         };
-        
+
         // 使用ResizeObserver监控宽度变化
         if (window.ResizeObserver) {
             const resizeObserver = new ResizeObserver(checkCommitListWidth);
@@ -1467,11 +1468,11 @@ pushBtn.addEventListener('click', (event) => {
             // 降级方案：使用定时器
             setInterval(checkCommitListWidth, 100);
         }
-        
+
         // 初始检查
         checkCommitListWidth();
     }
-    
+
     // 初始化宽度监控
     initializeWidthMonitoring();
 

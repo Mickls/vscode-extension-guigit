@@ -13,6 +13,7 @@ export interface GitCommit {
   children: string[];
   branchName?: string;
   graphInfo?: GitGraphInfo;
+  canEditMessage?: boolean; // 是否可以编辑提交消息
 }
 
 export interface GitGraphInfo {
@@ -61,6 +62,44 @@ export class GitHistoryProvider {
 
   constructor() {
     this.initializeGit();
+  }
+
+  /**
+   * 获取当前Git用户信息
+   */
+  private async getCurrentUserInfo(): Promise<{ name: string; email: string } | null> {
+    if (!this.git) {
+      return null;
+    }
+
+    try {
+      const name = await this.git.raw(['config', 'user.name']);
+      const email = await this.git.raw(['config', 'user.email']);
+      return {
+        name: name.trim(),
+        email: email.trim()
+      };
+    } catch (error) {
+      console.warn('Failed to get current user info:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 获取最新提交的哈希值
+   */
+  private async getLatestCommitHash(): Promise<string | null> {
+    if (!this.git) {
+      return null;
+    }
+
+    try {
+      const result = await this.git.raw(['rev-parse', 'HEAD']);
+      return result.trim();
+    } catch (error) {
+      console.warn('Failed to get latest commit hash:', error);
+      return null;
+    }
   }
 
   /**
@@ -204,6 +243,9 @@ export class GitHistoryProvider {
         // 后处理：建立父子关系
         this.buildParentChildRelationships(commits);
         
+        // 预先计算每个提交是否可以编辑消息
+        await this.calculateCanEditMessage(commits);
+        
         console.log(`Successfully processed ${commits.length} commits with graph info`);
         return commits;
       },
@@ -314,6 +356,83 @@ export class GitHistoryProvider {
   }
 
   /**
+    * 预先计算每个提交是否可以编辑消息
+    * 判断条件：提交属于当前用户且是最新的提交
+    */
+   private async calculateCanEditMessage(commits: GitCommit[]): Promise<void> {
+     try {
+       // 获取当前用户信息和最新提交哈希
+       const [currentUser, latestCommitHash] = await Promise.all([
+         this.getCurrentUserInfo(),
+         this.getLatestCommitHash()
+       ]);
+
+       if (!currentUser || !latestCommitHash) {
+         // 如果无法获取用户信息或最新提交，则所有提交都不可编辑
+         commits.forEach(commit => {
+           commit.canEditMessage = false;
+         });
+         return;
+       }
+
+       // 为每个提交计算canEditMessage
+       commits.forEach(commit => {
+         // 检查是否是当前用户的提交
+         const isOwnCommit = commit.author === currentUser.name || commit.email === currentUser.email;
+         
+         // 检查是否是最新提交（支持短哈希匹配）
+         const isLatestCommit = commit.hash === latestCommitHash || 
+                               latestCommitHash.startsWith(commit.hash) || 
+                               commit.hash.startsWith(latestCommitHash);
+         
+         // 只有当提交属于当前用户且是最新提交时才可以编辑
+         commit.canEditMessage = isOwnCommit && isLatestCommit;
+       });
+
+       console.log(`Calculated canEditMessage for ${commits.length} commits. Latest commit: ${latestCommitHash?.substring(0, 8)}`);
+     } catch (error) {
+       console.warn('Failed to calculate canEditMessage:', error);
+       // 出错时默认所有提交都不可编辑
+       commits.forEach(commit => {
+         commit.canEditMessage = false;
+       });
+     }
+   }
+
+   /**
+    * 为单个提交计算canEditMessage值
+    * @param commitInfo 提交信息
+    * @returns 是否可以编辑
+    */
+   private async calculateSingleCommitCanEdit(commitInfo: { hash: string; author: string; email: string }): Promise<boolean> {
+     try {
+       // 获取当前用户信息和最新提交哈希
+       const [currentUser, latestCommitHash] = await Promise.all([
+         this.getCurrentUserInfo(),
+         this.getLatestCommitHash()
+       ]);
+
+       if (!currentUser || !latestCommitHash) {
+         return false;
+       }
+
+       // 检查是否是当前用户的提交
+       const isOwnCommit = commitInfo.author === currentUser.name || commitInfo.email === currentUser.email;
+       
+       // 检查是否是最新提交（支持短哈希匹配）
+       const isLatestCommit = commitInfo.hash === latestCommitHash || 
+                             latestCommitHash.startsWith(commitInfo.hash) || 
+                             commitInfo.hash.startsWith(latestCommitHash);
+       
+       // 只有当提交属于当前用户且是最新提交时才可以编辑
+       return isOwnCommit && isLatestCommit;
+     } catch (error) {
+       console.warn('Failed to calculate single commit canEditMessage:', error);
+       return false;
+     }
+   }
+
+  /**
    * 获取提交总数
    */
   async getTotalCommitCount(branch?: string): Promise<number> {
@@ -356,6 +475,13 @@ export class GitHistoryProvider {
           this.getCommitFileChanges(hash),
         ]);
 
+        // 计算canEditMessage
+        const canEditMessage = await this.calculateSingleCommitCanEdit({
+          hash: commit.hash,
+          author: commit.author_name || "",
+          email: commit.author_email || ""
+        });
+
         const result = {
           commit: {
             hash: commit.hash,
@@ -367,6 +493,7 @@ export class GitHistoryProvider {
             body: commit.body || "",
             parents: [], // 在详情视图中不需要父子关系
             children: [],
+            canEditMessage,
           },
           files,
         };
@@ -1719,6 +1846,120 @@ export class GitHistoryProvider {
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Unknown error";
       throw new Error(`Push commits to remote branch failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 检查提交是否可以编辑消息（高效版本，优先使用缓存的结果）
+   * @param hash 提交哈希值
+   * @returns 是否可以编辑
+   */
+  async canEditCommitMessage(hash: string): Promise<boolean> {
+    try {
+      // 优先从缓存中查找已计算的结果
+      const cachedResult = this.getCachedCanEditMessage(hash);
+      if (cachedResult !== null) {
+        return cachedResult;
+      }
+
+      // 如果缓存中没有，则进行实时计算
+      const [currentUser, latestCommitHash] = await Promise.all([
+        this.getCurrentUserInfo(),
+        this.getLatestCommitHash()
+      ]);
+
+      if (!currentUser || !latestCommitHash) {
+        return false;
+      }
+
+      // 检查是否是最新提交
+      const isLatestCommit = hash === latestCommitHash || 
+                            latestCommitHash.startsWith(hash) || 
+                            hash.startsWith(latestCommitHash);
+      
+      if (!isLatestCommit) {
+        return false;
+      }
+
+      // 获取提交的作者信息
+      const commitInfo = await this.git!.show([
+        '--format=%an|%ae',
+        '--no-patch',
+        hash
+      ]);
+      
+      const [author, email] = commitInfo.trim().split('|');
+      
+      // 检查是否是当前用户的提交
+      const isOwnCommit = author === currentUser.name || email === currentUser.email;
+      
+      return isOwnCommit;
+    } catch (error: any) {
+      console.warn(`Check commit editability failed: ${error?.message || error}`);
+      return false;
+    }
+  }
+
+  /**
+   * 从已加载的提交缓存中获取canEditMessage值
+   * @param hash 提交哈希值
+   * @returns 缓存的canEditMessage值，如果未找到则返回null
+   */
+  private getCachedCanEditMessage(hash: string): boolean | null {
+    // 从提交详情缓存中查找
+    for (const [cachedHash, details] of this.commitDetailsCache) {
+      if (cachedHash === hash || cachedHash.startsWith(hash) || hash.startsWith(cachedHash)) {
+        return details.commit.canEditMessage ?? null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 快速检查提交是否可以编辑消息（仅使用预计算的结果）
+   * 这个方法专门用于UI交互，如右键菜单，需要立即响应
+   * @param hash 提交哈希值
+   * @returns 是否可以编辑，如果未预计算则返回false
+   */
+  canEditCommitMessageSync(hash: string): boolean {
+    const cachedResult = this.getCachedCanEditMessage(hash);
+    return cachedResult ?? false;
+  }
+
+  /**
+   * 修改提交的提交信息
+   * @param hash 提交哈希值
+   * @param newMessage 新的提交信息
+   * @returns 是否成功
+   */
+  async amendCommitMessage(hash: string, newMessage: string): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      // 检查是否为最新提交
+      const latestCommit = await this.git.log({ maxCount: 1 });
+      if (latestCommit.latest && (latestCommit.latest.hash === hash || latestCommit.latest.hash.startsWith(hash))) {
+        // 如果是最新提交，使用 --amend
+        await this.git.commit(newMessage, undefined, { '--amend': null });
+      } else {
+         // 如果不是最新提交，使用filter-branch重写历史
+         // 这是一个更安全的方法来修改提交消息
+         const escapedMessage = newMessage.replace(/'/g, "'\"'\"'").replace(/"/g, '\\"');
+         
+         await this.git.raw([
+           'filter-branch',
+           '-f',
+           '--msg-filter',
+           `if [ "$GIT_COMMIT" = "${hash}" ]; then echo '${escapedMessage}'; else cat; fi`,
+           'HEAD'
+         ]);
+       }
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Amend commit message failed: ${errorMessage}`);
     }
   }
 }

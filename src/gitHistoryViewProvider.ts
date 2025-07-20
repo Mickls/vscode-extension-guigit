@@ -119,6 +119,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "pushAllCommitsToHere":
           await this._pushAllCommitsToHere(data.hash);
           break;
+        case "editCommitMessage":
+          await this._editCommitMessage(data.hash);
+          break;
+        // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
 
@@ -1192,6 +1196,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     <div class="menu-item" data-action="cherryPick">Cherry Pick</div>
                     <div class="menu-item" data-action="revert">Revert</div>
                     <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="editCommitMessage" id="editCommitMessageMenuItem">Edit Commit Message</div>
+                    <div class="menu-separator"></div>
                     <div class="menu-item" data-action="compare" id="compareMenuItem">Compare Selected</div>
                     <div class="menu-item" data-action="squash" id="squashMenuItem">Squash Commits</div>
                     <div class="menu-separator"></div>
@@ -1730,6 +1736,69 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       vscode.window.showErrorMessage(errorMessage);
     }
   }
+
+  /**
+   * 编辑提交信息
+   */
+  private async _editCommitMessage(hash: string) {
+    try {
+      // 检查提交是否可以编辑（本地未推送的提交可以编辑）
+      const canEdit = await this._gitHistoryProvider.canEditCommitMessage(hash);
+      
+      if (!canEdit) {
+        vscode.window.showWarningMessage(
+          "This commit has already been pushed to the remote repository and cannot be edited."
+        );
+        return;
+      }
+
+      // 获取当前提交信息
+      const commitDetails = await this._gitHistoryProvider.getCommitDetails(hash);
+      if (!commitDetails) {
+        vscode.window.showErrorMessage("Failed to get commit details");
+        return;
+      }
+
+      // 显示输入框让用户编辑提交信息
+      const newMessage = await vscode.window.showInputBox({
+        prompt: "Edit commit message",
+        value: commitDetails.commit.message,
+        placeHolder: "Enter new commit message",
+        validateInput: (value) => {
+          if (!value || value.trim().length === 0) {
+            return "Commit message cannot be empty";
+          }
+          return null;
+        },
+      });
+
+      if (!newMessage || newMessage.trim() === commitDetails.commit.message) {
+        return; // 用户取消或没有修改
+      }
+
+      // 执行编辑操作
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Editing commit message...",
+          cancellable: false,
+        },
+        async () => {
+          return await this._gitHistoryProvider.amendCommitMessage(hash, newMessage.trim());
+        }
+      );
+
+      if (result) {
+        vscode.window.showInformationMessage("Commit message updated successfully");
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Failed to edit commit message: ${errorMessage}`);
+    }
+  }
+
+  // 删除了_checkCommitEditable方法，现在直接使用预计算的canEditMessage值
 
   /**
    * 释放资源
