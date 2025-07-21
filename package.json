@@ -2,7 +2,7 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "Mickls",
   "icon": "gui-git-history-high-resolution-logo-transparent.png",
   "repository": {
@@ -31,6 +31,15 @@
         "command": "guigit.refresh",
         "title": "Refresh",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "guigit.toggleBlame",
+        "title": "Toggle Git Blame",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "guigit.showCommitDetails",
+        "title": "Show Commit Details"
       }
     ],
     "viewsContainers": {
@@ -68,6 +77,21 @@
           "enum": ["list", "tree"],
           "default": "list",
           "description": "Default view mode for changed files (list or tree)"
+        },
+        "guigit.blame.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Git blame annotations in the editor"
+        },
+        "guigit.blame.showOnlyCurrentLine": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show blame information only for the current line"
+        },
+        "guigit.blame.format": {
+          "type": "string",
+          "default": "${author}, ${time} • ${hash} • ${message}",
+          "description": "Format string for blame annotations. Available variables: ${author}, ${time}, ${hash}, ${message}"
         }
       }
     }
