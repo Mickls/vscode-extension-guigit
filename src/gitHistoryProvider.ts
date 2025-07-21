@@ -871,7 +871,7 @@ export class GitHistoryProvider {
         // 弹出对话框让用户输入提交消息
         const userMessage = await vscode.window.showInputBox({
           title: 'Squash Commits',
-          prompt: `合并 ${commits.length} 个提交${isConsecutive ? '（连续提交）' : '（⚠️ 非连续提交）'}`,
+          prompt: `合并 ${commits.length} 个提交${isConsecutive ? '（连续提交）' : '（警告：非连续提交）'}`,
           value: defaultMessage,
           placeHolder: '请输入新的提交消息...',
           ignoreFocusOut: true,

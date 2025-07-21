@@ -2,6 +2,7 @@
  * DOM操作工具函数
  */
 import { rebindCollapseButtons } from '../ui/panel-manager.js';
+import { getIcon } from './icons.js';
 
 /**
  * HTML转义函数
@@ -24,7 +25,7 @@ export function showError(message, commitDetails, commitList) {
     // 显示错误信息在右侧面板
     commitDetails.innerHTML = `
         <div class="panel-header">
-            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+            <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">${getIcon('collapseRight', { size: 'medium' })}</button>
         </div>
         <div class="placeholder" style="color: var(--vscode-errorForeground);">${escapeHtml(message)}</div>
     `;
@@ -33,7 +34,7 @@ export function showError(message, commitDetails, commitList) {
     if (commitList.innerHTML.includes('Loading commits...')) {
         commitList.innerHTML = `
             <div class="panel-header">
-                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
             </div>
             <div class="placeholder" style="color: var(--vscode-errorForeground);">Failed to load commits</div>
         `;

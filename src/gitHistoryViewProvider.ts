@@ -1133,6 +1133,36 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, "media", "main.css")
     );
 
+    // 图标映射表 - 与前端icons.js保持一致
+    const getCodiconHtml = (iconName: string, size: string = 'medium') => {
+      const iconMap: { [key: string]: string } = {
+        pull: 'repo-pull',
+        push: 'repo-push', 
+        fetch: 'git-fetch',
+        clone: 'repo-clone',
+        checkout: 'git-branch',
+        jumpToHead: 'target',
+        refresh: 'refresh',
+        collapseLeft: 'chevron-left',
+        collapseRight: 'chevron-right'
+      };
+      
+      const codiconName = iconMap[iconName];
+      if (!codiconName) {
+        console.warn(`Icon "${iconName}" not found in iconMap`);
+        return '';
+      }
+      
+      const sizeStyles: { [key: string]: string } = {
+        small: 'font-size: 12px;',
+        medium: 'font-size: 16px;',
+        large: 'font-size: 20px;'
+      };
+      
+      const style = sizeStyles[size] || sizeStyles.medium;
+      return `<i class="codicon codicon-${codiconName}" style="${style}"></i>`;
+    };
+
     // Git操作按钮配置
     const gitOperations = [
       { id: 'pullBtn', action: 'pull', title: 'Pull (Ctrl+Click for advanced options)' },
@@ -1187,7 +1217,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             <div class="git-operations">
                                 ${gitOperations.map(op => `
                                     <button id="${op.id}" class="git-btn" title="${op.title}" data-action="${op.action}">
-                                        <span class="icon" data-icon="${op.action}"></span>
+                                        ${getCodiconHtml(op.action, 'small')}
                                         ${op.action.charAt(0).toUpperCase() + op.action.slice(1)}
                                     </button>
                                 `).join('')}
@@ -1195,7 +1225,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             <div class="header-controls">
                                 ${headerControls.map(ctrl => `
                                     <button id="${ctrl.id}" class="icon-btn" title="${ctrl.title}" data-action="${ctrl.action}">
-                                        <span class="icon" data-icon="${ctrl.action}"></span>
+                                        ${getCodiconHtml(ctrl.action, 'medium')}
                                     </button>
                                 `).join('')}
                             </div>
@@ -1213,7 +1243,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                                     <div class="header-date">Date</div>
                                 </div>
                                 <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">
-                                    <span class="icon" data-icon="collapseLeft"></span>
+                                    ${getCodiconHtml('collapseLeft', 'medium')}
                                 </button>
                             </div>
                             <div class="loading">Loading commits...</div>
@@ -1224,7 +1254,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         <div class="commit-details" id="commitDetails">
                             <div class="panel-header">
                                 <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">
-                                    <span class="icon" data-icon="collapseRight"></span>
+                                    ${getCodiconHtml('collapseRight', 'medium')}
                                 </button>
                             </div>
                             <div class="placeholder">Select a commit to view details</div>

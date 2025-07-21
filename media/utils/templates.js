@@ -20,8 +20,8 @@ export const Templates = {
      * @returns {string} HTML字符串
      */
     panelCollapseButton(direction = 'left', id = '', title = 'Collapse panel') {
-        const arrow = direction === 'left' ? '‹' : '›';
-        return `<button class="panel-collapse-btn" ${id ? `id="${id}"` : ''} title="${title}">${arrow}</button>`;
+        const iconName = direction === 'left' ? 'collapseLeft' : 'collapseRight';
+        return `<button class="panel-collapse-btn" ${id ? `id="${id}"` : ''} title="${title}">${getIcon(iconName, { size: 'medium' })}</button>`;
     },
 
     /**
@@ -34,7 +34,7 @@ export const Templates = {
      */
     gitOperationButton(id, iconName, text, title) {
         return `<button id="${id}" class="git-btn" title="${title}">
-            ${getIcon(iconName)}
+            ${getIcon(iconName, { size: 'small' })}
             ${text}
         </button>`;
     },
@@ -48,7 +48,7 @@ export const Templates = {
      */
     headerControlButton(id, iconName, title) {
         return `<button id="${id}" class="icon-btn" title="${title}">
-            ${getIcon(iconName)}
+            ${getIcon(iconName, { size: 'medium' })}
         </button>`;
     },
 

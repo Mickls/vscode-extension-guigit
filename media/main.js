@@ -235,7 +235,7 @@ import { getIcon } from './utils/icons.js';
                         <div class="header-author clickable" id="headerAuthor">Author</div>
                         <div class="header-date">Date</div>
                     </div>
-                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
                 </div>
                 <div class="loading">Loading commits...</div>
             `;
@@ -308,7 +308,7 @@ import { getIcon } from './utils/icons.js';
                 // 清空右侧详情面板
                 commitDetails.innerHTML = `
                     <div class="panel-header">
-                        <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                        <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">${getIcon('collapseRight', { size: 'medium' })}</button>
                     </div>
                     <div class="placeholder">Select a commit to view details</div>
                 `;
@@ -331,7 +331,7 @@ import { getIcon } from './utils/icons.js';
                             <div class="header-author clickable" id="headerAuthor">Author</div>
                             <div class="header-date">Date</div>
                         </div>
-                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
                     </div>
                 `;
                 // 绑定作者筛选点击事件
@@ -438,7 +438,7 @@ import { getIcon } from './utils/icons.js';
                             <div class="header-author">Author</div>
                             <div class="header-date">Date</div>
                         </div>
-                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
                     </div>
                     <div class="loading">No commits found</div>
                 `;
@@ -1114,7 +1114,7 @@ import { getIcon } from './utils/icons.js';
         message.className = 'commit-not-found-message';
         message.innerHTML = Templates.messageNotification({
             type: 'warning',
-            icon: '⚠️',
+            icon: getIcon('warning'),
             title: `Commit not found: ${commitHash.substring(0, 8)}`,
             content: 'The commit may be in a different branch or not yet loaded.'
         });
@@ -1196,7 +1196,7 @@ import { getIcon } from './utils/icons.js';
         message.className = 'commit-not-found-message';
         message.innerHTML = Templates.messageNotification({
             type: 'error',
-            icon: '❌',
+            icon: getIcon('error'),
             title: `Commit not found: ${commitHash.substring(0, 8)}`,
             content: 'This commit does not exist in any branch of the current repository.'
         });
@@ -1231,7 +1231,7 @@ import { getIcon } from './utils/icons.js';
         message.className = 'commit-not-found-message';
         message.innerHTML = Templates.messageNotification({
             type: 'info',
-            icon: '🔍',
+            icon: getIcon('search'),
             title: `Commit found in other branch${commitBranches.length > 1 ? 'es' : ''}`,
             content: `Commit ${commitHash.substring(0, 8)} is available in:`,
             actions: branchOptions

@@ -4,6 +4,26 @@
  * 使用VS Code主题变量确保与编辑器主题一致
  */
 
+/* ==================== 图标字体引入 ==================== */
+
+/* 引入 VSCode Codicons 图标字体 */
+@import url('https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.35/dist/codicon.css');
+
+/* Codicon 图标基础样式 */
+.codicon {
+  font-family: 'codicon';
+  font-display: block;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: normal;
+  text-decoration: none;
+  text-transform: none;
+  vertical-align: middle;
+  speak: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 /* ==================== 基础样式 ==================== */
 
 body {
@@ -161,6 +181,33 @@ body {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
+}
+
+/* Git按钮中的Codicon图标样式 */
+.git-btn .codicon {
+  flex-shrink: 0;
+  margin-right: 2px;
+  color: inherit; /* 继承按钮的颜色 */
+}
+
+/* 图标按钮中的Codicon图标样式 */
+.icon-btn .codicon {
+  color: var(--vscode-icon-foreground);
+  transition: color 0.1s ease;
+}
+
+.icon-btn:hover .codicon {
+  color: var(--vscode-icon-foreground);
+}
+
+/* 面板折叠按钮中的图标样式 */
+.panel-collapse-btn .codicon {
+  color: var(--vscode-icon-foreground);
+  transition: color 0.1s ease;
+}
+
+.panel-collapse-btn:hover .codicon {
+  color: var(--vscode-icon-foreground);
 }
 
 /* 刷新按钮样式 */
