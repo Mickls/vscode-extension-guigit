@@ -40,6 +40,12 @@ export interface GitBranch {
   commit: string;
 }
 
+export interface GitRepository {
+  name: string;
+  path: string;
+  isActive: boolean;
+}
+
 export interface GitFileChange {
   file: string;
   insertions: number;
@@ -53,6 +59,8 @@ export interface GitFileChange {
 export class GitHistoryProvider {
   private git: SimpleGit | null = null;
   private workspaceRoot: string | null = null;
+  private availableRepositories: GitRepository[] = [];
+  private currentRepository: GitRepository | null = null;
   // 性能优化：添加后端缓存
   private commitDetailsCache = new Map<
     string,
@@ -65,7 +73,10 @@ export class GitHistoryProvider {
   private readonly USER_CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
 
   constructor() {
-    this.initializeGit();
+    // 异步初始化
+    this.initializeGit().catch(error => {
+      console.error('Git初始化失败:', error);
+    });
   }
 
   /**
@@ -121,14 +132,113 @@ export class GitHistoryProvider {
   /**
    * 初始化Git实例
    */
-  private initializeGit() {
+  private async initializeGit() {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (workspaceFolders && workspaceFolders.length > 0) {
       this.workspaceRoot = workspaceFolders[0].uri.fsPath;
-      this.git = simpleGit(this.workspaceRoot, {
-        config: ["core.quotepath=false", "log.showSignature=false"],
-      });
+      
+      // 发现所有Git仓库
+      await this.discoverRepositories();
+      
+      // 设置默认仓库
+      if (this.availableRepositories.length > 0) {
+        await this.setCurrentRepository(this.availableRepositories[0]);
+      }
     }
+  }
+
+  /**
+   * 发现工作区中的所有Git仓库
+   */
+  private async discoverRepositories(): Promise<void> {
+    if (!this.workspaceRoot) {
+      return;
+    }
+
+    this.availableRepositories = [];
+    await this.searchForGitRepositories(this.workspaceRoot);
+    
+    console.log(`发现 ${this.availableRepositories.length} 个Git仓库:`, 
+      this.availableRepositories.map(repo => repo.path));
+  }
+
+  /**
+   * 递归搜索Git仓库
+   */
+  private async searchForGitRepositories(searchPath: string, maxDepth: number = 5, currentDepth: number = 0): Promise<void> {
+    if (currentDepth > maxDepth) {
+      return;
+    }
+
+    try {
+      const fs = require('fs').promises;
+      const path = require('path');
+      
+      // 检查当前目录是否是Git仓库
+      const gitPath = path.join(searchPath, '.git');
+      try {
+        const gitStat = await fs.stat(gitPath);
+        if (gitStat.isDirectory() || gitStat.isFile()) {
+          // 找到Git仓库
+          const repoName = path.basename(searchPath);
+          this.availableRepositories.push({
+            name: repoName,
+            path: searchPath,
+            isActive: false
+          });
+        }
+      } catch (error) {
+        // .git 不存在，继续搜索子目录
+      }
+
+      // 搜索子目录
+      const entries = await fs.readdir(searchPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          const subPath = path.join(searchPath, entry.name);
+          await this.searchForGitRepositories(subPath, maxDepth, currentDepth + 1);
+        }
+      }
+    } catch (error) {
+      console.warn(`搜索Git仓库时出错 ${searchPath}:`, error);
+    }
+  }
+
+  /**
+   * 获取所有可用的Git仓库
+   */
+  getAvailableRepositories(): GitRepository[] {
+    return this.availableRepositories;
+  }
+
+  /**
+   * 获取当前活动的仓库
+   */
+  getCurrentRepository(): GitRepository | null {
+    return this.currentRepository;
+  }
+
+  /**
+   * 设置当前仓库
+   */
+  async setCurrentRepository(repository: GitRepository): Promise<void> {
+    // 重置之前的活动状态
+    this.availableRepositories.forEach(repo => repo.isActive = false);
+    
+    // 设置新的活动仓库
+    repository.isActive = true;
+    this.currentRepository = repository;
+    
+    // 重新初始化Git实例
+    this.git = simpleGit(repository.path, {
+      config: ["core.quotepath=false", "log.showSignature=false"],
+    });
+    
+    // 清除缓存
+    this.commitDetailsCache.clear();
+    this.currentUserCache = null;
+    
+    console.log(`切换到仓库: ${repository.name} (${repository.path})`);
   }
 
   /**
@@ -574,6 +684,7 @@ export class GitHistoryProvider {
    */
   public clearCache() {
     this.commitDetailsCache.clear();
+    this.currentUserCache = null;
     // 清除用户信息缓存
     this.currentUserCache = null;
     this.userCacheTimestamp = 0;

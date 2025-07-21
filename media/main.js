@@ -43,6 +43,7 @@ import { getIcon } from './utils/icons.js';
     // 使用 getState() 和 setState() 函数访问和修改状态
 
     // DOM元素引用
+    const repositorySelect = document.getElementById('repositorySelect'); // 仓库选择下拉框
     const branchSelect = document.getElementById('branchSelect');         // 分支选择下拉框
     const refreshBtn = document.getElementById('refreshBtn');             // 刷新按钮
     const jumpToHeadBtn = document.getElementById('jumpToHeadBtn');       // 跳转到HEAD按钮
@@ -81,6 +82,17 @@ import { getIcon } from './utils/icons.js';
         }
     });
 
+    // 仓库选择变更事件
+    repositorySelect.addEventListener('change', (e) => {
+        const repositoryPath = e.target.value;
+        if (repositoryPath) {
+            vscode.postMessage({
+                type: 'switchRepository',
+                repositoryPath: repositoryPath
+            });
+        }
+    });
+
     // 分支选择变更事件
     branchSelect.addEventListener('change', (e) => {
         setCurrentBranch(e.target.value);
@@ -99,6 +111,7 @@ import { getIcon } from './utils/icons.js';
         // 性能优化：刷新时清理缓存
         clearAllCache();
         updateMultiSelectInfo();
+        vscode.postMessage({ type: 'getRepositories' });
         vscode.postMessage({ type: 'getBranches' });
         loadCommits(true);
     });
@@ -166,6 +179,12 @@ import { getIcon } from './utils/icons.js';
         const message = event.data;
 
         switch (message.type) {
+            case 'repositories':
+                updateRepositories(message.data);  // 更新仓库列表
+                break;
+            case 'repositorySwitched':
+                handleRepositorySwitched(message.data); // 处理仓库切换
+                break;
             case 'branches':
                 updateBranches(message.data);      // 更新分支列表
                 break;
@@ -258,6 +277,45 @@ import { getIcon } from './utils/icons.js';
                 branch: getState('currentBranch') || undefined
             });
         }
+    }
+
+    /**
+     * 更新仓库列表
+     * @param {Array} repositories - 仓库数据数组
+     */
+    function updateRepositories(repositories) {
+        repositorySelect.innerHTML = '<option value="">Select Repository</option>';
+
+        // 遍历仓库数据，创建选项元素
+        repositories.forEach(repo => {
+            const option = document.createElement('option');
+            option.value = repo.path;
+            option.textContent = repo.name;
+            if (repo.isActive) {
+                option.selected = true;
+            }
+            repositorySelect.appendChild(option);
+        });
+    }
+
+    /**
+     * 处理仓库切换
+     * @param {Object} repository - 切换到的仓库
+     */
+    function handleRepositorySwitched(repository) {
+        console.log(`Switched to repository: ${repository.name} (${repository.path})`);
+        
+        // 更新选择器状态
+        const options = Array.from(repositorySelect.options);
+        const option = options.find(opt => opt.value === repository.path);
+        if (option) {
+            option.selected = true;
+        }
+        
+        // 重置状态
+        resetCommitState();
+        clearAllCache();
+        updateMultiSelectInfo();
     }
 
     /**

@@ -125,6 +125,12 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "getCurrentUser":
           await this._sendCurrentUser();
           break;
+        case "getRepositories":
+          await this._sendRepositories();
+          break;
+        case "switchRepository":
+          await this._switchRepository(data.repositoryPath);
+          break;
         // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
@@ -151,6 +157,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     }
 
     // 有Git仓库，正常初始化
+    this._sendRepositories();
     this._sendBranches();
     this._sendCommitHistory();
     this._sendViewMode();
@@ -195,6 +202,74 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         this._initializeView();
       }
     }, 300);
+  }
+
+  /**
+   * 发送仓库列表到WebView
+   */
+  private async _sendRepositories() {
+    if (!this._view) return;
+
+    try {
+      const repositories = this._gitHistoryProvider.getAvailableRepositories();
+      const currentRepo = this._gitHistoryProvider.getCurrentRepository();
+      
+      // 确保当前仓库的活动状态正确
+      const repositoriesWithStatus = repositories.map(repo => ({
+        ...repo,
+        isActive: currentRepo ? repo.path === currentRepo.path : false
+      }));
+      
+      this._view.webview.postMessage({
+        type: "repositories",
+        data: repositoriesWithStatus,
+      });
+    } catch (error) {
+      console.error("Error getting repositories:", error);
+      this._view.webview.postMessage({
+        type: "error",
+        message: `Failed to load repositories: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      });
+    }
+  }
+
+  /**
+   * 切换当前仓库
+   * @param repositoryPath 仓库路径
+   */
+  private async _switchRepository(repositoryPath: string) {
+    if (!this._view) return;
+
+    try {
+      const repositories = this._gitHistoryProvider.getAvailableRepositories();
+      const repository = repositories.find(repo => repo.path === repositoryPath);
+      
+      if (repository) {
+        await this._gitHistoryProvider.setCurrentRepository(repository);
+        
+        // 通知前端仓库已切换
+        this._view.webview.postMessage({
+          type: "repositorySwitched",
+          data: repository,
+        });
+        
+        // 刷新视图数据
+        this._sendBranches();
+        this._sendCommitHistory();
+      } else {
+        throw new Error(`Repository not found: ${repositoryPath}`);
+      }
+    } catch (error) {
+      console.error(`Error switching repository to ${repositoryPath}:`, error);
+      this._view.webview.postMessage({
+        type: "error",
+        message: `Failed to switch repository: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      });
+    }
   }
 
   /**
@@ -1209,6 +1284,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 <div class="container">
                     <div class="header">
                         <div class="header-left">
+                            <select id="repositorySelect" class="repository-select">
+                                <option value="">Select Repository</option>
+                            </select>
                             <select id="branchSelect" class="branch-select">
                                 <option value="">All branches</option>
                             </select>

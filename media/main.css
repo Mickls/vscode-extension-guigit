@@ -55,10 +55,13 @@ body {
   background-color: var(--vscode-panel-background);
 }
 
-/* 头部左侧区域 - 分支选择器 */
+/* 头部左侧区域 - 仓库和分支选择器 */
 .header-left {
   flex: 1;
   min-width: 0; /* 允许收缩 */
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 /* 头部右侧区域 - 操作按钮 */
@@ -85,10 +88,44 @@ body {
   gap: 4px;
 }
 
+/* 仓库选择下拉框 */
+.repository-select {
+  width: 100%;
+  max-width: 180px; /* 限制最大宽度 */
+  padding: 4px 8px;
+  background-color: var(--vscode-list-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-select:hover {
+  background-color: var(--vscode-dropdown-background);
+}
+
+.repository-select:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+/* 仓库选择器选项样式 */
+.repository-select option {
+  background-color: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  padding: 4px 8px;
+}
+
+.repository-select option:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
 /* 分支选择下拉框 */
 .branch-select {
   width: 100%;
-  max-width: 200px; /* 限制最大宽度 */
+  max-width: 180px; /* 调整最大宽度以适应仓库选择器 */
   padding: 4px 8px;
   background-color: var(--vscode-list-background);
   color: var(--vscode-dropdown-foreground);
