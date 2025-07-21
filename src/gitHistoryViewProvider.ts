@@ -1133,6 +1133,40 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, "media", "main.css")
     );
 
+    // Git操作按钮配置
+    const gitOperations = [
+      { id: 'pullBtn', action: 'pull', title: 'Pull (Ctrl+Click for advanced options)' },
+      { id: 'pushBtn', action: 'push', title: 'Push (Ctrl+Click for advanced options)' },
+      { id: 'fetchBtn', action: 'fetch', title: 'Fetch' },
+      { id: 'cloneBtn', action: 'clone', title: 'Clone' },
+      { id: 'checkoutBtn', action: 'checkout', title: 'Checkout' }
+    ];
+
+    // 头部控制按钮配置
+    const headerControls = [
+      { id: 'jumpToHeadBtn', action: 'jumpToHead', title: 'Jump to HEAD' },
+      { id: 'refreshBtn', action: 'refresh', title: 'Refresh' }
+    ];
+
+    // 上下文菜单项配置
+    const contextMenuItems = [
+      { action: 'copyHash', label: 'Copy Hash' },
+      { action: 'cherryPick', label: 'Cherry Pick' },
+      { action: 'revert', label: 'Revert' },
+      { separator: true },
+      { action: 'editCommitMessage', label: 'Edit Commit Message', id: 'editCommitMessageMenuItem' },
+      { separator: true },
+      { action: 'compare', label: 'Compare Selected', id: 'compareMenuItem' },
+      { action: 'squash', label: 'Squash Commits', id: 'squashMenuItem' },
+      { separator: true },
+      { action: 'createBranch', label: 'Create Branch from Here' },
+      { action: 'pushToCommit', label: 'Push All Commits to Here' },
+      { separator: true },
+      { action: 'resetSoft', label: 'Reset (Soft)' },
+      { action: 'resetMixed', label: 'Reset (Mixed)' },
+      { action: 'resetHard', label: 'Reset (Hard)' }
+    ];
+
     return `<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -1151,53 +1185,19 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         </div>
                         <div class="header-right">
                             <div class="git-operations">
-                                <button id="pullBtn" class="git-btn" title="Pull (Ctrl+Click for advanced options)">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M7.5 6.5V1h1v5.5l1.5-1.5.707.707L8 8.414 5.293 5.707 6 5l1.5 1.5z"/>
-                                        <path d="M2 10v3h12v-3h1v4H1v-4h1z"/>
-                                    </svg>
-                                    Pull
-                                </button>
-                                <button id="pushBtn" class="git-btn" title="Push (Ctrl+Click for advanced options)">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M8.5 9.5V15h-1V9.5L6 11l-.707-.707L8 7.586l2.707 2.707L10 11l-1.5-1.5z"/>
-                                        <path d="M14 6V3H2v3H1V2h14v4h-1z"/>
-                                    </svg>
-                                    Push
-                                </button>
-                                <button id="fetchBtn" class="git-btn" title="Fetch">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM7 3v6L5.5 7.5 4.793 8.207 8 11.414l3.207-3.207L10.5 7.5 9 9V3H7z"/>
-                                    </svg>
-                                    Fetch
-                                </button>
-                                <button id="cloneBtn" class="git-btn" title="Clone">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h10V3H3z"/>
-                                        <path d="M5 5h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/>
-                                    </svg>
-                                    Clone
-                                </button>
-                                <button id="checkoutBtn" class="git-btn" title="Checkout">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM4.5 7.5a.5.5 0 0 0 0 1h5.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H4.5z"/>
-                                    </svg>
-                                    Checkout
-                                </button>
+                                ${gitOperations.map(op => `
+                                    <button id="${op.id}" class="git-btn" title="${op.title}" data-action="${op.action}">
+                                        <span class="icon" data-icon="${op.action}"></span>
+                                        ${op.action.charAt(0).toUpperCase() + op.action.slice(1)}
+                                    </button>
+                                `).join('')}
                             </div>
                             <div class="header-controls">
-                                <button id="jumpToHeadBtn" class="icon-btn" title="Jump to HEAD">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M8 1l3 3-3 3V5H3v2h5v2L5 6l3-3V1z"/>
-                                        <path d="M13 8v5H3V8h2v3h6V8h2z"/>
-                                    </svg>
-                                </button>
-                                <button id="refreshBtn" class="icon-btn" title="Refresh">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                                    </svg>
-                                </button>
+                                ${headerControls.map(ctrl => `
+                                    <button id="${ctrl.id}" class="icon-btn" title="${ctrl.title}" data-action="${ctrl.action}">
+                                        <span class="icon" data-icon="${ctrl.action}"></span>
+                                    </button>
+                                `).join('')}
                             </div>
                         </div>
                     </div>
@@ -1212,7 +1212,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                                     <div class="header-author">Author</div>
                                     <div class="header-date">Date</div>
                                 </div>
-                                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">‹</button>
+                                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">
+                                    <span class="icon" data-icon="collapseLeft"></span>
+                                </button>
                             </div>
                             <div class="loading">Loading commits...</div>
                         </div>
@@ -1221,7 +1223,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         
                         <div class="commit-details" id="commitDetails">
                             <div class="panel-header">
-                                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
+                                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">
+                                    <span class="icon" data-icon="collapseRight"></span>
+                                </button>
                             </div>
                             <div class="placeholder">Select a commit to view details</div>
                         </div>
@@ -1238,21 +1242,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
                 <!-- Context Menu -->
                 <div id="contextMenu" class="context-menu" style="display: none;">
-                    <div class="menu-item" data-action="copyHash">Copy Hash</div>
-                    <div class="menu-item" data-action="cherryPick">Cherry Pick</div>
-                    <div class="menu-item" data-action="revert">Revert</div>
-                    <div class="menu-separator"></div>
-                    <div class="menu-item" data-action="editCommitMessage" id="editCommitMessageMenuItem">Edit Commit Message</div>
-                    <div class="menu-separator"></div>
-                    <div class="menu-item" data-action="compare" id="compareMenuItem">Compare Selected</div>
-                    <div class="menu-item" data-action="squash" id="squashMenuItem">Squash Commits</div>
-                    <div class="menu-separator"></div>
-                    <div class="menu-item" data-action="createBranch">Create Branch from Here</div>
-                    <div class="menu-item" data-action="pushToCommit">Push All Commits to Here</div>
-                    <div class="menu-separator"></div>
-                    <div class="menu-item" data-action="resetSoft">Reset (Soft)</div>
-                    <div class="menu-item" data-action="resetMixed">Reset (Mixed)</div>
-                    <div class="menu-item" data-action="resetHard">Reset (Hard)</div>
+                    ${contextMenuItems.map(item => 
+                        item.separator 
+                            ? '<div class="menu-separator"></div>'
+                            : `<div class="menu-item" data-action="${item.action}"${item.id ? ` id="${item.id}"` : ''}>${item.label}</div>`
+                    ).join('')}
                 </div>
 
                 <script type="module" src="${scriptUri}"></script>

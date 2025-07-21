@@ -25,6 +25,10 @@ import {
     hasPendingRequest, setPendingRequest, setSearchingForCommit, setPendingJumpCommit,
     addAuthorFilter, clearAuthorFilter
 } from './core/state-manager.js';
+// 导入模板系统
+import { Templates } from './utils/templates.js';
+// 导入图标系统
+import { getIcon } from './utils/icons.js';
 
 (function () {
     'use strict';
@@ -262,7 +266,7 @@ import {
      */
     function updateBranches(branchData) {
         setState('branches', branchData);
-        branchSelect.innerHTML = '<option value="all">All branches</option>';
+        branchSelect.innerHTML = Templates.defaultBranchOption();
 
         // 遍历分支数据，创建选项元素
         branchData.forEach(branch => {
@@ -497,7 +501,7 @@ import {
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.className = 'loading-indicator';
-            indicator.innerHTML = '<div class="loading">Loading more commits...</div>';
+            indicator.innerHTML = Templates.loadingIndicator('Loading more commits...');
             commitList.appendChild(indicator);
         }
     }
@@ -526,24 +530,11 @@ import {
         div.dataset.index = index;
 
         const refs = commit.refs ? parseRefs(commit.refs) : [];
-        const refsHtml = refs.map(ref => {
-            const refClass = getRefClass(ref);
-            return `<span class="ref-tag ${refClass}">${ref}</span>`;
-        }).join('');
-
+        
         // 创建图形部分
         const graphHtml = createGraphHtml(commit, index);
 
-        div.innerHTML = `
-            <div class="commit-graph">${graphHtml}</div>
-            <div class="commit-content">
-                <div class="commit-hash" title="${commit.hash}">${commit.hash.substring(0, 8)}</div>
-                <div class="commit-message" title="${escapeHtml(commit.message)}">${escapeHtml(commit.message)}</div>
-                ${refsHtml ? `<div class="commit-refs">${refsHtml}</div>` : '<div class="commit-refs"></div>'}
-                <div class="commit-author" title="${escapeHtml(commit.author)}">${escapeHtml(commit.author)}</div>
-                <div class="commit-date" title="${formatDate(commit.date)}">${formatDate(commit.date)}</div>
-            </div>
-        `;
+        div.innerHTML = Templates.commitElement(commit, graphHtml, refs);
 
         // 添加点击事件监听器 - 处理提交记录的选择
         div.addEventListener('click', (e) => {
@@ -681,23 +672,13 @@ import {
         // 检查是否已有相同请求正在进行
         if (hasPendingRequest(hash)) {
             // 如果已有请求在进行，只显示loading状态
-            commitDetails.innerHTML = `
-                <div class="panel-header">
-                    <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
-                </div>
-                <div class="loading">Loading commit details...</div>
-            `;
+            commitDetails.innerHTML = Templates.loadingPanel('Loading commit details...');
             rebindCollapseButtons();
             return;
         }
 
         // 清除详情区域，显示加载状态
-        commitDetails.innerHTML = `
-            <div class="panel-header">
-                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
-            </div>
-            <div class="loading">Loading commit details...</div>
-        `;
+        commitDetails.innerHTML = Templates.loadingPanel('Loading commit details...');
         rebindCollapseButtons();
 
         // 标记请求正在进行
@@ -805,12 +786,7 @@ import {
      */
     function updateCommitDetails(data) {
         if (!data) {
-            commitDetails.innerHTML = `
-                <div class="panel-header">
-                    <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
-                </div>
-                <div class="placeholder">Failed to load commit details</div>
-            `;
+            commitDetails.innerHTML = Templates.errorPanel('Failed to load commit details');
             rebindCollapseButtons();
             return;
         }
@@ -845,45 +821,35 @@ import {
             filesHtml = renderFileTree(fileTree, commit.hash);
         } else {
             // 列表视图：简单的文件列表
-            filesHtml = `<div class="file-list-container">${renderFileList(files, commit.hash)}</div>`;
+            filesHtml = Templates.fileListContainer(renderFileList(files, commit.hash));
         }
 
         // 解析refs信息
         const refs = commit.refs ? parseRefs(commit.refs) : [];
         const refsHtml = refs.map(ref => {
             const refClass = getRefClass(ref);
-            return `<span class="ref-tag ${refClass}">${ref}</span>`;
+            return Templates.refTag(ref, refClass);
         }).join('');
 
-        // 构建完整的详情HTML
-        const detailsHtml = `
-            <div class="panel-header">
-                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">›</button>
-            </div>
-            <div class="details-header">
-                <div class="details-hash">${escapeHtml(commit.hash)}</div>
-                <div class="details-message">${escapeHtml(commit.message)}</div>
-                <div class="details-author">${escapeHtml(commit.author)} &lt;${escapeHtml(commit.email)}&gt;</div>
-                <div class="details-date">${formatDate(commit.date)}</div>
-                ${refsHtml ? `<div class="details-refs">${refsHtml}</div>` : ''}
-                ${commit.body ? `<div class="details-body">${escapeHtml(commit.body)}</div>` : ''}
-            </div>
-            <div class="file-changes">
-                <div class="file-changes-header">
-                    <h3>Changed Files (${files.length})</h3>
-                    <div class="file-view-controls">
-                        <button class="view-toggle-btn" onclick="toggleFileViewMode()" title="${fileViewMode === 'tree' ? 'Switch to List View' : 'Switch to Tree View'}">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
-                        </button>
-                        ${files.length > 10 && fileViewMode === 'tree' ? '<button class="collapse-all-btn" onclick="toggleAllFolders()">Collapse All</button>' : ''}
-                    </div>
-                </div>
-                ${files.length > 0 ? filesHtml : '<div class="no-files">No files changed</div>'}
-            </div>
-        `;
+        // 使用模板系统构建详情HTML
+        const headerHtml = Templates.commitDetailsHeader(
+            escapeHtml(commit.hash),
+            escapeHtml(commit.message),
+            escapeHtml(commit.author),
+            escapeHtml(commit.email),
+            formatDate(commit.date),
+            refsHtml,
+            commit.body ? escapeHtml(commit.body) : ''
+        );
+
+        const fileChangesHtml = Templates.fileChangesSection(
+            files.length,
+            fileViewMode,
+            files.length > 0 ? filesHtml : '<div class="no-files">No files changed</div>'
+        );
 
         // 完全替换内容
-        commitDetails.innerHTML = detailsHtml;
+        commitDetails.innerHTML = headerHtml + fileChangesHtml;
 
         // 重新绑定折叠按钮事件监听器
         rebindCollapseButtons();
@@ -1146,31 +1112,12 @@ import {
         // 创建提示信息元素
         const message = document.createElement('div');
         message.className = 'commit-not-found-message';
-        message.innerHTML = `
-            <div class="message-content">
-                <div class="message-icon">⚠️</div>
-                <div class="message-text">
-                    <strong>Commit not found: ${commitHash.substring(0, 8)}</strong>
-                    <p>The commit may be in a different branch or not yet loaded.</p>
-                </div>
-                <button class="message-close" onclick="this.parentElement.parentElement.remove()">×</button>
-            </div>
-        `;
-
-        // 添加样式
-        message.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background:rgb(48, 48, 48);
-            border: 1px solid #ffeaa7;
-            border-radius: 4px;
-            padding: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            z-index: 1000;
-            max-width: 350px;
-            font-size: 14px;
-        `;
+        message.innerHTML = Templates.messageNotification({
+            type: 'warning',
+            icon: '⚠️',
+            title: `Commit not found: ${commitHash.substring(0, 8)}`,
+            content: 'The commit may be in a different branch or not yet loaded.'
+        });
 
         document.body.appendChild(message);
 
@@ -1247,31 +1194,12 @@ import {
         // 创建提示信息元素
         const message = document.createElement('div');
         message.className = 'commit-not-found-message';
-        message.innerHTML = `
-             <div class="message-content">
-                 <div class="message-icon">❌</div>
-                 <div class="message-text">
-                     <strong>Commit not found: ${commitHash.substring(0, 8)}</strong>
-                     <p>This commit does not exist in any branch of the current repository.</p>
-                 </div>
-                 <button class="message-close" onclick="this.parentElement.parentElement.remove()">×</button>
-             </div>
-         `;
-
-        // 添加样式
-        message.style.cssText = `
-             position: fixed;
-             top: 20px;
-             right: 20px;
-             background: #f8d7da;
-             border: 1px solid #f5c6cb;
-             border-radius: 4px;
-             padding: 12px;
-             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-             z-index: 1000;
-             max-width: 350px;
-             font-size: 14px;
-         `;
+        message.innerHTML = Templates.messageNotification({
+            type: 'error',
+            icon: '❌',
+            title: `Commit not found: ${commitHash.substring(0, 8)}`,
+            content: 'This commit does not exist in any branch of the current repository.'
+        });
 
         document.body.appendChild(message);
 
@@ -1296,64 +1224,18 @@ import {
         }
 
         // 创建分支选项HTML
-        const branchOptions = commitBranches.map(branch =>
-            `<button class="branch-option" onclick="switchToBranchAndJump('${branch}', '${commitHash}')">${branch}</button>`
-        ).join('');
+        const branchOptions = Templates.branchOptionsContainer(commitBranches, commitHash);
 
         // 创建提示信息元素
         const message = document.createElement('div');
         message.className = 'commit-not-found-message';
-        message.innerHTML = `
-             <div class="message-content">
-                 <div class="message-icon">🔍</div>
-                 <div class="message-text">
-                     <strong>Commit found in other branch${commitBranches.length > 1 ? 'es' : ''}</strong>
-                     <p>Commit ${commitHash.substring(0, 8)} is available in:</p>
-                     <div class="branch-options">${branchOptions}</div>
-                 </div>
-                 <button class="message-close" onclick="this.parentElement.parentElement.remove()">×</button>
-             </div>
-         `;
-
-        // 添加样式
-        message.style.cssText = `
-             position: fixed;
-             top: 20px;
-             right: 20px;
-             background: #d1ecf1;
-             border: 1px solid #bee5eb;
-             border-radius: 4px;
-             padding: 12px;
-             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-             z-index: 1000;
-             max-width: 350px;
-             font-size: 14px;
-         `;
-
-        // 添加分支选项按钮样式
-        const style = document.createElement('style');
-        style.textContent = `
-             .branch-options {
-                 margin-top: 8px;
-                 display: flex;
-                 flex-direction: column;
-                 gap: 4px;
-             }
-             .branch-option {
-                 background: #007acc;
-                 color: white;
-                 border: none;
-                 padding: 6px 12px;
-                 border-radius: 3px;
-                 cursor: pointer;
-                 font-size: 12px;
-                 transition: background-color 0.2s;
-             }
-             .branch-option:hover {
-                 background: #005a9e;
-             }
-         `;
-        document.head.appendChild(style);
+        message.innerHTML = Templates.messageNotification({
+            type: 'info',
+            icon: '🔍',
+            title: `Commit found in other branch${commitBranches.length > 1 ? 'es' : ''}`,
+            content: `Commit ${commitHash.substring(0, 8)} is available in:`,
+            actions: branchOptions
+        });
 
         document.body.appendChild(message);
 
@@ -1559,7 +1441,7 @@ import {
             const headerAuthor = document.getElementById('headerAuthor');
             if (headerAuthor) {
                 const originalContent = headerAuthor.innerHTML;
-                headerAuthor.innerHTML = '<span class="filter-loading">Loading...</span>';
+                headerAuthor.innerHTML = Templates.filterLoadingState('Loading...');
                 headerAuthor.classList.add('loading');
                 
                 // 设置超时恢复，防止请求失败时界面卡住
