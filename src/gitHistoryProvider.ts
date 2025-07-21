@@ -1732,11 +1732,18 @@ export class GitHistoryProvider {
         throw new Error(`Invalid remote branch format: ${remoteBranch}`);
       }
 
+      // 获取当前分支名称
+      const currentBranch = await this.git.revparse(['--abbrev-ref', 'HEAD']);
+      const currentBranchName = currentBranch.trim();
+
       const options: any = {};
       if (force) {
         options['--force'] = null;
       }
-      await this.git.push(remote, branch, options);
+      
+      // 使用 currentBranch:remoteBranch 格式推送
+      // 这样可以将当前分支的内容推送到指定的远程分支
+      await this.git.push(remote, `${currentBranchName}:${branch}`, options);
       return true;
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Unknown error";
