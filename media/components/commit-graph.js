@@ -4,224 +4,147 @@
  */
 
 /**
- * 创建提交图谱的HTML结构
+ * 创建提交图形的HTML
  * @param {Object} commit - 提交记录对象
  * @param {number} index - 提交记录在列表中的索引
- * @returns {string} 图谱的HTML字符串
+ * @param {number} maxColumns - 最大列数
+ * @returns {string} 图形HTML
  */
-export function createGraphHtml(commit, index) {
-    // 添加调试信息
-    if (index < 3) {
-        console.log(`createGraphHtml called for commit ${index}:`, {
-            hash: commit.hash?.substring(0, 7),
-            message: commit.message,
-            graphInfo: commit.graphInfo,
-            hasGraphInfo: !!commit.graphInfo
-        });
-    }
-    
+export function createGraphHtml(commit, index, maxColumns) {
     if (!commit.graphInfo) {
-        console.log(`No graphInfo for commit ${index}, returning placeholder`);
-        return '<div class="graph-placeholder"></div>';
+        return '<div class="commit-graph"></div>';
     }
-
+    
     const { column, lanes } = commit.graphInfo;
-    // 计算最大列数，确保包含所有活跃的车道
-    const maxColumns = Math.max(...lanes.map(l => l.column), column) + 1;
+    const columnWidth = 10; // 每列宽度
     
-    let graphHtml = '';
-    
-    // 为每一列创建图形元素
-    for (let col = 0; col < maxColumns; col++) {
-        // 查找当前列的车道信息
-        const lane = lanes.find(l => l.column === col);
-        const color = lane ? lane.color : getLineColor(col);
-        const isCommitColumn = col === column;
-        
-        let columnHtml = '<div class="graph-column">';
-        
-        // 根据车道类型渲染不同的图形元素
-        if (lane) {
-            if (lane.type === 'line' || lane.type === 'commit') {
-                columnHtml += `<div class="graph-vertical-line" style="background-color: ${color};"></div>`;
-            } else if (lane.type === 'merge' && lane.char === '\\') {
-                // 渲染合并线（\）
-                columnHtml += `<div class="graph-curve bottom-left" style="border-color: ${color};"></div>`;
-            } else if (lane.type === 'fork' && lane.char === '/') {
-                // 渲染分叉线（/）
-                columnHtml += `<div class="graph-curve bottom-right" style="border-color: ${color};"></div>`;
-            }
-        } else if (hasActiveBranch(commit, index, col)) {
-            // 备用逻辑：如果没有车道信息但检测到活跃分支，也显示线条
-            columnHtml += `<div class="graph-vertical-line" style="background-color: ${color};"></div>`;
-        }
-        
-        // 如果是提交所在的列，添加提交节点
-        if (isCommitColumn) {
-            const isMerge = commit.parents && commit.parents.length > 1;
-            const nodeClass = isMerge ? 'merge-node' : 'commit-node';
-            columnHtml += `<div class="${nodeClass}" style="background-color: ${color};"></div>`;
-            
-            // 检查是否需要添加分支分叉连接线
-            const forkConnections = getForkConnections(commit, index, col);
-            // 调试信息
-            if (forkConnections.length > 0) {
-                // 发送调试信息到VS Code
-                if (typeof vscode !== 'undefined') {
-                    vscode.postMessage({
-                        type: 'debug',
-                        message: 'Fork connections found:',
-                        data: {
-                            commit: commit.hash.substring(0, 7),
-                            message: commit.message,
-                            index,
-                            col,
-                            connections: forkConnections
-                        }
-                    });
-                }
-            }
-            forkConnections.forEach(connection => {
-                const { targetCol, color: lineColor, type } = connection;
-                const distance = Math.abs(targetCol - col);
-                if (type === 'fork-right') {
-                    // 从当前提交节点向右分叉的弯曲连接线
-                    columnHtml += `<div class="graph-fork-curve right" style="--target-distance: ${distance}; border-bottom-color: ${lineColor}; border-right-color: ${lineColor};"></div>`;
-                } else if (type === 'fork-left') {
-                    // 从当前提交节点向左分叉的弯曲连接线
-                    columnHtml += `<div class="graph-fork-curve left" style="--target-distance: ${distance}; border-bottom-color: ${lineColor}; border-left-color: ${lineColor};"></div>`;
-                }
-            });
-        }
-        
-        // 添加分支合并的水平连接线
-        const horizontalConnections = getHorizontalConnections(commit, index, col);
-        horizontalConnections.forEach(connection => {
-            const { direction, targetCol, color: lineColor } = connection;
-            const width = Math.abs(targetCol - col) * 16; // 16px per column
-            const left = direction === 'right' ? '50%' : `${-width + 8}px`;
-            columnHtml += `<div class="graph-horizontal-line" style="background-color: ${lineColor}; width: ${width}px; left: ${left};"></div>`;
-        });
-        
-        columnHtml += '</div>';
-        graphHtml += columnHtml;
-    }
-    
-    return graphHtml;
-}
-
-/**
- * 判断指定列是否有活跃的分支线
- * @param {Object} commit - 提交记录对象
- * @param {number} index - 提交记录在列表中的索引
- * @param {number} col - 列号
- * @returns {boolean} 是否有活跃的分支线
- */
-export function hasActiveBranch(commit, index, col) {
-    // 检查当前提交是否在这一列
-    if (commit.graphInfo && commit.graphInfo.column === col) {
-        return true;
-    }
-    
-    // 检查当前提交的lanes中是否有这一列的信息
-    if (commit.graphInfo && commit.graphInfo.lanes) {
-        const hasLaneInColumn = commit.graphInfo.lanes.some(lane => lane.column === col);
-        if (hasLaneInColumn) {
-            return false; // 如果已经有lane信息，不需要额外的线条
-        }
-    }
-    
-    // 获取全局commits数组的引用
+    // 获取全局commits数组的引用，用于查找父子提交关系
     const commits = window.getState ? window.getState('commits') : (window.commits || []);
     
-    // 检查这一列是否有连续的分支线
-    // 向上查找
-    let hasAbove = false;
-    for (let i = index - 1; i >= 0 && i >= index - 3; i--) { // 限制查找范围
-        const prevCommit = commits[i];
-        if (prevCommit && prevCommit.graphInfo) {
-            // 检查是否有lane在这一列
-            if (prevCommit.graphInfo.lanes && prevCommit.graphInfo.lanes.some(lane => lane.column === col)) {
-                hasAbove = true;
-                break;
-            }
-            // 如果找到在同一列的提交
-            if (prevCommit.graphInfo.column === col) {
-                hasAbove = true;
-                break;
-            }
-        }
-    }
+    // 预处理所有连接信息
+    const connections = processConnections(commit, commits, index);
     
-    // 向下查找
-    let hasBelow = false;
-    for (let i = index + 1; i < commits.length && i <= index + 3; i++) { // 限制查找范围
-        const nextCommit = commits[i];
-        if (nextCommit && nextCommit.graphInfo) {
-            // 检查是否有lane在这一列
-            if (nextCommit.graphInfo.lanes && nextCommit.graphInfo.lanes.some(lane => lane.column === col)) {
-                hasBelow = true;
-                break;
-            }
-            // 如果找到在同一列的提交
-            if (nextCommit.graphInfo.column === col) {
-                hasBelow = true;
-                break;
-            }
-        }
-    }
+    let html = `<div class="commit-graph" style="width: ${maxColumns * columnWidth}px;">`;
     
-    return hasAbove && hasBelow; // 只有上下都有连接时才显示线条
-}
-
-/**
- * 获取分支连接线信息（从当前提交连接到下一个提交的不同分支）
- * @param {Object} commit - 提交记录对象
- * @param {number} index - 提交记录在列表中的索引
- * @param {number} col - 列号
- * @returns {Array} 分支连接线数组
- */
-export function getBranchConnections(commit, index, col) {
-    const connections = [];
-    
-    // 暂时返回空数组，先解决基本的分支线显示问题
-    // 后续可以根据实际的Git图形数据来实现分支连接逻辑
-    
-    return connections;
-}
-
-/**
- * 获取分支分叉连接线信息
- * @param {Object} commit - 提交记录对象
- * @param {number} index - 提交记录在列表中的索引
- * @param {number} col - 列号
- * @returns {Array} 分叉连接线数组
- */
-export function getForkConnections(commit, index, col) {
-    const connections = [];
-    
-    // 添加详细的调试信息
-    if (index < 5) { // 只对前几个提交输出调试信息
-        console.log(`Debug getForkConnections - commit ${index}:`, {
-            hash: commit.hash?.substring(0, 7),
-            message: commit.message,
-            col: col,
-            graphInfo: commit.graphInfo,
-            parents: commit.parents
-        });
-    }
-    
-    // 检查当前提交是否有子提交在不同的列（分叉检测）
-    // 分叉应该发生在一个提交有多个子提交，且这些子提交在不同列的情况
-    if (commit.hash && commit.graphInfo && commit.children && commit.children.length > 0) {
-        // 获取全局commits数组的引用
-        const commits = window.getState ? window.getState('commits') : (window.commits || []);
+    // 为每一列创建一个容器
+    for (let col = 0; col < maxColumns; col++) {
+        const lane = lanes.find(l => l.column === col);
+        const laneColor = lane ? lane.color : getLineColor(col);
         
-        // 使用预计算的children数组查找子提交
+        html += `<div class="graph-column" data-column="${col}">`;
+        
+        // 1. 绘制垂直线
+        if (shouldDrawVerticalLine(lane, commit, connections, col)) {
+            html += `<div class="graph-vertical-line" style="background-color: ${laneColor};"></div>`;
+        }
+        
+        // 2. 绘制曲线连接
+        const curves = getCurveConnections(lane, connections, col);
+        curves.forEach(curve => {
+            html += `<div class="graph-curve ${curve.position}" style="border-color: ${curve.color};"></div>`;
+        });
+        
+        // 3. 绘制提交节点
+        if (col === column) {
+            const nodeClass = commit.parents && commit.parents.length > 1 ? 'merge-node' : 'commit-node';
+            html += `<div class="${nodeClass}" style="background-color: ${laneColor};"></div>`;
+        }
+        
+        // 4. 绘制分叉连接线
+        connections.forks.forEach(fork => {
+            if (fork.sourceCol === col) {
+                const type = fork.targetCol > col ? 'fork-right' : 'fork-left';
+                const colDistance = Math.abs(fork.targetCol - fork.sourceCol);
+                const width = colDistance * 16; // 16px是每列的宽度
+                html += `<div class="graph-fork-curve ${type}" style="border-color: ${fork.color}; --fork-width: ${width}px;"></div>`;
+            }
+        });
+        
+        // 5. 绘制水平连接线
+        connections.horizontals.forEach(conn => {
+            // 如果是当前列是源列或目标列，或者是中间经过的列
+            const isSource = conn.sourceCol === col;
+            const isTarget = conn.targetCol === col;
+            const isBetween = (Math.min(conn.sourceCol, conn.targetCol) < col && 
+                              col < Math.max(conn.sourceCol, conn.targetCol));
+            
+            if (isSource || isTarget) {
+                // 源列或目标列绘制带方向的水平线
+                const direction = isSource ? 
+                    (conn.targetCol < col ? 'left' : 'right') : 
+                    (conn.sourceCol < col ? 'left' : 'right');
+                html += `<div class="graph-horizontal-line ${direction}" style="background-color: ${conn.color};"></div>`;
+            } else if (isBetween) {
+                // 中间列绘制穿过的水平线
+                html += `<div class="graph-horizontal-line" style="background-color: ${conn.color};"></div>`;
+            }
+        });
+        
+        html += '</div>'; // 结束graph-column
+    }
+    
+    html += '</div>'; // 结束commit-graph
+    return html;
+}
+
+/**
+ * 预处理提交的所有连接信息
+ * @param {Object} commit - 提交记录对象
+ * @param {Array} commits - 所有提交记录数组
+ * @param {number} index - 提交记录在列表中的索引
+ * @returns {Object} 包含各种连接信息的对象
+ */
+function processConnections(commit, commits, index) {
+    // 初始化连接信息对象
+    const connections = {
+        verticals: [], // 垂直线信息
+        curves: [],    // 曲线连接信息
+        forks: [],     // 分叉连接信息
+        horizontals: [], // 水平连接信息
+        activeColumns: new Set() // 活跃列集合
+    };
+    
+    if (!commit.graphInfo) {
+        return connections;
+    }
+    
+    const { column, lanes } = commit.graphInfo;
+    
+    // 1. 处理垂直线信息 - 所有车道都可能有垂直线
+    lanes.forEach(lane => {
+        if (lane.type === 'line' || lane.type === 'commit') {
+            connections.verticals.push({
+                column: lane.column,
+                color: lane.color
+            });
+            connections.activeColumns.add(lane.column);
+        }
+    });
+    
+    // 2. 处理曲线连接
+    lanes.forEach(lane => {
+        if (lane.type === 'merge' && lane.char === '\\') {
+            connections.curves.push({
+                column: lane.column,
+                color: lane.color,
+                position: 'bottom-left'
+            });
+        } else if (lane.type === 'fork' && lane.char === '/') {
+            connections.curves.push({
+                column: lane.column,
+                color: lane.color,
+                position: 'bottom-right'
+            });
+        }
+    });
+    
+    // 3. 处理分叉连接 - 当前提交到子提交的连接
+    if (commit.hash && commit.children && commit.children.length > 0) {
+        // 查找所有子提交
         const childCommits = [];
         commit.children.forEach(childHash => {
             const childCommit = commits.find(c => c.hash === childHash);
-            if (childCommit) {
+            if (childCommit && childCommit.graphInfo) {
                 childCommits.push({
                     commit: childCommit,
                     index: commits.findIndex(c => c.hash === childHash)
@@ -229,51 +152,93 @@ export function getForkConnections(commit, index, col) {
             }
         });
         
-        if (index < 5) {
-            if (typeof vscode !== 'undefined') {
-                vscode.postMessage({
-                    type: 'debug',
-                    message: `Found ${childCommits.length} child commits for ${commit.hash?.substring(0, 7)}`,
-                    data: childCommits.map(c => ({
-                        hash: c.commit.hash?.substring(0, 7),
-                        column: c.commit.graphInfo?.column,
-                        index: c.index
-                    }))
-                });
-            }
-        }
-        
-        // 如果有多个子提交，或者子提交在不同的列，说明这里有分叉
+        // 如果有子提交，检查是否有分叉
         if (childCommits.length > 0) {
-            const currentCol = commit.graphInfo.column;
+            const currentCol = column;
             const uniqueChildColumns = [...new Set(childCommits.map(c => c.commit.graphInfo?.column).filter(c => c !== undefined))];
             
             uniqueChildColumns.forEach(childCol => {
-                if (childCol !== currentCol && col === currentCol) {
-                    const targetColor = getLineColor(childCol);
-                    const type = childCol > currentCol ? 'fork-right' : 'fork-left';
-                    
-                    // 避免重复添加
-                    const exists = connections.some(c => c.targetCol === childCol && c.type === type);
-                    if (!exists) {
-                        connections.push({
-                            targetCol: childCol,
-                            color: targetColor,
-                            type: type
-                        });
-                        
-                        if (index < 5) {
-                            if (typeof vscode !== 'undefined') {
-                                vscode.postMessage({
-                                    type: 'debug',
-                                    message: `Added fork connection from ${currentCol} to ${childCol}`,
-                                    data: { currentCol, childCol, col, type, targetColor }
-                                });
-                            }
-                        }
-                    }
+                if (childCol !== currentCol) {
+                    const color = getLineColor(childCol);
+                    connections.forks.push({
+                        sourceCol: currentCol,
+                        targetCol: childCol,
+                        color: color
+                    });
                 }
             });
+        }
+    }
+    
+    // 4. 处理水平连接 - 合并提交的连接线
+    if (commit.parents && commit.parents.length > 1) {
+        const currentCol = column;
+        
+        // 对于合并提交，添加从父提交到当前提交的连接线
+        commit.parents.forEach(parentHash => {
+            const parentCommit = commits.find(c => c.hash === parentHash);
+            if (parentCommit && parentCommit.graphInfo && parentCommit.graphInfo.column !== currentCol) {
+                const parentCol = parentCommit.graphInfo.column;
+                const direction = parentCol < currentCol ? 'left' : 'right';
+                const color = getLineColor(parentCol);
+                
+                connections.horizontals.push({
+                    sourceCol: currentCol,
+                    targetCol: parentCol,
+                    direction: direction,
+                    color: color
+                });
+                
+                // 标记这些列为活跃列
+                connections.activeColumns.add(currentCol);
+                connections.activeColumns.add(parentCol);
+                
+                // 标记中间的列也为活跃列（用于绘制穿过的水平线）
+                const minCol = Math.min(currentCol, parentCol);
+                const maxCol = Math.max(currentCol, parentCol);
+                for (let col = minCol + 1; col < maxCol; col++) {
+                    connections.activeColumns.add(col);
+                }
+            }
+        });
+    }
+    
+    // 5. 检查相邻提交中的活跃列 - 仅检查直接相邻的提交，减少不必要的连接线
+    const checkRange = 1; // 减少检查范围，只检查前后1个提交
+    
+    // 向上查找 - 只检查直接相关的列
+    for (let i = Math.max(0, index - checkRange); i < index; i++) {
+        const prevCommit = commits[i];
+        if (prevCommit && prevCommit.graphInfo) {
+            // 只添加当前提交直接相关的列
+            if (prevCommit.hash && commit.parents && commit.parents.includes(prevCommit.hash)) {
+                connections.activeColumns.add(prevCommit.graphInfo.column);
+                
+                // 只添加与当前提交直接相关的车道列
+                prevCommit.graphInfo.lanes.forEach(lane => {
+                    if (lane.type === 'commit' || lane.type === 'line') {
+                        connections.activeColumns.add(lane.column);
+                    }
+                });
+            }
+        }
+    }
+    
+    // 向下查找 - 只检查直接相关的列
+    for (let i = index + 1; i < Math.min(commits.length, index + checkRange + 1); i++) {
+        const nextCommit = commits[i];
+        if (nextCommit && nextCommit.graphInfo) {
+            // 只添加当前提交直接相关的列
+            if (nextCommit.hash && commit.children && commit.children.includes(nextCommit.hash)) {
+                connections.activeColumns.add(nextCommit.graphInfo.column);
+                
+                // 只添加与当前提交直接相关的车道列
+                nextCommit.graphInfo.lanes.forEach(lane => {
+                    if (lane.type === 'commit' || lane.type === 'line') {
+                        connections.activeColumns.add(lane.column);
+                    }
+                });
+            }
         }
     }
     
@@ -281,51 +246,92 @@ export function getForkConnections(commit, index, col) {
 }
 
 /**
- * 获取水平连接线信息
+ * 判断是否应该在指定列绘制垂直线
+ * @param {Object|null} lane - 当前列的车道信息
  * @param {Object} commit - 提交记录对象
- * @param {number} index - 提交记录在列表中的索引
+ * @param {Object} connections - 连接信息对象
  * @param {number} col - 列号
- * @returns {Array} 水平连接线数组
+ * @returns {boolean} 是否应该绘制垂直线
  */
-export function getHorizontalConnections(commit, index, col) {
-    const connections = [];
+function shouldDrawVerticalLine(lane, commit, connections, col) {
+    // 如果有车道信息且类型是line或commit，则绘制垂直线
+    if (lane && (lane.type === 'line' || lane.type === 'commit')) {
+        return true;
+    }
     
-        // 获取全局commits数组的引用
-        const commits = window.getState ? window.getState('commits') : (window.commits || []);
+    // 检查是否有分叉连接使用此列
+    const hasForkConnection = connections.forks.some(fork => 
+        fork.sourceCol === col
+    ) && lane;
+    
+    if (hasForkConnection) {
+        return true;
+    }
+    
+    // 检查是否有水平连接使用此列作为源或目标
+    const hasHorizontalConnection = connections.horizontals.some(h => 
+        h.sourceCol === col || h.targetCol === col
+    );
+    
+    if (hasHorizontalConnection) {
+        return true;
+    }
+    
+    // 如果该列是活跃列，但不是仅因为水平线经过
+    if (connections.activeColumns.has(col)) {
+        // 排除只有水平线经过的情况
+        const isOnlyHorizontalPassThrough = connections.horizontals.some(h => 
+            (h.sourceCol !== col && h.targetCol !== col) && 
+            (Math.min(h.sourceCol, h.targetCol) < col && col < Math.max(h.sourceCol, h.targetCol))
+        ) && !hasForkConnection && !hasHorizontalConnection;
         
-        // 如果是合并提交，需要绘制从父提交到当前提交的连接线
-        if (commit.parents && commit.parents.length > 1 && commit.graphInfo && commit.graphInfo.column === col) {
-            commit.parents.forEach(parentHash => {
-                const parentCommit = commits.find(c => c.hash === parentHash);
-                if (parentCommit && parentCommit.graphInfo && parentCommit.graphInfo.column !== col) {
-                    const targetCol = parentCommit.graphInfo.column;
-                    const direction = targetCol < col ? 'left' : 'right';
-                    const color = getLineColor(targetCol);
-                    connections.push({ direction, targetCol, color });
-                }
+        if (!isOnlyHorizontalPassThrough) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * 获取曲线连接信息
+ * @param {Object|null} lane - 当前列的车道信息
+ * @param {Object} connections - 连接信息对象
+ * @param {number} col - 列号
+ * @returns {Array} 曲线连接信息数组
+ */
+function getCurveConnections(lane, connections, col) {
+    const curves = [];
+    
+    // 如果有车道信息且类型是merge或fork，则添加曲线
+    if (lane) {
+        if (lane.type === 'merge' && lane.char === '\\') {
+            curves.push({
+                position: 'bottom-left',
+                color: lane.color
+            });
+        } else if (lane.type === 'fork' && lane.char === '/') {
+            curves.push({
+                position: 'bottom-right',
+                color: lane.color
             });
         }
-        
-        // 如果当前列不是提交列，检查是否有合并线经过
-        if (commit.graphInfo && commit.graphInfo.column !== col) {
-            // 检查是否有其他提交的合并线经过这一列
-            if (commit.parents && commit.parents.length > 1) {
-                const commitCol = commit.graphInfo.column;
-                commit.parents.forEach(parentHash => {
-                    const parentCommit = commits.find(c => c.hash === parentHash);
-                    if (parentCommit && parentCommit.graphInfo) {
-                        const parentCol = parentCommit.graphInfo.column;
-                        // 如果合并线经过当前列
-                        if ((commitCol < col && col < parentCol) || (parentCol < col && col < commitCol)) {
-                            const color = getLineColor(parentCol);
-                            connections.push({ direction: 'through', targetCol: parentCol, color });
-                        }
-                    }
+    }
+    
+    // 从预处理的连接信息中查找与当前列相关的曲线
+    connections.curves.forEach(curve => {
+        if (curve.column === col) {
+            // 避免重复添加
+            if (!curves.some(c => c.position === curve.position)) {
+                curves.push({
+                    position: curve.position,
+                    color: curve.color
                 });
             }
         }
+    });
     
-    return connections;
+    return curves;
 }
 
 /**
@@ -334,6 +340,25 @@ export function getHorizontalConnections(commit, index, col) {
  * @returns {string} 颜色值
  */
 export function getLineColor(col) {
-    const colors = ['#007acc', '#f14c4c', '#00aa00', '#ff8800', '#aa00aa', '#00aaaa'];
-    return colors[col % colors.length];
+    // 使用更多对比度高的颜色，确保分支线条易于区分
+    const colors = [
+        '#e74c3c', // 红色
+        '#3498db', // 蓝色
+        '#2ecc71', // 绿色
+        '#f39c12', // 橙色
+        '#9b59b6', // 紫色
+        '#1abc9c', // 青绿色
+        '#e67e22', // 橙红色
+        '#34495e', // 深蓝灰色
+        '#16a085', // 深青色
+        '#d35400', // 深橙色
+        '#8e44ad', // 深紫色
+        '#27ae60', // 深绿色
+        '#2980b9', // 深蓝色
+        '#c0392b', // 深红色
+        '#7f8c8d'  // 灰色
+    ];
+    
+    // 确保相同的列号始终获得相同的颜色
+    return colors[Math.abs(col) % colors.length];
 }

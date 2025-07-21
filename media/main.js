@@ -692,7 +692,12 @@ import { getIcon } from './utils/icons.js';
         const refs = commit.refs ? parseRefs(commit.refs) : [];
         
         // 创建图形部分
-        const graphHtml = createGraphHtml(commit, index);
+        // 计算最大列数，确保图形有足够的宽度
+        const maxColumns = Math.max(
+            10, // 默认最小列数
+            commit.graphInfo ? Math.max(...commit.graphInfo.lanes.map(lane => lane.column)) + 2 : 5
+        );
+        const graphHtml = createGraphHtml(commit, index, maxColumns);
 
         div.innerHTML = Templates.commitElement(commit, graphHtml, refs);
 
