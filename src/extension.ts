@@ -90,51 +90,64 @@ export function activate(context: vscode.ExtensionContext) {
   if (gitExtension) {
     const git = gitExtension.exports.getAPI(1);
     
-    // 监听Git状态变化
-    git.onDidChangeState(() => {
-      gitHistoryViewProvider.refresh();
-    });
+    // 创建防抖刷新函数，避免频繁刷新
+    let refreshTimeout: NodeJS.Timeout | undefined;
+    const debouncedRefresh = () => {
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+      refreshTimeout = setTimeout(() => {
+        gitHistoryViewProvider.refresh();
+      }, 1000); // 1秒防抖延迟
+    };
+    
+    // 监听Git状态变化（减少频率）
+    git.onDidChangeState(debouncedRefresh);
     
     // 监听新仓库打开
     git.onDidOpenRepository((repo: any) => {
-      // 监听仓库状态变化
+      // 监听仓库状态变化（使用防抖）
       if (repo.state && repo.state.onDidChange) {
-        repo.state.onDidChange(() => {
-          gitHistoryViewProvider.refresh();
-        });
+        repo.state.onDidChange(debouncedRefresh);
       }
     });
     
-    // 对已存在的仓库也添加监听
+    // 对已存在的仓库也添加监听（使用防抖）
     git.repositories.forEach((repo: any) => {
       if (repo.state && repo.state.onDidChange) {
-        repo.state.onDidChange(() => {
-          gitHistoryViewProvider.refresh();
-        });
+        repo.state.onDidChange(debouncedRefresh);
       }
     });
   }
   
-  // 监听文件系统变化（作为备用方案）
+  // 监听关键的Git文件变化（减少监听范围）
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
-    const gitDirWatcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(workspaceFolders[0], '.git/**')
+    // 只监听关键的Git文件，而不是整个.git目录
+    const gitHeadWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(workspaceFolders[0], '.git/HEAD')
+    );
+    const gitRefsWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(workspaceFolders[0], '.git/refs/**')
     );
     
-    gitDirWatcher.onDidChange(() => {
-      gitHistoryViewProvider.refresh();
-    });
+    // 创建防抖刷新函数
+    let gitFileRefreshTimeout: NodeJS.Timeout | undefined;
+    const debouncedGitFileRefresh = () => {
+      if (gitFileRefreshTimeout) {
+        clearTimeout(gitFileRefreshTimeout);
+      }
+      gitFileRefreshTimeout = setTimeout(() => {
+        gitHistoryViewProvider.refresh();
+      }, 500); // 500ms防抖延迟
+    };
     
-    gitDirWatcher.onDidCreate(() => {
-      gitHistoryViewProvider.refresh();
-    });
+    gitHeadWatcher.onDidChange(debouncedGitFileRefresh);
+    gitRefsWatcher.onDidChange(debouncedGitFileRefresh);
+    gitRefsWatcher.onDidCreate(debouncedGitFileRefresh);
+    gitRefsWatcher.onDidDelete(debouncedGitFileRefresh);
     
-    gitDirWatcher.onDidDelete(() => {
-      gitHistoryViewProvider.refresh();
-    });
-    
-    context.subscriptions.push(gitDirWatcher);
+    context.subscriptions.push(gitHeadWatcher, gitRefsWatcher);
   }
 
   context.subscriptions.push(

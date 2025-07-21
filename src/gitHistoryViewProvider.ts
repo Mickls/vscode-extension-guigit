@@ -1285,8 +1285,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     <div class="header">
                         <div class="header-left">
                             <select id="repositorySelect" class="repository-select">
-                                <option value="">Select Repository</option>
-                            </select>
+                            <!-- 仓库选项将通过JavaScript动态填充 -->
+                        </select>
                             <select id="branchSelect" class="branch-select">
                                 <option value="">All branches</option>
                             </select>

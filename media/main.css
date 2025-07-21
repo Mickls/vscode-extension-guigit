@@ -788,6 +788,28 @@ body.resizing .resizer {
   user-select: none;
   position: relative;
   min-height: 36px;
+  /* 添加平滑过渡效果，减少闪烁 */
+  transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 新添加的提交项动画 */
+.commit-item.entering {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.commit-item.entering.animate {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 移除的提交项动画 */
+.commit-item.leaving {
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
 }
 
 /* 让图形部分的垂直线能够穿过分割线 */
@@ -800,6 +822,8 @@ body.resizing .resizer {
 .commit-item {
   position: relative;
   z-index: 1;
+  /* 优化过渡效果 */
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .commit-item:hover .commit-content {

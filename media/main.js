@@ -284,7 +284,7 @@ import { getIcon } from './utils/icons.js';
      * @param {Array} repositories - 仓库数据数组
      */
     function updateRepositories(repositories) {
-        repositorySelect.innerHTML = '<option value="">Select Repository</option>';
+        repositorySelect.innerHTML = '';
 
         // 遍历仓库数据，创建选项元素
         repositories.forEach(repo => {
@@ -296,6 +296,15 @@ import { getIcon } from './utils/icons.js';
             }
             repositorySelect.appendChild(option);
         });
+        
+        // 如果没有仓库，显示提示信息
+        if (repositories.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No repositories found';
+            option.disabled = true;
+            repositorySelect.appendChild(option);
+        }
     }
 
     /**
@@ -363,50 +372,29 @@ import { getIcon } from './utils/icons.js';
             } else {
                 // 只有当之前选中的提交不存在时才重置
                 setCurrentCommit(null);
-                // 清空右侧详情面板
-                commitDetails.innerHTML = `
+                // 平滑更新右侧详情面板，避免闪烁
+                updateCommitDetailsPanel(`
                     <div class="panel-header">
                         <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">${getIcon('collapseRight', { size: 'medium' })}</button>
                     </div>
                     <div class="placeholder">Select a commit to view details</div>
-                `;
-                rebindCollapseButtons();
+                `);
             }
 
-            // 清空提交列表，但保留panel-header
-            const panelHeader = commitList.querySelector('.panel-header');
-            commitList.innerHTML = '';
-            if (panelHeader) {
-                commitList.appendChild(panelHeader);
-            } else {
-                // 如果没有panel-header，创建一个包含headers的
-                commitList.innerHTML = `
-                    <div class="panel-header">
-                        <div class="commit-list-headers">
-                            <div class="header-hash">Hash</div>
-                            <div class="header-message">Message</div>
-                            <div class="header-refs">Tags</div>
-                            <div class="header-author clickable" id="headerAuthor">Author</div>
-                            <div class="header-date">Date</div>
-                        </div>
-                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
-                    </div>
-                `;
-                // 绑定作者筛选点击事件
-                bindAuthorFilterEvent();
-            }
-            rebindCollapseButtons();
-            renderCommitList();
+            // 平滑更新提交列表，避免完全清空造成的闪烁
+            updateCommitListSmoothly(data.commits);
 
             // 如果保持了选中状态，需要恢复UI状态和详情显示
             const currentCommit = getState('currentCommit');
             if (currentCommit) {
-                setTimeout(() => {
-                    // 使用安全的更新函数确保UI状态正确
+                // 使用requestAnimationFrame确保DOM更新完成后再处理选中状态
+                requestAnimationFrame(() => {
                     const commits = getState('commits');
                     const commit = commits.find(c => c.hash === currentCommit);
                     if (commit) {
                         ensureCommitSelectionUI(currentCommit);
+                        // 启动选择状态监控
+                        ensureSelectionMonitoring();
                         // 如果有缓存的详情，直接显示
                         if (getCachedCommitDetails(currentCommit)) {
                             updateCommitDetails(getCachedCommitDetails(currentCommit));
@@ -418,7 +406,7 @@ import { getIcon } from './utils/icons.js';
                             });
                         }
                     }
-                }, 50); // 稍微延迟以确保DOM已更新
+                });
             }
         } else {
             // 加载更多提交记录
@@ -441,9 +429,9 @@ import { getIcon } from './utils/icons.js';
                     window.searchingForCommit = null;
 
                     // 跳转到找到的提交
-                    setTimeout(() => {
+                    requestAnimationFrame(() => {
                         jumpToSpecificCommit(searchHash);
-                    }, 100); // 稍微延迟以确保DOM已更新
+                    });
                 }
             } else if (loadedCommits >= totalCommits) {
                 // 已经加载完所有提交但仍未找到，清除搜索标记
@@ -460,9 +448,9 @@ import { getIcon } from './utils/icons.js';
                 const jumpHash = window.pendingJumpCommit;
                 window.pendingJumpCommit = null;
 
-                setTimeout(() => {
+                requestAnimationFrame(() => {
                     jumpToSpecificCommit(jumpHash);
-                }, 100); // 稍微延迟以确保DOM已更新
+                });
             } else {
                 // 如果在首次加载中没找到，设置为搜索模式继续查找
                 window.searchingForCommit = window.pendingJumpCommit;
@@ -473,6 +461,112 @@ import { getIcon } from './utils/icons.js';
         // 只在初始加载时显示加载状态指示器
         if (data.skip === 0 && loadedCommits < totalCommits) {
             showLoadingIndicator();
+        }
+    }
+
+    /**
+     * 平滑更新提交列表，避免闪烁
+     * @param {Array} commits - 新的提交列表
+     */
+    function updateCommitListSmoothly(commits) {
+        // 保留panel-header
+        const panelHeader = commitList.querySelector('.panel-header');
+        
+        // 获取现有的提交元素
+        const existingCommits = commitList.querySelectorAll('.commit-item');
+        
+        // 如果没有现有提交或提交数量差异很大，直接重建
+        if (existingCommits.length === 0 || Math.abs(existingCommits.length - commits.length) > 10) {
+            // 清空提交列表，但保留panel-header
+            commitList.innerHTML = '';
+            if (panelHeader) {
+                commitList.appendChild(panelHeader);
+            } else {
+                // 如果没有panel-header，创建一个包含headers的
+                commitList.innerHTML = `
+                    <div class="panel-header">
+                        <div class="commit-list-headers">
+                            <div class="header-hash">Hash</div>
+                            <div class="header-message">Message</div>
+                            <div class="header-refs">Tags</div>
+                            <div class="header-author clickable" id="headerAuthor">Author</div>
+                            <div class="header-date">Date</div>
+                        </div>
+                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
+                    </div>
+                `;
+                // 绑定作者筛选点击事件
+                bindAuthorFilterEvent();
+            }
+            rebindCollapseButtons();
+            renderCommitList();
+        } else {
+            // 尝试平滑更新：只更新变化的部分
+            updateCommitListIncrementally(commits);
+        }
+    }
+
+    /**
+     * 增量更新提交列表
+     * @param {Array} newCommits - 新的提交列表
+     */
+    function updateCommitListIncrementally(newCommits) {
+        const existingCommits = commitList.querySelectorAll('.commit-item');
+        const existingHashes = Array.from(existingCommits).map(el => el.dataset.hash);
+        const newHashes = newCommits.map(commit => commit.hash);
+        
+        // 检查是否需要完全重建（如果顺序变化太大）
+        const orderChanged = existingHashes.slice(0, Math.min(5, newHashes.length))
+            .some((hash, index) => hash !== newHashes[index]);
+        
+        if (orderChanged) {
+            // 如果顺序变化，直接重建
+            renderCommitList();
+        } else {
+            // 标记要移除的提交项并添加动画
+            existingCommits.forEach(element => {
+                if (!newHashes.includes(element.dataset.hash)) {
+                    element.classList.add('leaving');
+                    setTimeout(() => element.remove(), 150);
+                }
+            });
+            
+            // 添加新的提交项并添加进入动画
+            newCommits.forEach((commit, index) => {
+                if (!existingHashes.includes(commit.hash)) {
+                    const commitElement = createCommitElement(commit, index);
+                    commitElement.classList.add('entering');
+                    
+                    // 找到正确的插入位置
+                    const nextElement = commitList.querySelector(`[data-hash="${newHashes[index + 1]}"]`);
+                    if (nextElement) {
+                        commitList.insertBefore(commitElement, nextElement);
+                    } else {
+                        commitList.appendChild(commitElement);
+                    }
+                    
+                    // 触发进入动画
+                    requestAnimationFrame(() => {
+                        commitElement.classList.add('animate');
+                        setTimeout(() => {
+                            commitElement.classList.remove('entering', 'animate');
+                        }, 200);
+                    });
+                }
+            });
+        }
+        
+        updateMultiSelectInfo();
+    }
+
+    /**
+     * 平滑更新提交详情面板
+     * @param {string} content - 新的HTML内容
+     */
+    function updateCommitDetailsPanel(content) {
+        if (commitDetails.innerHTML !== content) {
+            commitDetails.innerHTML = content;
+            rebindCollapseButtons();
         }
     }
 
@@ -1345,7 +1439,9 @@ import { getIcon } from './utils/icons.js';
      * 定期检查并修复选中状态
      * 防止由于异步操作或DOM更新导致的状态丢失
      */
+    // 优化选择状态检查，减少频率并添加条件判断
     function checkAndFixSelectionState() {
+        // 只在有选中提交时才检查
         const currentCommit = getState('currentCommit');
         const selectedCommits = getState('selectedCommits');
         if (currentCommit && selectedCommits.length > 0) {
@@ -1357,8 +1453,26 @@ import { getIcon } from './utils/icons.js';
         }
     }
 
-    // 初始化定期检查
-    setInterval(checkAndFixSelectionState, 2000); // 每2秒检查一次
+    // 减少检查频率，从2秒改为5秒，并且只在需要时检查
+    let selectionCheckInterval;
+    function startSelectionStateMonitoring() {
+        if (selectionCheckInterval) {
+            clearInterval(selectionCheckInterval);
+        }
+        selectionCheckInterval = setInterval(() => {
+            // 只在有选中状态时才检查
+            if (getState('currentCommit') || getState('selectedCommits').length > 0) {
+                checkAndFixSelectionState();
+            }
+        }, 5000); // 从2秒改为5秒
+    }
+
+    // 当有选中状态时才启动监控
+    function ensureSelectionMonitoring() {
+        if (!selectionCheckInterval) {
+            startSelectionStateMonitoring();
+        }
+    }
 
     // 页面加载完成后的初始化
     document.addEventListener('DOMContentLoaded', function () {
@@ -1405,13 +1519,16 @@ import { getIcon } from './utils/icons.js';
             }
         };
 
-        // 使用ResizeObserver监控宽度变化
+        // 优先使用ResizeObserver监控宽度变化
         if (window.ResizeObserver) {
-            const resizeObserver = new ResizeObserver(checkCommitListWidth);
+            const resizeObserver = new ResizeObserver(entries => {
+                // 使用requestAnimationFrame优化性能
+                requestAnimationFrame(checkCommitListWidth);
+            });
             resizeObserver.observe(commitList);
         } else {
-            // 降级方案：使用定时器
-            setInterval(checkCommitListWidth, 100);
+            // 降级方案：使用更低频率的定时器
+            setInterval(checkCommitListWidth, 500); // 从100ms改为500ms
         }
 
         // 初始检查
