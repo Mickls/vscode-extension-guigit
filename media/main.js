@@ -261,6 +261,9 @@ import { getIcon } from './utils/icons.js';
             // 绑定作者筛选点击事件
             bindAuthorFilterEvent();
             rebindCollapseButtons();
+        } else {
+            // 即使不是reset，也要更新UI显示loading状态
+            renderCommitList();
         }
 
         // 请求获取提交历史记录
@@ -576,10 +579,13 @@ import { getIcon } from './utils/icons.js';
      */
     function renderCommitList() {
         const commits = getState('commits');
+        const isLoading = getState('isLoading');
 
         if (commits.length === 0) {
-            // 如果没有提交，显示"No commits found"
+            // 如果没有提交，根据加载状态显示不同信息
             const existingHeaders = commitList.querySelectorAll('.panel-header');
+            const messageText = isLoading ? 'Loading commits...' : 'No commits found';
+            
             if (existingHeaders.length === 0) {
                 commitList.innerHTML = `
                     <div class="panel-header">
@@ -592,17 +598,19 @@ import { getIcon } from './utils/icons.js';
                         </div>
                         <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
                     </div>
-                    <div class="loading">No commits found</div>
+                    <div class="loading">${messageText}</div>
                 `;
                 rebindCollapseButtons();
             } else {
-                // 如果按钮已存在，只添加消息
-                const existingMessage = commitList.querySelector('.loading');
+                // 如果按钮已存在，只添加或更新消息
+                let existingMessage = commitList.querySelector('.loading');
                 if (!existingMessage) {
                     const messageDiv = document.createElement('div');
                     messageDiv.className = 'loading';
-                    messageDiv.textContent = 'No commits found';
+                    messageDiv.textContent = messageText;
                     commitList.appendChild(messageDiv);
+                } else {
+                    existingMessage.textContent = messageText;
                 }
             }
             return;

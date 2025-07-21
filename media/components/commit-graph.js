@@ -213,21 +213,21 @@ export function getForkConnections(commit, index, col) {
     
     // 检查当前提交是否有子提交在不同的列（分叉检测）
     // 分叉应该发生在一个提交有多个子提交，且这些子提交在不同列的情况
-    if (commit.hash && commit.graphInfo) {
+    if (commit.hash && commit.graphInfo && commit.children && commit.children.length > 0) {
         // 获取全局commits数组的引用
         const commits = window.getState ? window.getState('commits') : (window.commits || []);
         
-        // 查找所有以当前提交为父提交的子提交
+        // 使用预计算的children数组查找子提交
         const childCommits = [];
-        for (let i = 0; i < commits.length; i++) {
-            const otherCommit = commits[i];
-            if (otherCommit && otherCommit.parents && otherCommit.parents.includes(commit.hash)) {
+        commit.children.forEach(childHash => {
+            const childCommit = commits.find(c => c.hash === childHash);
+            if (childCommit) {
                 childCommits.push({
-                    commit: otherCommit,
-                    index: i
+                    commit: childCommit,
+                    index: commits.findIndex(c => c.hash === childHash)
                 });
             }
-        }
+        });
         
         if (index < 5) {
             if (typeof vscode !== 'undefined') {

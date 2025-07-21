@@ -85,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // 监听Git仓库变化
+  // 优化Git仓库变化监听，减少不必要的刷新
   const gitExtension = vscode.extensions.getExtension("vscode.git");
   if (gitExtension) {
     const git = gitExtension.exports.getAPI(1);
@@ -98,37 +98,24 @@ export function activate(context: vscode.ExtensionContext) {
       }
       refreshTimeout = setTimeout(() => {
         gitHistoryViewProvider.refresh();
-      }, 1000); // 1秒防抖延迟
+      }, 2000); // 增加到2秒防抖延迟，减少频繁刷新
     };
     
-    // 监听Git状态变化（减少频率）
-    git.onDidChangeState(debouncedRefresh);
-    
-    // 监听新仓库打开
+    // 只监听新仓库打开，减少监听器数量
     git.onDidOpenRepository((repo: any) => {
-      // 监听仓库状态变化（使用防抖）
-      if (repo.state && repo.state.onDidChange) {
-        repo.state.onDidChange(debouncedRefresh);
-      }
-    });
-    
-    // 对已存在的仓库也添加监听（使用防抖）
-    git.repositories.forEach((repo: any) => {
-      if (repo.state && repo.state.onDidChange) {
-        repo.state.onDidChange(debouncedRefresh);
-      }
+      // 只在仓库首次打开时刷新
+      setTimeout(() => {
+        gitHistoryViewProvider.refresh();
+      }, 1000);
     });
   }
   
-  // 监听关键的Git文件变化（减少监听范围）
+  // 只监听最关键的Git文件变化
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
-    // 只监听关键的Git文件，而不是整个.git目录
+    // 只监听HEAD文件变化（分支切换）
     const gitHeadWatcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(workspaceFolders[0], '.git/HEAD')
-    );
-    const gitRefsWatcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(workspaceFolders[0], '.git/refs/**')
     );
     
     // 创建防抖刷新函数
@@ -139,15 +126,12 @@ export function activate(context: vscode.ExtensionContext) {
       }
       gitFileRefreshTimeout = setTimeout(() => {
         gitHistoryViewProvider.refresh();
-      }, 500); // 500ms防抖延迟
+      }, 1000); // 1秒防抖延迟
     };
     
     gitHeadWatcher.onDidChange(debouncedGitFileRefresh);
-    gitRefsWatcher.onDidChange(debouncedGitFileRefresh);
-    gitRefsWatcher.onDidCreate(debouncedGitFileRefresh);
-    gitRefsWatcher.onDidDelete(debouncedGitFileRefresh);
     
-    context.subscriptions.push(gitHeadWatcher, gitRefsWatcher);
+    context.subscriptions.push(gitHeadWatcher);
   }
 
   context.subscriptions.push(

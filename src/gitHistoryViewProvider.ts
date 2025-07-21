@@ -156,10 +156,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    // 有Git仓库，正常初始化
-    this._sendRepositories();
-    this._sendBranches();
-    this._sendCommitHistory();
+    // 有Git仓库，按顺序初始化以减少并发压力
+    await this._sendRepositories();
+    await this._sendBranches();
+    await this._sendCommitHistory();
     this._sendViewMode();
   }
 
@@ -187,8 +187,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * 刷新Git历史视图
-   * 使用防抖机制避免频繁刷新
+   * 刷新Git历史视图（优化版本）
+   * 使用防抖机制避免频繁刷新，增加延迟时间
    */
   public refresh() {
     if (this._refreshTimeout) {
@@ -197,11 +197,13 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
     this._refreshTimeout = setTimeout(() => {
       if (this._view) {
+        console.time('refresh-view');
         // 清理后端缓存
         this._gitHistoryProvider.clearCache();
         this._initializeView();
+        console.timeEnd('refresh-view');
       }
-    }, 300);
+    }, 1500); // 增加到1.5秒防抖延迟，减少频繁刷新
   }
 
   /**

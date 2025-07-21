@@ -71,6 +71,9 @@ export class GitHistoryProvider {
   private currentUserCache: { name: string; email: string } | null = null;
   private userCacheTimestamp: number = 0;
   private readonly USER_CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
+  // 缓存提交总数
+  private totalCommitCountCache = new Map<string, { count: number; timestamp: number }>();
+  private readonly COMMIT_COUNT_CACHE_TTL = 2 * 60 * 1000; // 2分钟缓存
 
   constructor() {
     // 异步初始化
@@ -148,24 +151,31 @@ export class GitHistoryProvider {
   }
 
   /**
-   * 发现工作区中的所有Git仓库
+   * 发现工作区中的所有Git仓库（优化版本）
    */
   private async discoverRepositories(): Promise<void> {
     if (!this.workspaceRoot) {
       return;
     }
 
+    console.time('discoverRepositories');
     this.availableRepositories = [];
-    await this.searchForGitRepositories(this.workspaceRoot);
     
-    console.log(`发现 ${this.availableRepositories.length} 个Git仓库:`, 
-      this.availableRepositories.map(repo => repo.path));
+    try {
+      await this.searchForGitRepositories(this.workspaceRoot);
+      console.log(`发现 ${this.availableRepositories.length} 个Git仓库:`, 
+        this.availableRepositories.map(repo => repo.path));
+    } catch (error) {
+      console.error('发现仓库时出错:', error);
+    } finally {
+      console.timeEnd('discoverRepositories');
+    }
   }
 
   /**
-   * 递归搜索Git仓库
+   * 递归搜索Git仓库（优化版本）
    */
-  private async searchForGitRepositories(searchPath: string, maxDepth: number = 5, currentDepth: number = 0): Promise<void> {
+  private async searchForGitRepositories(searchPath: string, maxDepth: number = 3, currentDepth: number = 0): Promise<void> {
     if (currentDepth > maxDepth) {
       return;
     }
@@ -186,18 +196,34 @@ export class GitHistoryProvider {
             path: searchPath,
             isActive: false
           });
+          // 找到Git仓库后，不再搜索其子目录
+          return;
         }
       } catch (error) {
         // .git 不存在，继续搜索子目录
       }
 
-      // 搜索子目录
+      // 优化：并行搜索子目录，但限制并发数量
       const entries = await fs.readdir(searchPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+      const subDirs = entries.filter((entry: any) => 
+        entry.isDirectory() && 
+        !entry.name.startsWith('.') && 
+        entry.name !== 'node_modules' &&
+        entry.name !== 'dist' &&
+        entry.name !== 'build' &&
+        entry.name !== 'target' &&
+        entry.name !== 'vendor'
+      );
+      
+      // 限制并发搜索数量，避免过多的文件系统操作
+      const CONCURRENT_LIMIT = 5;
+      for (let i = 0; i < subDirs.length; i += CONCURRENT_LIMIT) {
+        const batch = subDirs.slice(i, i + CONCURRENT_LIMIT);
+        const promises = batch.map((entry: any) => {
           const subPath = path.join(searchPath, entry.name);
-          await this.searchForGitRepositories(subPath, maxDepth, currentDepth + 1);
-        }
+          return this.searchForGitRepositories(subPath, maxDepth, currentDepth + 1);
+        });
+        await Promise.all(promises);
       }
     } catch (error) {
       console.warn(`搜索Git仓库时出错 ${searchPath}:`, error);
@@ -281,7 +307,7 @@ export class GitHistoryProvider {
   }
 
   /**
-   * 获取提交历史（带图形信息）
+   * 获取提交历史（带图形信息，优化版本）
    */
   async getCommitHistory(
     branch?: string,
@@ -290,13 +316,14 @@ export class GitHistoryProvider {
   ): Promise<GitCommit[]> {
     return this.executeGitCommand(
       async () => {
-        // 使用git log --graph --oneline获取图形信息
-        const RECORD_SEPARATOR = "---COMMIT-RECORD-SEPARATOR---";
+        console.time(`getCommitHistory-${skip}-${limit}`);
+        
+        // 使用更简化的格式，减少解析复杂度
         const args = [
           "log",
           "--graph",
           "--all", // 显示所有分支
-          `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P|%b${RECORD_SEPARATOR}`,
+          `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
           "--encoding=UTF-8",
           `--max-count=${limit}`,
         ];
@@ -329,10 +356,7 @@ export class GitHistoryProvider {
           // 检查是否包含提交信息
           if (!commitPart.includes('|')) continue;
           
-          const recordEnd = commitPart.indexOf(RECORD_SEPARATOR);
-          const actualCommitPart = recordEnd > -1 ? commitPart.substring(0, recordEnd) : commitPart;
-          
-          const parts = actualCommitPart.split("|");
+          const parts = commitPart.split("|");
           
           // 验证是否为有效的提交记录
           const hash = parts[0]?.trim() || "";
@@ -340,12 +364,6 @@ export class GitHistoryProvider {
           
           // 解析父提交
           const parents = parts[6] ? parts[6].trim().split(' ').filter(p => p) : [];
-          
-          // 处理提交体
-          let body = "";
-          if (parts.length > 7) {
-            body = parts.slice(7).join("|").trim();
-          }
           
           // 解析图形信息
           const graphInfo = this.parseGraphInfo(graphPart, parents.length > 1);
@@ -357,7 +375,7 @@ export class GitHistoryProvider {
             author: parts[3]?.trim() || "",
             email: parts[4]?.trim() || "",
             refs: parts[5]?.trim() || "",
-            body,
+            body: "", // 简化：不在列表视图中加载body
             parents,
             children: [], // 将在后处理中填充
             graphInfo
@@ -369,9 +387,17 @@ export class GitHistoryProvider {
         // 后处理：建立父子关系
         this.buildParentChildRelationships(commits);
         
-        // 预先计算每个提交是否可以编辑消息
-        await this.calculateCanEditMessage(commits);
+        // 优化：只在首次加载时计算canEditMessage，减少性能开销
+        if (skip === 0) {
+          await this.calculateCanEditMessage(commits);
+        } else {
+          // 对于后续加载的提交，默认设置为false，需要时再计算
+          commits.forEach(commit => {
+            commit.canEditMessage = false;
+          });
+        }
         
+        console.timeEnd(`getCommitHistory-${skip}-${limit}`);
         console.log(`Successfully processed ${commits.length} commits with graph info`);
         return commits;
       },
@@ -559,11 +585,22 @@ export class GitHistoryProvider {
    }
 
   /**
-   * 获取提交总数
+   * 获取提交总数（带缓存优化）
    */
   async getTotalCommitCount(branch?: string): Promise<number> {
+    const cacheKey = branch || 'all';
+    const now = Date.now();
+    
+    // 检查缓存
+    const cached = this.totalCommitCountCache.get(cacheKey);
+    if (cached && (now - cached.timestamp) < this.COMMIT_COUNT_CACHE_TTL) {
+      console.log(`Cache hit for commit count (${cacheKey}): ${cached.count}`);
+      return cached.count;
+    }
+    
     return this.executeGitCommand(
       async () => {
+        console.time(`getTotalCommitCount-${cacheKey}`);
         const options: string[] = ["rev-list", "--count"];
         if (branch && branch !== 'all') {
           options.push(branch);
@@ -572,7 +609,14 @@ export class GitHistoryProvider {
         }
 
         const result = await this.git!.raw(options);
-        return parseInt(result.trim()) || 0;
+        const count = parseInt(result.trim()) || 0;
+        
+        // 缓存结果
+        this.totalCommitCountCache.set(cacheKey, { count, timestamp: now });
+        
+        console.timeEnd(`getTotalCommitCount-${cacheKey}`);
+        console.log(`Total commit count for ${cacheKey}: ${count}`);
+        return count;
       },
       "Error getting total commit count",
       0
@@ -684,8 +728,7 @@ export class GitHistoryProvider {
    */
   public clearCache() {
     this.commitDetailsCache.clear();
-    this.currentUserCache = null;
-    // 清除用户信息缓存
+    this.totalCommitCountCache.clear();
     this.currentUserCache = null;
     this.userCacheTimestamp = 0;
     console.log("All caches cleared");
