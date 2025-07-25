@@ -8,7 +8,14 @@ import { escapeHtml, showError } from './utils/dom-utils.js';
 // 导入Git图谱绘制模块
 import { createGraphHtml } from './components/commit-graph.js';
 // 导入文件树组件模块
-import { buildFileTree, renderFileTree, renderFileList } from './components/file-tree.js';
+import { 
+    buildFileTree, 
+    renderFileTree, 
+    renderFileList, 
+    clearFolderStateCache, 
+    initializeScrollOptimization,
+    restoreFolderStates
+} from './components/file-tree.js';
 // 导入面板管理模块
 import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manager.js';
 // 导入右键菜单组件
@@ -175,6 +182,9 @@ import { getIcon } from './utils/icons.js';
 
     // 初始化提交比较功能
     initializeCompareFeature(comparePanel, closeCompare, (message) => vscode.postMessage(message));
+
+    // 初始化滚动优化
+    const cleanupScrollOptimization = initializeScrollOptimization(commitDetails);
 
     /**
      * 处理来自VS Code扩展的消息
@@ -1026,6 +1036,14 @@ import { getIcon } from './utils/icons.js';
         // 重新绑定折叠按钮事件监听器
         rebindCollapseButtons();
 
+        // 如果是树形视图，恢复文件夹状态
+        if (fileViewMode === 'tree') {
+            // 使用 requestAnimationFrame 确保 DOM 更新完成后再恢复状态
+            requestAnimationFrame(() => {
+                restoreFolderStates(commit.hash);
+            });
+        }
+
         // 添加事件监听器
         addFileEventListeners(commit.hash);
 
@@ -1058,6 +1076,9 @@ import { getIcon } from './utils/icons.js';
         const newMode = currentMode === 'tree' ? 'list' : 'tree';
         setFileViewMode(newMode);
 
+        // 清理文件夹状态缓存，避免模式切换时的状态混乱
+        clearFolderStateCache();
+
         // 保存配置到VS Code设置
         vscode.postMessage({
             type: 'saveViewMode',
@@ -1074,55 +1095,7 @@ import { getIcon } from './utils/icons.js';
         }
     };
 
-    /**
-     * 切换文件夹展开/折叠状态
-     * 全局函数，供HTML onclick调用
-     * @param {HTMLElement} folderHeader - 文件夹头部元素
-     */
-    window.toggleFolder = function (folderHeader) {
-        const folderIcon = folderHeader.querySelector('.folder-icon');
-        const folderContent = folderHeader.parentElement.querySelector('.folder-content');
-
-        if (folderContent.style.display === 'none') {
-            // 展开文件夹
-            folderContent.style.display = 'block';
-            folderIcon.classList.remove('collapsed');
-            folderIcon.classList.add('expanded');
-        } else {
-            // 折叠文件夹
-            folderContent.style.display = 'none';
-            folderIcon.classList.remove('expanded');
-            folderIcon.classList.add('collapsed');
-        }
-    };
-
-    /**
-     * 切换所有文件夹的展开/折叠状态
-     * 全局函数，供HTML onclick调用
-     */
-    window.toggleAllFolders = function () {
-        const folders = commitDetails.querySelectorAll('.file-tree-folder');
-        const isAnyExpanded = Array.from(folders).some(folder =>
-            folder.querySelector('.folder-content').style.display !== 'none'
-        );
-
-        folders.forEach(folder => {
-            const folderContent = folder.querySelector('.folder-content');
-            const folderIcon = folder.querySelector('.folder-icon');
-
-            if (isAnyExpanded) {
-                // 如果有展开的文件夹，则全部折叠
-                folderContent.style.display = 'none';
-                folderIcon.classList.remove('expanded');
-                folderIcon.classList.add('collapsed');
-            } else {
-                // 如果全部折叠，则全部展开
-                folderContent.style.display = 'block';
-                folderIcon.classList.remove('collapsed');
-                folderIcon.classList.add('expanded');
-            }
-        });
-    };
+    // 注意：toggleFolder 和 toggleAllFolders 函数已在 file-tree.js 中重新实现并优化
 
     /**
      * 显示文件差异

@@ -313,9 +313,10 @@ export const Templates = {
      * @param {number} level - 层级
      * @param {boolean} isCollapsed - 是否折叠
      * @param {boolean} isCompressed - 是否为压缩文件夹
+     * @param {string} folderId - 文件夹唯一标识符
      * @returns {string} 文件夹HTML
      */
-    folderItem(name, childrenHtml, childCount, level, isCollapsed = false, isCompressed = false) {
+    folderItem(name, childrenHtml, childCount, level, isCollapsed = false, isCompressed = false, folderId = '') {
         const folderIcon = getIcon('folder');
         const compressedClass = isCompressed ? ' compressed-folder' : '';
         const iconClass = isCollapsed ? 'collapsed' : 'expanded';
@@ -323,7 +324,7 @@ export const Templates = {
         
         return `
             <div class="file-tree-folder${compressedClass}" data-level="${level}">
-                <div class="folder-header" onclick="toggleFolder(this)">
+                <div class="folder-header" onclick="toggleFolder(this)" data-folder-id="${escapeHtml(folderId)}">
                     <span class="folder-icon ${iconClass}">
                         ${folderIcon}
                     </span>
