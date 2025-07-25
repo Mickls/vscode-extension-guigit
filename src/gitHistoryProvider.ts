@@ -295,11 +295,38 @@ export class GitHistoryProvider {
     return this.executeGitCommand(
       async () => {
         const branchSummary = await this.git!.branch();
-        return branchSummary.all.map((branch) => ({
+        const branches = branchSummary.all.map((branch) => ({
           name: branch,
           current: branch === branchSummary.current,
           commit: "",
         }));
+
+        // 对分支进行排序，让 main 或 master 排在最上方
+        return branches.sort((a, b) => {
+          // 检查是否是 main 或 master
+          const isAMainOrMaster = a.name === 'main' || a.name === 'master';
+          const isBMainOrMaster = b.name === 'main' || b.name === 'master';
+          
+          // 如果 a 是 main/master 而 b 不是，a 排在前面
+          if (isAMainOrMaster && !isBMainOrMaster) {
+            return -1;
+          }
+          
+          // 如果 b 是 main/master 而 a 不是，b 排在前面
+          if (isBMainOrMaster && !isAMainOrMaster) {
+            return 1;
+          }
+          
+          // 如果都是 main/master，优先显示 main
+          if (isAMainOrMaster && isBMainOrMaster) {
+            if (a.name === 'main') return -1;
+            if (b.name === 'main') return 1;
+            return 0;
+          }
+          
+          // 其他情况按字母顺序排序
+          return a.name.localeCompare(b.name);
+        });
       },
       "Error getting branches",
       []
@@ -1824,10 +1851,37 @@ export class GitHistoryProvider {
 
     try {
       const branches = await this.git.branch(['-r']);
-      return branches.all
+      const filteredBranches = branches.all
         .filter(branch => branch.startsWith(`${remote}/`))
         .map(branch => branch.replace(`${remote}/`, ''))
         .filter(branch => branch !== 'HEAD');
+
+      // 对分支进行排序，让 main 或 master 排在最上方
+      return filteredBranches.sort((a, b) => {
+        // 检查是否是 main 或 master
+        const isAMainOrMaster = a === 'main' || a === 'master';
+        const isBMainOrMaster = b === 'main' || b === 'master';
+        
+        // 如果 a 是 main/master 而 b 不是，a 排在前面
+        if (isAMainOrMaster && !isBMainOrMaster) {
+          return -1;
+        }
+        
+        // 如果 b 是 main/master 而 a 不是，b 排在前面
+        if (isBMainOrMaster && !isAMainOrMaster) {
+          return 1;
+        }
+        
+        // 如果都是 main/master，优先显示 main
+        if (isAMainOrMaster && isBMainOrMaster) {
+          if (a === 'main') return -1;
+          if (b === 'main') return 1;
+          return 0;
+        }
+        
+        // 其他情况按字母顺序排序
+        return a.localeCompare(b);
+      });
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Unknown error";
       throw new Error(`Get remote branches failed: ${errorMessage}`);
@@ -1845,9 +1899,36 @@ export class GitHistoryProvider {
 
     try {
       const branches = await this.git.branch(['-r']);
-      return branches.all
+      const filteredBranches = branches.all
         .filter(branch => !branch.includes('HEAD'))
         .map(branch => branch.trim());
+
+      // 对分支进行排序，让 origin/main 或 origin/master 排在最上方
+      return filteredBranches.sort((a, b) => {
+        // 检查是否是 origin/main 或 origin/master
+        const isAMainOrMaster = a === 'origin/main' || a === 'origin/master';
+        const isBMainOrMaster = b === 'origin/main' || b === 'origin/master';
+        
+        // 如果 a 是 main/master 而 b 不是，a 排在前面
+        if (isAMainOrMaster && !isBMainOrMaster) {
+          return -1;
+        }
+        
+        // 如果 b 是 main/master 而 a 不是，b 排在前面
+        if (isBMainOrMaster && !isAMainOrMaster) {
+          return 1;
+        }
+        
+        // 如果都是 main/master，优先显示 main
+        if (isAMainOrMaster && isBMainOrMaster) {
+          if (a === 'origin/main') return -1;
+          if (b === 'origin/main') return 1;
+          return 0;
+        }
+        
+        // 其他情况按字母顺序排序
+        return a.localeCompare(b);
+      });
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Unknown error";
       throw new Error(`Get all remote branches failed: ${errorMessage}`);
