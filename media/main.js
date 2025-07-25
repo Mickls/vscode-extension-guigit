@@ -270,14 +270,16 @@ import { getIcon } from './utils/icons.js';
         vscode.postMessage({
             type: 'getCommitHistory',
             branch: getState('currentBranch') || undefined,
-            skip: getState('loadedCommits')
+            skip: getState('loadedCommits'),
+            authorFilter: getState('authorFilter')
         });
 
         // 如果还没有总数，请求获取总提交数量
         if (getState('totalCommits') === 0) {
             vscode.postMessage({
                 type: 'getTotalCommitCount',
-                branch: getState('currentBranch') || undefined
+                branch: getState('currentBranch') || undefined,
+                authorFilter: getState('authorFilter')
             });
         }
     }
@@ -1699,25 +1701,13 @@ import { getIcon } from './utils/icons.js';
      * 应用作者筛选
      */
     function applyAuthorFilter() {
-        const authorFilter = getState('authorFilter');
-        const commits = getState('commits');
-
         // 更新header显示
         updateHeaderAuthorDisplay();
 
-        // 筛选提交列表
-        const commitItems = document.querySelectorAll('.commit-item');
-        commitItems.forEach(item => {
-            const hash = item.dataset.hash;
-            const commit = commits.find(c => c.hash === hash);
-
-            if (commit) {
-                const shouldShow = authorFilter.length === 0 ||
-                    authorFilter.some(author => commit.author.toLowerCase().includes(author.toLowerCase()));
-
-                item.style.display = shouldShow ? 'flex' : 'none';
-            }
-        });
+        // 重新加载数据而不是仅仅隐藏/显示
+        // 重置状态并重新加载
+        setState('totalCommits', 0); // 重置总数，强制重新获取
+        loadCommits(true); // 重新加载提交
     }
 
     /**
@@ -1803,23 +1793,5 @@ import { getIcon } from './utils/icons.js';
             }
         }
     });
-
-    // 在渲染提交列表后应用筛选
-    const originalRenderCommitList = renderCommitList;
-    renderCommitList = function () {
-        originalRenderCommitList.apply(this, arguments);
-        setTimeout(() => {
-            applyAuthorFilter();
-        }, 0);
-    };
-
-    // 在追加提交列表后应用筛选
-    const originalAppendCommitList = appendCommitList;
-    appendCommitList = function () {
-        originalAppendCommitList.apply(this, arguments);
-        setTimeout(() => {
-            applyAuthorFilter();
-        }, 0);
-    };
 
 })(); // 立即执行函数表达式结束

@@ -312,7 +312,8 @@ export class GitHistoryProvider {
   async getCommitHistory(
     branch?: string,
     limit: number = 50,
-    skip: number = 0
+    skip: number = 0,
+    authorFilter?: string[]
   ): Promise<GitCommit[]> {
     return this.executeGitCommand(
       async () => {
@@ -336,6 +337,13 @@ export class GitHistoryProvider {
           // 如果指定了特定分支，只显示该分支
           args.splice(args.indexOf('--all'), 1);
           args.push(branch);
+        }
+
+        // 添加作者筛选
+        if (authorFilter && authorFilter.length > 0) {
+          authorFilter.forEach(author => {
+            args.push(`--author=${author}`);
+          });
         }
 
         const result = await this.git!.raw(args);
@@ -587,8 +595,8 @@ export class GitHistoryProvider {
   /**
    * 获取提交总数（带缓存优化）
    */
-  async getTotalCommitCount(branch?: string): Promise<number> {
-    const cacheKey = branch || 'all';
+  async getTotalCommitCount(branch?: string, authorFilter?: string[]): Promise<number> {
+    const cacheKey = `${branch || 'all'}-${authorFilter ? authorFilter.join(',') : 'no-filter'}`;
     const now = Date.now();
     
     // 检查缓存
@@ -606,6 +614,13 @@ export class GitHistoryProvider {
           options.push(branch);
         } else {
           options.push("--all");
+        }
+
+        // 添加作者筛选
+        if (authorFilter && authorFilter.length > 0) {
+          authorFilter.forEach(author => {
+            options.push(`--author=${author}`);
+          });
         }
 
         const result = await this.git!.raw(options);

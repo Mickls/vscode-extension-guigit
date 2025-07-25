@@ -39,10 +39,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case "getCommitHistory":
-          await this._sendCommitHistory(data.branch, data.skip);
+          await this._sendCommitHistory(data.branch, data.skip, data.authorFilter);
           break;
         case "getTotalCommitCount":
-          await this._sendTotalCommitCount(data.branch);
+          await this._sendTotalCommitCount(data.branch, data.authorFilter);
           break;
         case "getBranches":
           await this._sendBranches();
@@ -301,15 +301,17 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    * 发送提交历史到WebView
    * @param branch 分支名称
    * @param skip 跳过的提交数量
+   * @param authorFilter 作者筛选
    */
-  private async _sendCommitHistory(branch?: string, skip: number = 0) {
+  private async _sendCommitHistory(branch?: string, skip: number = 0, authorFilter?: string[]) {
     if (!this._view) return;
 
     try {
       const commits = await this._gitHistoryProvider.getCommitHistory(
         branch,
         50,
-        skip
+        skip,
+        authorFilter
       );
       this._view.webview.postMessage({
         type: "commitHistory",
@@ -333,13 +335,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   /**
    * 发送提交总数到WebView
    * @param branch 分支名称
+   * @param authorFilter 作者筛选
    */
-  private async _sendTotalCommitCount(branch?: string) {
+  private async _sendTotalCommitCount(branch?: string, authorFilter?: string[]) {
     if (!this._view) return;
 
     try {
       const totalCount = await this._gitHistoryProvider.getTotalCommitCount(
-        branch
+        branch,
+        authorFilter
       );
       this._view.webview.postMessage({
         type: "totalCommitCount",
