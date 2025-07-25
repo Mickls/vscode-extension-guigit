@@ -60,6 +60,7 @@ import { getIcon } from './utils/icons.js';
     const fetchBtn = document.getElementById('fetchBtn');                 // 抓取按钮
     const cloneBtn = document.getElementById('cloneBtn');                 // 克隆按钮
     const checkoutBtn = document.getElementById('checkoutBtn');           // 签出按钮
+    const resetStashBtn = document.getElementById('resetStashBtn');       // 重置自动暂存偏好按钮
 
     // 新增的拖拽和折叠相关元素（这些元素是动态创建的，不在初始化时获取）
     const resizer = document.getElementById('resizer');                   // 分割线
@@ -152,6 +153,10 @@ import { getIcon } from './utils/icons.js';
 
     checkoutBtn.addEventListener('click', () => {
         vscode.postMessage({ type: 'gitCheckout' });
+    });
+
+    resetStashBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'resetAutoStashPreference' });
     });
 
     // 关闭比较面板事件监听器已迁移至 features/commit-compare.js

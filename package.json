@@ -95,6 +95,21 @@
           "type": "string",
           "default": "${author}, ${time} • ${hash} • ${message}",
           "description": "Format string for blame annotations. Available variables: ${author}, ${time}, ${hash}, ${message}"
+        },
+        "guigit.autoStashOnPull": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "always",
+            "never"
+          ],
+          "default": "ask",
+          "description": "How to handle uncommitted changes when pulling: 'ask' (always ask), 'always' (auto-stash), 'never' (cancel operation)",
+          "enumDescriptions": [
+            "总是询问如何处理未提交的变更",
+            "自动暂存未提交的变更并继续",
+            "遇到未提交变更时取消操作"
+          ]
         }
       }
     }

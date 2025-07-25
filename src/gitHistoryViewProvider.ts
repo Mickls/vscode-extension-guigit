@@ -131,6 +131,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "switchRepository":
           await this._switchRepository(data.repositoryPath);
           break;
+        case "resetAutoStashPreference":
+          await this._handleResetAutoStashPreference();
+          break;
         // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
@@ -1222,6 +1225,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         fetch: 'git-fetch',
         clone: 'repo-clone',
         checkout: 'git-branch',
+        resetStash: 'settings-gear',
         jumpToHead: 'target',
         refresh: 'refresh',
         collapseLeft: 'chevron-left',
@@ -1250,7 +1254,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       { id: 'pushBtn', action: 'push', title: 'Push (Ctrl+Click for advanced options)' },
       { id: 'fetchBtn', action: 'fetch', title: 'Fetch' },
       { id: 'cloneBtn', action: 'clone', title: 'Clone' },
-      { id: 'checkoutBtn', action: 'checkout', title: 'Checkout' }
+      { id: 'checkoutBtn', action: 'checkout', title: 'Checkout' },
+      { id: 'resetStashBtn', action: 'resetStash', title: 'Reset Auto-Stash Preference' }
     ];
 
     // 头部控制按钮配置
@@ -1380,7 +1385,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           cancellable: false,
         },
         async () => {
-          return await this._gitHistoryProvider.pullFromRemote();
+          return await this._gitHistoryProvider.safePull();
         }
       );
 
@@ -1635,7 +1640,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           cancellable: false,
         },
         async () => {
-          return await this._gitHistoryProvider.pullFromFullRemoteBranch(
+          return await this._gitHistoryProvider.safePullFromFullRemoteBranch(
             selectedBranch,
             isRebase
           );
@@ -1974,6 +1979,22 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           error instanceof Error ? error.message : "Unknown error"
         }`,
       });
+    }
+  }
+
+  /**
+   * 处理重置自动暂存偏好设置
+   */
+  private async _handleResetAutoStashPreference() {
+    try {
+      const result = await this._gitHistoryProvider.resetAutoStashPreference();
+      if (result) {
+        // 成功重置，刷新视图
+        this.refresh();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`重置偏好设置失败: ${errorMessage}`);
     }
   }
 

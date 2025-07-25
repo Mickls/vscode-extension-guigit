@@ -33,6 +33,7 @@ export const CodiconMap = {
     fetch: 'git-fetch',
     clone: 'repo-clone',
     checkout: 'git-branch',
+    resetStash: 'settings-gear',
     jumpToHead: 'target',
     refresh: 'refresh',
     

@@ -2172,4 +2172,239 @@ export class GitHistoryProvider {
       null
     );
   }
+
+  /**
+   * 检查是否有未提交的变更
+   * @returns 是否有未提交的变更
+   */
+  async hasUncommittedChanges(): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const status = await this.git.status();
+      return status.files.length > 0;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Check uncommitted changes failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 获取未提交变更的详细信息
+   * @returns 未提交变更的文件列表
+   */
+  async getUncommittedChanges(): Promise<{ staged: string[], unstaged: string[], untracked: string[] }> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      const status = await this.git.status();
+      return {
+        staged: status.staged,
+        unstaged: status.modified.concat(status.deleted),
+        untracked: status.not_added
+      };
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Get uncommitted changes failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 暂存所有未提交的变更
+   * @returns 是否成功
+   */
+  async stashUncommittedChanges(): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      // 检查是否有变更需要暂存
+      const hasChanges = await this.hasUncommittedChanges();
+      if (!hasChanges) {
+        return true; // 没有变更，直接返回成功
+      }
+
+      // 暂存所有变更，包括未跟踪的文件
+      await this.git.stash(['push', '--include-untracked', '--message', 'Auto-stash before pull/rebase']);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Stash uncommitted changes failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 恢复最近的暂存
+   * @returns 是否成功
+   */
+  async popStash(): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    try {
+      // 检查是否有暂存可以恢复
+      const stashList = await this.git.stashList();
+      if (stashList.total === 0) {
+        return true; // 没有暂存，直接返回成功
+      }
+
+      await this.git.stash(['pop']);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Pop stash failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 安全地执行pull操作，自动处理未提交的变更
+   * @param remote 远程仓库名称（可选）
+   * @param branch 分支名称（可选）
+   * @param rebase 是否使用rebase
+   * @returns 是否成功
+   */
+  async safePull(remote?: string, branch?: string, rebase: boolean = false): Promise<boolean> {
+    if (!this.git) {
+      throw new Error("Git instance not available");
+    }
+
+    let stashed = false;
+    try {
+      // 检查是否有未提交的变更
+      const hasChanges = await this.hasUncommittedChanges();
+      
+      if (hasChanges) {
+        // 检查用户是否设置了默认行为
+        const config = vscode.workspace.getConfiguration('guigit');
+        const autoStashPreference = config.get<string>('autoStashOnPull');
+        
+        let shouldStash = false;
+        
+        if (autoStashPreference === 'always') {
+          // 用户设置了总是自动暂存
+          shouldStash = true;
+        } else if (autoStashPreference === 'never') {
+          // 用户设置了从不自动暂存，直接取消操作
+          vscode.window.showWarningMessage('检测到未提交的变更，操作已取消。请先提交或手动暂存变更。');
+          return false;
+        } else {
+          // 第一步：询问用户如何处理未提交的变更
+          const choice = await vscode.window.showWarningMessage(
+            '检测到未提交的变更。请选择如何处理：',
+            { modal: true },
+            '自动暂存并继续',
+            '取消操作'
+          );
+
+          if (choice === '取消操作' || choice === undefined) {
+            // 询问是否记住选择
+            const rememberChoice = await vscode.window.showInformationMessage(
+              '是否记住此选择？下次遇到未提交变更时将自动取消操作。',
+              '记住选择',
+              '仅此次'
+            );
+            
+            if (rememberChoice === '记住选择') {
+              await config.update('autoStashOnPull', 'never', vscode.ConfigurationTarget.Global);
+              vscode.window.showInformationMessage('已设置为遇到未提交变更时总是取消操作。可通过重置偏好按钮修改此行为。');
+            }
+            return false;
+          }
+
+          if (choice === '自动暂存并继续') {
+            shouldStash = true;
+            // 询问是否记住选择
+            const rememberChoice = await vscode.window.showInformationMessage(
+              '是否记住此选择？下次遇到未提交变更时将自动暂存并继续。',
+              '记住选择',
+              '仅此次'
+            );
+            
+            if (rememberChoice === '记住选择') {
+              await config.update('autoStashOnPull', 'always', vscode.ConfigurationTarget.Global);
+              vscode.window.showInformationMessage('已设置为总是自动暂存未提交的变更。可通过重置偏好按钮修改此行为。');
+            }
+          }
+        }
+
+        if (shouldStash) {
+          await this.stashUncommittedChanges();
+          stashed = true;
+          vscode.window.showInformationMessage('已自动暂存未提交的变更');
+        }
+      }
+
+      // 执行pull操作
+      let success = false;
+      if (remote && branch) {
+        success = await this.pullFromRemoteBranch(remote, branch, rebase);
+      } else {
+        success = await this.pullFromRemote();
+      }
+
+      // 如果pull成功且之前有暂存，尝试恢复暂存
+      if (success && stashed) {
+        try {
+          await this.popStash();
+          vscode.window.showInformationMessage('已恢复之前暂存的变更');
+        } catch (error) {
+          vscode.window.showWarningMessage(
+            '拉取成功，但恢复暂存时出现问题。请手动执行 "git stash pop" 来恢复变更。'
+          );
+        }
+      }
+
+      return success;
+    } catch (error: any) {
+      // 如果操作失败且有暂存，尝试恢复暂存
+      if (stashed) {
+        try {
+          await this.popStash();
+          vscode.window.showInformationMessage('已恢复之前暂存的变更');
+        } catch (popError) {
+          vscode.window.showWarningMessage(
+            '操作失败，且恢复暂存时出现问题。请手动执行 "git stash pop" 来恢复变更。'
+          );
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 安全地从指定的完整远程分支拉取代码，自动处理未提交的变更
+   * @param remoteBranch 完整的远程分支名称，格式为 remote/branch
+   * @param rebase 是否使用rebase
+   * @returns 是否成功
+   */
+  async safePullFromFullRemoteBranch(remoteBranch: string, rebase: boolean = false): Promise<boolean> {
+    const [remote, branch] = remoteBranch.split('/', 2);
+    if (!remote || !branch) {
+      throw new Error(`Invalid remote branch format: ${remoteBranch}`);
+    }
+    return this.safePull(remote, branch, rebase);
+  }
+
+  /**
+   * 重置自动暂存偏好设置
+   * @returns 是否成功
+   */
+  async resetAutoStashPreference(): Promise<boolean> {
+    try {
+      const config = vscode.workspace.getConfiguration('guigit');
+      await config.update('autoStashOnPull', 'ask', vscode.ConfigurationTarget.Global);
+      vscode.window.showInformationMessage('已重置自动暂存偏好设置，下次遇到未提交变更时将重新询问。');
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      vscode.window.showErrorMessage(`重置偏好设置失败: ${errorMessage}`);
+      return false;
+    }
+  }
 }
