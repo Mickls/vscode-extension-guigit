@@ -156,6 +156,94 @@ body {
   background-color: var(--vscode-list-hoverBackground);
 }
 
+/* ==================== 搜索框样式 ==================== */
+
+/* 搜索容器 */
+.search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 200px;
+}
+
+/* 搜索输入框 */
+.commit-search-input {
+  width: 100%;
+  padding: 4px 8px;
+  padding-right: 28px; /* 为清除按钮留出空间 */
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.1s ease;
+}
+
+.commit-search-input:focus {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.commit-search-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+  opacity: 1;
+}
+
+/* 清除搜索按钮 */
+.clear-search-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background-color: transparent;
+  color: var(--vscode-icon-foreground);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.1s ease;
+}
+
+.clear-search-btn:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.clear-search-btn .codicon {
+  font-size: 12px;
+}
+
+/* 搜索状态指示器 */
+.search-status {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.search-status.no-results {
+  color: var(--vscode-inputValidation-warningForeground);
+}
+
+.search-status.searching {
+  color: var(--vscode-inputValidation-infoForeground);
+}
+
 /* ==================== 按钮样式 ==================== */
 
 /* 图标按钮基础样式 */

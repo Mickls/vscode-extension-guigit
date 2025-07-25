@@ -2,35 +2,47 @@
  * Git History View - Main JavaScript Module
  * 处理Git历史记录的前端交互逻辑
  */
-import { parseRefs, getRefClass } from './utils/git-utils.js';
 import { formatDate } from './utils/date-utils.js';
 import { escapeHtml, showError } from './utils/dom-utils.js';
+import { getRefClass, parseRefs } from './utils/git-utils.js';
 // 导入Git图谱绘制模块
 import { createGraphHtml } from './components/commit-graph.js';
 // 导入文件树组件模块
-import { 
-    buildFileTree, 
-    renderFileTree, 
-    renderFileList, 
-    clearFolderStateCache, 
+import {
+    buildFileTree,
+    clearFolderStateCache,
     initializeScrollOptimization,
+    renderFileList,
+    renderFileTree,
     restoreFolderStates
 } from './components/file-tree.js';
 // 导入面板管理模块
 import { initializePanelManager, rebindCollapseButtons } from './ui/panel-manager.js';
 // 导入右键菜单组件
-import { showContextMenu as showContextMenuComponent, initializeContextMenu } from './components/context-menu.js';
+import { initializeContextMenu, showContextMenu as showContextMenuComponent } from './components/context-menu.js';
 // 导入提交操作功能
 import { handleContextMenuAction as handleContextMenuActionComponent } from './features/commit-operations.js';
 // 导入提交比较功能
-import { showCompareResult as showCompareResultComponent, initializeCompareFeature } from './features/commit-compare.js';
+import { initializeCompareFeature, showCompareResult as showCompareResultComponent } from './features/commit-compare.js';
 // 导入状态管理模块
 import {
-    initializeStateManager, getState, setState, setStates,
-    updateSelectedCommits, setCurrentCommit, setCurrentBranch, setLoading, setFileViewMode,
-    resetCommitState, clearAllCache, getCachedCommitDetails, setCachedCommitDetails,
-    hasPendingRequest, setPendingRequest, setSearchingForCommit, setPendingJumpCommit,
-    addAuthorFilter, clearAuthorFilter
+    addAuthorFilter,
+    clearAllCache,
+    clearAuthorFilter,
+    getCachedCommitDetails,
+    getState,
+    hasPendingRequest,
+    initializeStateManager,
+    resetCommitState,
+    setCachedCommitDetails,
+    setCurrentBranch,
+    setCurrentCommit,
+    setFileViewMode,
+    setLoading,
+    setPendingJumpCommit,
+    setPendingRequest, setSearchingForCommit,
+    setState, setStates,
+    updateSelectedCommits
 } from './core/state-manager.js';
 // 导入模板系统
 import { Templates } from './utils/templates.js';
@@ -52,6 +64,8 @@ import { getIcon } from './utils/icons.js';
     // DOM元素引用
     const repositorySelect = document.getElementById('repositorySelect'); // 仓库选择下拉框
     const branchSelect = document.getElementById('branchSelect');         // 分支选择下拉框
+    const commitSearchInput = document.getElementById('commitSearchInput'); // 提交搜索输入框
+    const clearSearchBtn = document.getElementById('clearSearchBtn');     // 清除搜索按钮
     const refreshBtn = document.getElementById('refreshBtn');             // 刷新按钮
     const jumpToHeadBtn = document.getElementById('jumpToHeadBtn');       // 跳转到HEAD按钮
     const commitList = document.getElementById('commitList');             // 提交列表容器
@@ -166,6 +180,49 @@ import { getIcon } from './utils/icons.js';
         vscode.postMessage({ type: 'resetAutoStashPreference' });
     });
 
+    // ==================== 搜索功能事件监听器 ====================
+
+    let searchTimeout = null;
+
+    // 搜索输入框事件监听器
+    commitSearchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.trim();
+        
+        // 显示或隐藏清除按钮
+        if (searchTerm) {
+            clearSearchBtn.style.display = 'flex';
+        } else {
+            clearSearchBtn.style.display = 'none';
+        }
+
+        // 防抖处理，避免频繁搜索
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+
+        searchTimeout = setTimeout(() => {
+            performCommitSearch(searchTerm);
+        }, 300);
+    });
+
+    // 搜索输入框回车事件
+    commitSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const searchTerm = e.target.value.trim();
+            if (searchTerm) {
+                performCommitSearch(searchTerm);
+            }
+        }
+    });
+
+    // 清除搜索按钮事件监听器
+    clearSearchBtn.addEventListener('click', () => {
+        commitSearchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        clearCommitSearch();
+    });
+
     // 关闭比较面板事件监听器已迁移至 features/commit-compare.js
 
     // ==================== 面板管理器初始化 ====================
@@ -242,6 +299,9 @@ import { getIcon } from './utils/icons.js';
                 break;
             case 'viewMode':
                 setFileViewMode(message.data);       // 设置文件视图模式
+                break;
+            case 'searchResults':
+                handleSearchResults(message.data);   // 处理搜索结果
                 break;
             // 删除了commitEditableStatus处理，现在直接使用预计算的canEditMessage值
         }
@@ -1771,5 +1831,109 @@ import { getIcon } from './utils/icons.js';
             }
         }
     });
+
+    // ==================== 搜索功能实现 ====================
+
+    /**
+     * 执行提交搜索
+     * @param {string} searchTerm - 搜索关键词
+     */
+    function performCommitSearch(searchTerm) {
+        if (!searchTerm) {
+            clearCommitSearch();
+            return;
+        }
+
+        // 设置搜索状态
+        setState('searchTerm', searchTerm);
+
+        // 重置提交状态并重新加载
+        resetCommitState();
+        clearAllCache();
+        updateMultiSelectInfo();
+
+        // 请求搜索结果
+        vscode.postMessage({
+            type: 'searchCommits',
+            searchTerm: searchTerm,
+            branch: getState('currentBranch') || undefined,
+            authorFilter: getState('authorFilter')
+        });
+    }
+
+    /**
+     * 清除提交搜索
+     */
+    function clearCommitSearch() {
+        setState('searchTerm', '');
+        hideSearchStatus();
+
+        // 重新加载所有提交
+        resetCommitState();
+        clearAllCache();
+        updateMultiSelectInfo();
+        loadCommits(true);
+    }
+
+    /**
+     * 显示搜索状态
+     * @param {string} message - 状态消息
+     * @param {string} type - 状态类型 ('searching', 'no-results', '')
+     */
+    function showSearchStatus(message, type = '') {
+        let statusElement = document.querySelector('.search-status');
+        
+        if (!statusElement) {
+            statusElement = document.createElement('div');
+            statusElement.className = 'search-status';
+            const searchContainer = document.querySelector('.search-container');
+            searchContainer.appendChild(statusElement);
+        }
+
+        statusElement.textContent = message;
+        statusElement.className = `search-status ${type}`;
+        statusElement.style.display = 'block';
+    }
+
+    /**
+     * 隐藏搜索状态
+     */
+    function hideSearchStatus() {
+        const statusElement = document.querySelector('.search-status');
+        if (statusElement) {
+            statusElement.style.display = 'none';
+        }
+    }
+
+    /**
+     * 处理搜索结果
+     * @param {Object} data - 搜索结果数据
+     */
+    function handleSearchResults(data) {
+        const { commits, searchTerm } = data;
+        
+        // 隐藏搜索状态（如果有的话）
+        hideSearchStatus();
+        
+        if (commits.length === 0) {
+            // 清空提交列表，不显示任何内容
+            const commitList = document.getElementById('commitList');
+            if (commitList) {
+                commitList.innerHTML = '';
+            }
+            // 设置总数为0
+            setState('totalCommits', 0);
+        } else {
+            // 更新提交历史显示
+            updateCommitHistory({
+                commits: commits,
+                skip: 0,
+                hasMore: false
+            });
+
+            // 设置总数
+            setState('totalCommits', commits.length);
+        }
+    }
 
 })(); // 立即执行函数表达式结束

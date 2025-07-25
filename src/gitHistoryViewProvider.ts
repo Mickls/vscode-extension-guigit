@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { GitHistoryProvider, GitCommit } from "./gitHistoryProvider";
+import { GitCommit, GitHistoryProvider } from "./gitHistoryProvider";
 
 /**
  * Git历史视图提供者，负责管理Git历史的WebView界面
@@ -39,7 +39,14 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case "getCommitHistory":
-          await this._sendCommitHistory(data.branch, data.skip, data.authorFilter);
+          await this._sendCommitHistory(
+            data.branch,
+            data.skip,
+            data.authorFilter
+          );
+          break;
+        case "searchCommits":
+          await this._sendSearchResults(data.searchTerm, data.branch, data.authorFilter);
           break;
         case "getTotalCommitCount":
           await this._sendTotalCommitCount(data.branch, data.authorFilter);
@@ -75,7 +82,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           await this._showFileDiff(data.hash, data.file);
           break;
         case "showCompareFileDiff":
-          await this._showCompareFileDiff(data.fromHash, data.toHash, data.file);
+          await this._showCompareFileDiff(
+            data.fromHash,
+            data.toHash,
+            data.file
+          );
           break;
         case "openFile":
           await this._openFile(data.file);
@@ -154,7 +165,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       // 显示无Git仓库的提示
       this._view.webview.postMessage({
         type: "noGitRepository",
-        message: "No Git repository found in the current workspace."
+        message: "No Git repository found in the current workspace.",
       });
       return;
     }
@@ -200,11 +211,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
     this._refreshTimeout = setTimeout(() => {
       if (this._view) {
-        console.time('refresh-view');
+        console.time("refresh-view");
         // 清理后端缓存
         this._gitHistoryProvider.clearCache();
         this._initializeView();
-        console.timeEnd('refresh-view');
+        console.timeEnd("refresh-view");
       }
     }, 1500); // 增加到1.5秒防抖延迟，减少频繁刷新
   }
@@ -218,13 +229,13 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     try {
       const repositories = this._gitHistoryProvider.getAvailableRepositories();
       const currentRepo = this._gitHistoryProvider.getCurrentRepository();
-      
+
       // 确保当前仓库的活动状态正确
-      const repositoriesWithStatus = repositories.map(repo => ({
+      const repositoriesWithStatus = repositories.map((repo) => ({
         ...repo,
-        isActive: currentRepo ? repo.path === currentRepo.path : false
+        isActive: currentRepo ? repo.path === currentRepo.path : false,
       }));
-      
+
       this._view.webview.postMessage({
         type: "repositories",
         data: repositoriesWithStatus,
@@ -249,17 +260,19 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const repositories = this._gitHistoryProvider.getAvailableRepositories();
-      const repository = repositories.find(repo => repo.path === repositoryPath);
-      
+      const repository = repositories.find(
+        (repo) => repo.path === repositoryPath
+      );
+
       if (repository) {
         await this._gitHistoryProvider.setCurrentRepository(repository);
-        
+
         // 通知前端仓库已切换
         this._view.webview.postMessage({
           type: "repositorySwitched",
           data: repository,
         });
-        
+
         // 刷新视图数据
         this._sendBranches();
         this._sendCommitHistory();
@@ -306,7 +319,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    * @param skip 跳过的提交数量
    * @param authorFilter 作者筛选
    */
-  private async _sendCommitHistory(branch?: string, skip: number = 0, authorFilter?: string[]) {
+  private async _sendCommitHistory(
+    branch?: string,
+    skip: number = 0,
+    authorFilter?: string[]
+  ) {
     if (!this._view) return;
 
     try {
@@ -336,11 +353,48 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * 发送搜索结果到WebView
+   * @param searchTerm 搜索词
+   * @param branch 分支名称
+   */
+  private async _sendSearchResults(searchTerm: string, branch?: string, authorFilter?: string[]) {
+    if (!this._view) return;
+
+    try {
+      const commits = await this._gitHistoryProvider.searchCommits(
+        searchTerm,
+        branch,
+        50,
+        authorFilter
+      );
+      this._view.webview.postMessage({
+        type: "searchResults",
+        data: {
+          commits,
+          searchTerm,
+          branch,
+        },
+      });
+    } catch (error) {
+      console.error("Error searching commits:", error);
+      this._view.webview.postMessage({
+        type: "error",
+        message: `Failed to search commits: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      });
+    }
+  }
+
+  /**
    * 发送提交总数到WebView
    * @param branch 分支名称
    * @param authorFilter 作者筛选
    */
-  private async _sendTotalCommitCount(branch?: string, authorFilter?: string[]) {
+  private async _sendTotalCommitCount(
+    branch?: string,
+    authorFilter?: string[]
+  ) {
     if (!this._view) return;
 
     try {
@@ -517,7 +571,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     }
 
     // 检查提交是否连续
-    const hashes = commits.map(c => c.hash);
+    const hashes = commits.map((c) => c.hash);
     const canSquash = await this._canSquashCommits(hashes);
     if (!canSquash) {
       vscode.window.showErrorMessage(
@@ -922,7 +976,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    * @param toHash 目标提交哈希
    * @param filePath 文件路径
    */
-  private async _showCompareFileDiff(fromHash: string, toHash: string, filePath: string) {
+  private async _showCompareFileDiff(
+    fromHash: string,
+    toHash: string,
+    filePath: string
+  ) {
     try {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
@@ -1005,7 +1063,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       }
 
       if (fromContent === toContent) {
-        vscode.window.showInformationMessage(`No changes in ${filePath} between these commits`);
+        vscode.window.showInformationMessage(
+          `No changes in ${filePath} between these commits`
+        );
         return;
       }
 
@@ -1218,69 +1278,85 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     );
 
     // 图标映射表 - 与前端icons.js保持一致
-    const getCodiconHtml = (iconName: string, size: string = 'medium') => {
+    const getCodiconHtml = (iconName: string, size: string = "medium") => {
       const iconMap: { [key: string]: string } = {
-        pull: 'repo-pull',
-        push: 'repo-push', 
-        fetch: 'git-fetch',
-        clone: 'repo-clone',
-        checkout: 'git-branch',
-        resetStash: 'settings-gear',
-        jumpToHead: 'target',
-        refresh: 'refresh',
-        collapseLeft: 'chevron-left',
-        collapseRight: 'chevron-right'
+        pull: "repo-pull",
+        push: "repo-push",
+        fetch: "git-fetch",
+        clone: "repo-clone",
+        checkout: "git-branch",
+        resetStash: "settings-gear",
+        jumpToHead: "target",
+        refresh: "refresh",
+        collapseLeft: "chevron-left",
+        collapseRight: "chevron-right",
       };
-      
+
       const codiconName = iconMap[iconName];
       if (!codiconName) {
         console.warn(`Icon "${iconName}" not found in iconMap`);
-        return '';
+        return "";
       }
-      
+
       const sizeStyles: { [key: string]: string } = {
-        small: 'font-size: 12px;',
-        medium: 'font-size: 16px;',
-        large: 'font-size: 20px;'
+        small: "font-size: 12px;",
+        medium: "font-size: 16px;",
+        large: "font-size: 20px;",
       };
-      
+
       const style = sizeStyles[size] || sizeStyles.medium;
       return `<i class="codicon codicon-${codiconName}" style="${style}"></i>`;
     };
 
     // Git操作按钮配置
     const gitOperations = [
-      { id: 'pullBtn', action: 'pull', title: 'Pull (Ctrl+Click for advanced options)' },
-      { id: 'pushBtn', action: 'push', title: 'Push (Ctrl+Click for advanced options)' },
-      { id: 'fetchBtn', action: 'fetch', title: 'Fetch' },
-      { id: 'cloneBtn', action: 'clone', title: 'Clone' },
-      { id: 'checkoutBtn', action: 'checkout', title: 'Checkout' },
-      { id: 'resetStashBtn', action: 'resetStash', title: 'Reset Auto-Stash Preference' }
+      {
+        id: "pullBtn",
+        action: "pull",
+        title: "Pull (Ctrl+Click for advanced options)",
+      },
+      {
+        id: "pushBtn",
+        action: "push",
+        title: "Push (Ctrl+Click for advanced options)",
+      },
+      { id: "fetchBtn", action: "fetch", title: "Fetch" },
+      { id: "cloneBtn", action: "clone", title: "Clone" },
+      { id: "checkoutBtn", action: "checkout", title: "Checkout" },
+      {
+        id: "resetStashBtn",
+        action: "resetStash",
+        title: "Reset Auto-Stash Preference",
+      },
     ];
 
     // 头部控制按钮配置
     const headerControls = [
-      { id: 'jumpToHeadBtn', action: 'jumpToHead', title: 'Jump to HEAD' },
-      { id: 'refreshBtn', action: 'refresh', title: 'Refresh' }
+      { id: "jumpToHeadBtn", action: "jumpToHead", title: "Jump to HEAD" },
+      { id: "refreshBtn", action: "refresh", title: "Refresh" },
     ];
 
     // 上下文菜单项配置
     const contextMenuItems = [
-      { action: 'copyHash', label: 'Copy Hash' },
-      { action: 'cherryPick', label: 'Cherry Pick' },
-      { action: 'revert', label: 'Revert' },
+      { action: "copyHash", label: "Copy Hash" },
+      { action: "cherryPick", label: "Cherry Pick" },
+      { action: "revert", label: "Revert" },
       { separator: true },
-      { action: 'editCommitMessage', label: 'Edit Commit Message', id: 'editCommitMessageMenuItem' },
+      {
+        action: "editCommitMessage",
+        label: "Edit Commit Message",
+        id: "editCommitMessageMenuItem",
+      },
       { separator: true },
-      { action: 'compare', label: 'Compare Selected', id: 'compareMenuItem' },
-      { action: 'squash', label: 'Squash Commits', id: 'squashMenuItem' },
+      { action: "compare", label: "Compare Selected", id: "compareMenuItem" },
+      { action: "squash", label: "Squash Commits", id: "squashMenuItem" },
       { separator: true },
-      { action: 'createBranch', label: 'Create Branch from Here' },
-      { action: 'pushToCommit', label: 'Push All Commits to Here' },
+      { action: "createBranch", label: "Create Branch from Here" },
+      { action: "pushToCommit", label: "Push All Commits to Here" },
       { separator: true },
-      { action: 'resetSoft', label: 'Reset (Soft)' },
-      { action: 'resetMixed', label: 'Reset (Mixed)' },
-      { action: 'resetHard', label: 'Reset (Hard)' }
+      { action: "resetSoft", label: "Reset (Soft)" },
+      { action: "resetMixed", label: "Reset (Mixed)" },
+      { action: "resetHard", label: "Reset (Hard)" },
     ];
 
     return `<!DOCTYPE html>
@@ -1301,22 +1377,47 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             <select id="branchSelect" class="branch-select">
                                 <option value="">All branches</option>
                             </select>
+                            <div class="search-container">
+                                <input type="text" id="commitSearchInput" class="commit-search-input" placeholder="搜索提交信息或哈希..." />
+                                <button id="clearSearchBtn" class="clear-search-btn" title="清除搜索" style="display: none;">
+                                    ${getCodiconHtml("close", "small")}
+                                </button>
+                            </div>
                         </div>
                         <div class="header-right">
                             <div class="git-operations">
-                                ${gitOperations.map(op => `
-                                    <button id="${op.id}" class="git-btn" title="${op.title}" data-action="${op.action}">
-                                        ${getCodiconHtml(op.action, 'small')}
-                                        ${op.action.charAt(0).toUpperCase() + op.action.slice(1)}
+                                ${gitOperations
+                                  .map(
+                                    (op) => `
+                                    <button id="${
+                                      op.id
+                                    }" class="git-btn" title="${
+                                      op.title
+                                    }" data-action="${op.action}">
+                                        ${getCodiconHtml(op.action, "small")}
+                                        ${
+                                          op.action.charAt(0).toUpperCase() +
+                                          op.action.slice(1)
+                                        }
                                     </button>
-                                `).join('')}
+                                `
+                                  )
+                                  .join("")}
                             </div>
                             <div class="header-controls">
-                                ${headerControls.map(ctrl => `
-                                    <button id="${ctrl.id}" class="icon-btn" title="${ctrl.title}" data-action="${ctrl.action}">
-                                        ${getCodiconHtml(ctrl.action, 'medium')}
+                                ${headerControls
+                                  .map(
+                                    (ctrl) => `
+                                    <button id="${
+                                      ctrl.id
+                                    }" class="icon-btn" title="${
+                                      ctrl.title
+                                    }" data-action="${ctrl.action}">
+                                        ${getCodiconHtml(ctrl.action, "medium")}
                                     </button>
-                                `).join('')}
+                                `
+                                  )
+                                  .join("")}
                             </div>
                         </div>
                     </div>
@@ -1332,7 +1433,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                                     <div class="header-date">Date</div>
                                 </div>
                                 <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">
-                                    ${getCodiconHtml('collapseLeft', 'medium')}
+                                    ${getCodiconHtml("collapseLeft", "medium")}
                                 </button>
                             </div>
                             <div class="loading">Loading commits...</div>
@@ -1343,7 +1444,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         <div class="commit-details" id="commitDetails">
                             <div class="panel-header">
                                 <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">
-                                    ${getCodiconHtml('collapseRight', 'medium')}
+                                    ${getCodiconHtml("collapseRight", "medium")}
                                 </button>
                             </div>
                             <div class="placeholder">Select a commit to view details</div>
@@ -1361,11 +1462,17 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
                 <!-- Context Menu -->
                 <div id="contextMenu" class="context-menu" style="display: none;">
-                    ${contextMenuItems.map(item => 
-                        item.separator 
-                            ? '<div class="menu-separator"></div>'
-                            : `<div class="menu-item" data-action="${item.action}"${item.id ? ` id="${item.id}"` : ''}>${item.label}</div>`
-                    ).join('')}
+                    ${contextMenuItems
+                      .map((item) =>
+                        item.separator
+                          ? '<div class="menu-separator"></div>'
+                          : `<div class="menu-item" data-action="${
+                              item.action
+                            }"${item.id ? ` id="${item.id}"` : ""}>${
+                              item.label
+                            }</div>`
+                      )
+                      .join("")}
                 </div>
 
                 <script type="module" src="${scriptUri}"></script>
@@ -1394,7 +1501,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1420,7 +1528,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1442,11 +1551,14 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       );
 
       if (result) {
-        vscode.window.showInformationMessage("Successfully fetched from remote");
+        vscode.window.showInformationMessage(
+          "Successfully fetched from remote"
+        );
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1509,7 +1621,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1521,7 +1634,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     try {
       const branches = await this._gitHistoryProvider.getBranches();
       const branchNames = branches.map((branch) => branch.name);
-      
+
       // 添加创建新分支选项
       const branchOptions = [...branchNames, "+ Create new branch"];
 
@@ -1536,7 +1649,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       let targetBranch: string;
       let isNewBranch = false;
-      
+
       if (selectedOption === "+ Create new branch") {
         // 创建新分支
         const newBranchName = await vscode.window.showInputBox({
@@ -1556,11 +1669,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             return null;
           },
         });
-        
+
         if (!newBranchName) {
           return;
         }
-        
+
         targetBranch = newBranchName.trim();
         isNewBranch = true;
       } else {
@@ -1570,12 +1683,16 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: isNewBranch ? `Creating and checking out branch ${targetBranch}...` : `Checking out branch ${targetBranch}...`,
+          title: isNewBranch
+            ? `Creating and checking out branch ${targetBranch}...`
+            : `Checking out branch ${targetBranch}...`,
           cancellable: false,
         },
         async () => {
           if (isNewBranch) {
-            return await this._gitHistoryProvider.createAndCheckoutBranch(targetBranch);
+            return await this._gitHistoryProvider.createAndCheckoutBranch(
+              targetBranch
+            );
           } else {
             return await this._gitHistoryProvider.checkoutBranch(targetBranch);
           }
@@ -1584,12 +1701,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage(
-          isNewBranch ? `Successfully created and checked out branch: ${targetBranch}` : `Successfully checked out branch: ${targetBranch}`
+          isNewBranch
+            ? `Successfully created and checked out branch: ${targetBranch}`
+            : `Successfully checked out branch: ${targetBranch}`
         );
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1600,7 +1720,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   private async _handleGitPullAdvanced() {
     try {
       // 获取所有远程分支列表
-      const remoteBranches = await this._gitHistoryProvider.getAllRemoteBranches();
+      const remoteBranches =
+        await this._gitHistoryProvider.getAllRemoteBranches();
       if (remoteBranches.length === 0) {
         vscode.window.showErrorMessage("No remote branches found");
         return;
@@ -1636,7 +1757,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `${isRebase ? 'Pulling with rebase' : 'Pulling'} from ${selectedBranch}...`,
+          title: `${
+            isRebase ? "Pulling with rebase" : "Pulling"
+          } from ${selectedBranch}...`,
           cancellable: false,
         },
         async () => {
@@ -1649,12 +1772,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage(
-          `Successfully ${isRebase ? 'pulled with rebase' : 'pulled'} from ${selectedBranch}`
+          `Successfully ${
+            isRebase ? "pulled with rebase" : "pulled"
+          } from ${selectedBranch}`
         );
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1665,14 +1791,16 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   private async _handleGitPushAdvanced() {
     try {
       // 获取所有远程分支列表
-      const remoteBranches = await this._gitHistoryProvider.getAllRemoteBranches();
-      
+      const remoteBranches =
+        await this._gitHistoryProvider.getAllRemoteBranches();
+
       // 添加"新建分支"选项
       const branchOptions = [...remoteBranches, "+ Create new branch"];
-      
+
       // 选择目标分支
       const selectedOption = await vscode.window.showQuickPick(branchOptions, {
-        placeHolder: "Select target branch or create new one (e.g., origin/master)",
+        placeHolder:
+          "Select target branch or create new one (e.g., origin/master)",
         canPickMany: false,
       });
 
@@ -1690,7 +1818,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             if (!value || value.trim().length === 0) {
               return "Branch name is required";
             }
-            if (!value.includes('/')) {
+            if (!value.includes("/")) {
               return "Invalid format. Please use 'remote/branch' format.";
             }
             return null;
@@ -1721,7 +1849,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       }
 
       const isForce = pushOptions.value === "force";
-      
+
       // 如果是强制推送，显示警告
       if (isForce) {
         const confirm = await vscode.window.showWarningMessage(
@@ -1730,7 +1858,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           "Yes, force push",
           "Cancel"
         );
-        
+
         if (confirm !== "Yes, force push") {
           return;
         }
@@ -1739,7 +1867,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `${isForce ? 'Force pushing' : 'Pushing'} to ${targetBranch}...`,
+          title: `${
+            isForce ? "Force pushing" : "Pushing"
+          } to ${targetBranch}...`,
           cancellable: false,
         },
         async () => {
@@ -1752,12 +1882,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage(
-          `Successfully ${isForce ? 'force pushed' : 'pushed'} to ${targetBranch}`
+          `Successfully ${
+            isForce ? "force pushed" : "pushed"
+          } to ${targetBranch}`
         );
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1788,30 +1921,42 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `Creating branch '${branchName}' from commit ${hash.substring(0, 8)}...`,
+          title: `Creating branch '${branchName}' from commit ${hash.substring(
+            0,
+            8
+          )}...`,
           cancellable: false,
         },
         async () => {
-          return await this._gitHistoryProvider.createBranchFromCommit(hash, branchName);
+          return await this._gitHistoryProvider.createBranchFromCommit(
+            hash,
+            branchName
+          );
         }
       );
 
       if (result) {
         const checkoutResult = await vscode.window.showInformationMessage(
-          `Successfully created branch '${branchName}' from commit ${hash.substring(0, 8)}`,
+          `Successfully created branch '${branchName}' from commit ${hash.substring(
+            0,
+            8
+          )}`,
           "Checkout branch",
           "Stay on current branch"
         );
-        
+
         if (checkoutResult === "Checkout branch") {
           await this._gitHistoryProvider.checkoutBranch(branchName);
-          vscode.window.showInformationMessage(`Checked out to branch '${branchName}'`);
+          vscode.window.showInformationMessage(
+            `Checked out to branch '${branchName}'`
+          );
         }
-        
+
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1822,11 +1967,12 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   private async _pushAllCommitsToHere(hash: string) {
     try {
       // 获取所有远程分支列表
-      const remoteBranches = await this._gitHistoryProvider.getAllRemoteBranches();
-      
+      const remoteBranches =
+        await this._gitHistoryProvider.getAllRemoteBranches();
+
       // 添加"新建分支"选项
       const branchOptions = [...remoteBranches, "+ Create new remote branch"];
-      
+
       // 选择目标分支
       const selectedOption = await vscode.window.showQuickPick(branchOptions, {
         placeHolder: "Select target remote branch or create new one",
@@ -1847,7 +1993,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             if (!value || value.trim().length === 0) {
               return "Branch name is required";
             }
-            if (!value.includes('/')) {
+            if (!value.includes("/")) {
               return "Invalid format. Please use 'remote/branch' format.";
             }
             return null;
@@ -1863,12 +2009,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       // 确认操作
       const confirm = await vscode.window.showWarningMessage(
-        `This will push all commits up to ${hash.substring(0, 8)} to ${targetBranch}. Continue?`,
+        `This will push all commits up to ${hash.substring(
+          0,
+          8
+        )} to ${targetBranch}. Continue?`,
         { modal: true },
         "Yes, push commits",
         "Cancel"
       );
-      
+
       if (confirm !== "Yes, push commits") {
         return;
       }
@@ -1880,7 +2029,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           cancellable: false,
         },
         async () => {
-          return await this._gitHistoryProvider.pushCommitsToRemoteBranch(hash, targetBranch);
+          return await this._gitHistoryProvider.pushCommitsToRemoteBranch(
+            hash,
+            targetBranch
+          );
         }
       );
 
@@ -1891,7 +2043,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(errorMessage);
     }
   }
@@ -1903,7 +2056,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     try {
       // 检查提交是否可以编辑（本地未推送的提交可以编辑）
       const canEdit = await this._gitHistoryProvider.canEditCommitMessage(hash);
-      
+
       if (!canEdit) {
         vscode.window.showWarningMessage(
           "This commit has already been pushed to the remote repository and cannot be edited."
@@ -1912,7 +2065,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       }
 
       // 获取当前提交信息
-      const commitDetails = await this._gitHistoryProvider.getCommitDetails(hash);
+      const commitDetails = await this._gitHistoryProvider.getCommitDetails(
+        hash
+      );
       if (!commitDetails) {
         vscode.window.showErrorMessage("Failed to get commit details");
         return;
@@ -1943,17 +2098,25 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           cancellable: false,
         },
         async () => {
-          return await this._gitHistoryProvider.amendCommitMessage(hash, newMessage.trim());
+          return await this._gitHistoryProvider.amendCommitMessage(
+            hash,
+            newMessage.trim()
+          );
         }
       );
 
       if (result) {
-        vscode.window.showInformationMessage("Commit message updated successfully");
+        vscode.window.showInformationMessage(
+          "Commit message updated successfully"
+        );
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`Failed to edit commit message: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(
+        `Failed to edit commit message: ${errorMessage}`
+      );
     }
   }
 
@@ -1993,7 +2156,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         this.refresh();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(`重置偏好设置失败: ${errorMessage}`);
     }
   }
