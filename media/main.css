@@ -900,6 +900,30 @@ body.resizing .resizer {
   pointer-events: none;
 }
 
+/* 新提交的特殊样式 */
+.commit-item.new-commit {
+  background-color: var(--vscode-diffEditor-insertedTextBackground, rgba(155, 185, 85, 0.2));
+  border-left: 3px solid var(--vscode-gitDecoration-addedResourceForeground, #73c991);
+  animation: newCommitPulse 2s ease-out;
+}
+
+.commit-item.new-commit .commit-content {
+  background-color: var(--vscode-diffEditor-insertedTextBackground, rgba(155, 185, 85, 0.1));
+}
+
+/* 新提交的脉冲动画 */
+@keyframes newCommitPulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--vscode-gitDecoration-addedResourceForeground, #73c991);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(115, 201, 145, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(115, 201, 145, 0);
+  }
+}
+
 /* 让图形部分的垂直线能够穿过分割线 */
 .commit-item .commit-graph {
   position: relative;

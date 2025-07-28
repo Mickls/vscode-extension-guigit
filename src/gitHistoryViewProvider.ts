@@ -45,8 +45,20 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             data.authorFilter
           );
           break;
+        case "getNewCommits":
+          await this._sendNewCommits(
+            data.branch,
+            data.authorFilter,
+            data.sinceCommit,
+            data.limit
+          );
+          break;
         case "searchCommits":
-          await this._sendSearchResults(data.searchTerm, data.branch, data.authorFilter);
+          await this._sendSearchResults(
+            data.searchTerm,
+            data.branch,
+            data.authorFilter
+          );
           break;
         case "getTotalCommitCount":
           await this._sendTotalCommitCount(data.branch, data.authorFilter);
@@ -201,8 +213,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * 刷新Git历史视图（优化版本）
-   * 使用防抖机制避免频繁刷新，增加延迟时间
+   * 刷新Git历史视图（智能版本）
+   * 使用防抖机制避免频繁刷新，并保持筛选状态
    */
   public refresh() {
     if (this._refreshTimeout) {
@@ -214,10 +226,34 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         console.time("refresh-view");
         // 清理后端缓存
         this._gitHistoryProvider.clearCache();
-        this._initializeView();
+
+        // 发送智能刷新消息，让前端保持筛选状态
+        this._view.webview.postMessage({
+          type: "smartRefresh",
+          message: "Refreshing data while preserving filters...",
+        });
+
+        // 只刷新基础数据，不重新初始化整个视图
+        this._sendRepositories();
+        this._sendBranches();
+        // 不调用 _sendCommitHistory()，让前端根据当前筛选状态重新加载
+
         console.timeEnd("refresh-view");
       }
     }, 1500); // 增加到1.5秒防抖延迟，减少频繁刷新
+  }
+
+  /**
+   * 完全刷新视图（用于初始化或强制刷新）
+   */
+  public fullRefresh() {
+    if (this._view) {
+      console.time("full-refresh-view");
+      // 清理后端缓存
+      this._gitHistoryProvider.clearCache();
+      this._initializeView();
+      console.timeEnd("full-refresh-view");
+    }
   }
 
   /**
@@ -353,11 +389,59 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * 发送新提交到WebView（用于增量更新）
+   * @param branch 分支名称
+   * @param authorFilter 作者筛选
+   * @param sinceCommit 起始提交哈希
+   * @param limit 限制数量
+   */
+  private async _sendNewCommits(
+    branch?: string,
+    authorFilter?: string[],
+    sinceCommit?: string,
+    limit: number = 50
+  ) {
+    if (!this._view || !sinceCommit) return;
+
+    try {
+      const newCommits = await this._gitHistoryProvider.getNewCommits(
+        sinceCommit,
+        branch,
+        limit,
+        authorFilter
+      );
+      
+      this._view.webview.postMessage({
+        type: "newCommits",
+        data: {
+          commits: newCommits,
+          sinceCommit,
+          hasMore: newCommits.length === limit,
+        },
+      });
+      
+      console.log(`Sent ${newCommits.length} new commits to webview`);
+    } catch (error) {
+      console.error("Error getting new commits:", error);
+      this._view.webview.postMessage({
+        type: "error",
+        message: `Failed to load new commits: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      });
+    }
+  }
+
+  /**
    * 发送搜索结果到WebView
    * @param searchTerm 搜索词
    * @param branch 分支名称
    */
-  private async _sendSearchResults(searchTerm: string, branch?: string, authorFilter?: string[]) {
+  private async _sendSearchResults(
+    searchTerm: string,
+    branch?: string,
+    authorFilter?: string[]
+  ) {
     if (!this._view) return;
 
     try {

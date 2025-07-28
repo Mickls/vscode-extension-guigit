@@ -881,6 +881,127 @@ export class GitHistoryProvider {
   }
 
   /**
+   * 获取自指定提交以来的新提交（用于增量更新）
+   * @param sinceCommit 起始提交哈希
+   * @param branch 分支名称
+   * @param limit 限制数量
+   * @param authorFilter 作者筛选
+   */
+  async getNewCommits(
+    sinceCommit: string,
+    branch?: string,
+    limit: number = 50,
+    authorFilter?: string[]
+  ): Promise<GitCommit[]> {
+    return this.executeGitCommand(
+      async () => {
+        console.time(`getNewCommits-${sinceCommit.substring(0, 8)}-${limit}`);
+
+        // 使用 git log 获取自指定提交以来的新提交
+        const args = [
+          "log",
+          "--graph",
+          "--all", // 显示所有分支
+          `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
+          "--encoding=UTF-8",
+          `--max-count=${limit}`,
+          `${sinceCommit}..HEAD`, // 获取从 sinceCommit 到 HEAD 的新提交
+        ];
+
+        if (branch && branch !== "all") {
+          // 如果指定了特定分支，只显示该分支
+          args.splice(args.indexOf("--all"), 1);
+          args.push(branch);
+          // 修改范围为指定分支
+          args[args.length - 1] = `${sinceCommit}..${branch}`;
+        }
+
+        // 添加作者筛选
+        if (authorFilter && authorFilter.length > 0) {
+          authorFilter.forEach((author) => {
+            args.push(`--author=${author}`);
+          });
+        }
+
+        const result = await this.git!.raw(args);
+
+        // 如果没有新提交，返回空数组
+        if (!result.trim()) {
+          console.log("No new commits found");
+          console.timeEnd(`getNewCommits-${sinceCommit.substring(0, 8)}-${limit}`);
+          return [];
+        }
+
+        // 解析带图形信息的输出（与 getCommitHistory 相同的解析逻辑）
+        const lines = result
+          .trim()
+          .split("\n")
+          .filter((line) => line.trim());
+        const commits: GitCommit[] = [];
+
+        console.log(`Found ${lines.length} new commit lines to process`);
+
+        for (const line of lines) {
+          const graphMatch = line.match(/^([\s\|\\\/*]+)(.*)$/);
+          if (!graphMatch) continue;
+
+          const graphPart = graphMatch[1];
+          const commitPart = graphMatch[2];
+
+          // 检查是否包含提交信息
+          if (!commitPart.includes("|")) continue;
+
+          const parts = commitPart.split("|");
+
+          // 验证是否为有效的提交记录
+          const hash = parts[0]?.trim() || "";
+          if (!hash || hash.length < 7) continue;
+
+          // 解析父提交
+          const parents = parts[6]
+            ? parts[6]
+                .trim()
+                .split(" ")
+                .filter((p) => p)
+            : [];
+
+          // 解析图形信息
+          const graphInfo = this.parseGraphInfo(graphPart, parents.length > 1);
+
+          const commit: GitCommit = {
+            hash,
+            date: parts[1]?.trim() || "",
+            message: parts[2]?.trim() || "",
+            author: parts[3]?.trim() || "",
+            email: parts[4]?.trim() || "",
+            refs: parts[5]?.trim() || "",
+            body: "", // 简化：不在列表视图中加载body
+            parents,
+            children: [], // 将在后处理中填充
+            graphInfo,
+          };
+
+          commits.push(commit);
+        }
+
+        // 后处理：建立父子关系
+        this.buildParentChildRelationships(commits);
+
+        // 计算是否可以编辑消息（只对新提交计算）
+        await this.calculateCanEditMessage(commits);
+
+        console.timeEnd(`getNewCommits-${sinceCommit.substring(0, 8)}-${limit}`);
+        console.log(
+          `Successfully processed ${commits.length} new commits with graph info`
+        );
+        return commits;
+      },
+      "Error getting new commits",
+      []
+    );
+  }
+
+  /**
    * 获取提交总数（带缓存优化）
    */
   async getTotalCommitCount(
