@@ -86,7 +86,8 @@ import { getIcon } from './utils/icons.js';
     const fetchBtn = document.getElementById('fetchBtn');                 // 抓取按钮
     const cloneBtn = document.getElementById('cloneBtn');                 // 克隆按钮
     const checkoutBtn = document.getElementById('checkoutBtn');           // 签出按钮
-    const resetStashBtn = document.getElementById('resetStashBtn');       // 重置自动暂存偏好按钮
+    const settingsBtn = document.getElementById('settingsBtn');           // 设置按钮
+    const settingsMenu = document.getElementById('settingsMenu');         // 设置菜单
 
     // 新增的拖拽和折叠相关元素（这些元素是动态创建的，不在初始化时获取）
     const resizer = document.getElementById('resizer');                   // 分割线
@@ -181,9 +182,67 @@ import { getIcon } from './utils/icons.js';
         vscode.postMessage({ type: 'gitCheckout' });
     });
 
-    resetStashBtn.addEventListener('click', () => {
-        vscode.postMessage({ type: 'resetAutoStashPreference' });
+    // 设置按钮点击事件 - 显示/隐藏设置菜单
+    settingsBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        
+        if (settingsMenu.style.display === 'block') {
+            settingsMenu.style.display = 'none';
+        } else {
+            // 计算菜单位置，确保不超出视口
+            const rect = settingsBtn.getBoundingClientRect();
+            const menuWidth = 280; // 菜单最大宽度
+            const menuHeight = 100; // 估算菜单高度
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            let left = rect.left;
+            let top = rect.bottom + 5;
+            
+            // 检查右边界，如果超出则向左调整
+            if (left + menuWidth > viewportWidth) {
+                left = Math.max(10, viewportWidth - menuWidth - 10);
+            }
+            
+            // 检查底部边界，如果超出则向上显示
+            if (top + menuHeight > viewportHeight) {
+                top = rect.top - menuHeight - 5;
+                // 如果向上也超出，则调整到视口内
+                if (top < 10) {
+                    top = 10;
+                }
+            }
+            
+            settingsMenu.style.left = left + 'px';
+            settingsMenu.style.top = top + 'px';
+            settingsMenu.style.display = 'block';
+        }
     });
+
+    // 点击其他地方隐藏设置菜单
+    document.addEventListener('click', (event) => {
+        if (!settingsBtn.contains(event.target) && !settingsMenu.contains(event.target)) {
+            settingsMenu.style.display = 'none';
+        }
+    });
+
+    // 设置菜单项事件监听器
+    const resetStashMenuItem = settingsMenu.querySelector('[data-action="resetStash"]');
+    const refreshProxyMenuItem = settingsMenu.querySelector('[data-action="refreshProxy"]');
+
+    if (resetStashMenuItem) {
+        resetStashMenuItem.addEventListener('click', () => {
+            settingsMenu.style.display = 'none';
+            vscode.postMessage({ type: 'resetAutoStashPreference' });
+        });
+    }
+
+    if (refreshProxyMenuItem) {
+        refreshProxyMenuItem.addEventListener('click', () => {
+            settingsMenu.style.display = 'none';
+            vscode.postMessage({ type: 'refreshProxy' });
+        });
+    }
 
     // ==================== 搜索功能事件监听器 ====================
 

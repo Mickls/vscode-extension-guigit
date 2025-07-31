@@ -1,5 +1,6 @@
 import { simpleGit, SimpleGit } from "simple-git";
 import * as vscode from "vscode";
+import { ProxyManager, ProxyConfig } from "./proxyManager";
 
 export interface GitCommit {
   hash: string;
@@ -61,6 +62,7 @@ export class GitHistoryProvider {
   private workspaceRoot: string | null = null;
   private availableRepositories: GitRepository[] = [];
   private currentRepository: GitRepository | null = null;
+  private proxyManager: ProxyManager;
   // 性能优化：添加后端缓存
   private commitDetailsCache = new Map<
     string,
@@ -79,6 +81,7 @@ export class GitHistoryProvider {
   private readonly COMMIT_COUNT_CACHE_TTL = 2 * 60 * 1000; // 2分钟缓存
 
   constructor() {
+    this.proxyManager = ProxyManager.getInstance();
     // 异步初始化
     this.initializeGit().catch((error) => {
       console.error("Git初始化失败:", error);
@@ -275,9 +278,25 @@ export class GitHistoryProvider {
     repository.isActive = true;
     this.currentRepository = repository;
 
+    // 获取代理配置
+    const proxyConfig = await this.proxyManager.getProxyConfig();
+    
+    // 应用代理配置到环境变量
+    this.proxyManager.applyProxyToEnvironment(proxyConfig);
+
+    // 构建Git配置
+    const gitConfig = [
+      "core.quotepath=false", 
+      "log.showSignature=false"
+    ];
+
+    // 添加代理配置
+    const proxyGitConfig = this.proxyManager.getGitProxyConfig(proxyConfig);
+    gitConfig.push(...proxyGitConfig);
+
     // 重新初始化Git实例
     this.git = simpleGit(repository.path, {
-      config: ["core.quotepath=false", "log.showSignature=false"],
+      config: gitConfig,
     });
 
     // 清除缓存
@@ -285,10 +304,30 @@ export class GitHistoryProvider {
     this.currentUserCache = null;
 
     console.log(`切换到仓库: ${repository.name} (${repository.path})`);
+    if (proxyConfig.enabled) {
+      console.log('已应用代理配置:', proxyConfig);
+    }
   }
 
   /**
-   * 执行Git命令的通用错误处理包装器
+   * 刷新代理配置
+   */
+  public async refreshProxyConfig(): Promise<void> {
+    if (!this.currentRepository) {
+      return;
+    }
+
+    // 清除代理缓存
+    this.proxyManager.clearCache();
+    
+    // 重新设置当前仓库以应用新的代理配置
+    await this.setCurrentRepository(this.currentRepository);
+    
+    vscode.window.showInformationMessage('代理配置已刷新');
+  }
+
+  /**
+   * 执行Git命令的通用错误处理包装器（带代理重试机制）
    */
   private async executeGitCommand<T>(
     operation: () => Promise<T>,
@@ -302,10 +341,58 @@ export class GitHistoryProvider {
 
     try {
       return await operation();
-    } catch (error) {
+    } catch (error: any) {
+      const errorStr = error?.message || error?.toString() || "Unknown error";
+      
+      // 检查是否是网络连接错误
+      if (this.isNetworkError(errorStr)) {
+        console.warn(`${errorMessage} - 检测到网络错误，尝试刷新代理配置后重试:`, errorStr);
+        
+        try {
+          // 刷新代理配置
+          await this.refreshProxyConfig();
+          
+          // 重试操作
+          return await operation();
+        } catch (retryError: any) {
+          const retryErrorStr = retryError?.message || retryError?.toString() || "Unknown error";
+          console.error(`${errorMessage} - 重试失败:`, retryErrorStr);
+          
+          // 如果仍然是网络错误，提供更友好的错误信息
+          if (this.isNetworkError(retryErrorStr)) {
+            throw new Error(`网络连接失败: ${retryErrorStr}\n\n建议:\n1. 检查网络连接\n2. 确认代理设置是否正确\n3. 尝试使用VPN或代理工具`);
+          }
+          
+          throw retryError;
+        }
+      }
+      
       console.error(`${errorMessage}:`, error);
-      return defaultValue;
+      throw error;
     }
+  }
+
+  /**
+   * 检查是否是网络连接错误
+   */
+  private isNetworkError(errorMessage: string): boolean {
+    const networkErrorPatterns = [
+      'Failed to connect to github.com',
+      'Couldn\'t connect to server',
+      'Connection timed out',
+      'Network is unreachable',
+      'Name or service not known',
+      'Temporary failure in name resolution',
+      'unable to access',
+      'Could not resolve host',
+      'SSL connect error',
+      'OpenSSL SSL_connect',
+      'gnutls_handshake() failed'
+    ];
+
+    return networkErrorPatterns.some(pattern => 
+      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+    );
   }
 
   /**
@@ -2104,11 +2191,17 @@ export class GitHistoryProvider {
     }
 
     try {
-      await this.git.pull();
+      await this.executeGitCommand(
+        async () => {
+          await this.git!.pull();
+          return true;
+        },
+        "Pull from remote failed",
+        false
+      );
       return true;
     } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
       throw new Error(`Pull failed: ${errorMessage}`);
     }
   }
@@ -2154,11 +2247,17 @@ export class GitHistoryProvider {
     }
 
     try {
-      await this.git.push();
+      await this.executeGitCommand(
+        async () => {
+          await this.git!.push();
+          return true;
+        },
+        "Push to remote failed",
+        false
+      );
       return true;
     } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
       throw new Error(`Push failed: ${errorMessage}`);
     }
   }
@@ -2396,11 +2495,17 @@ export class GitHistoryProvider {
     }
 
     try {
-      await this.git.fetch();
+      await this.executeGitCommand(
+        async () => {
+          await this.git!.fetch();
+          return true;
+        },
+        "Fetch from remote failed",
+        false
+      );
       return true;
     } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
       throw new Error(`Fetch failed: ${errorMessage}`);
     }
   }

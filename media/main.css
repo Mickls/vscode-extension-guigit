@@ -1717,6 +1717,60 @@ body.resizing .resizer {
   margin: 4px 0;
 }
 
+/* ==================== 设置下拉菜单 ==================== */
+
+/* 设置菜单容器 */
+.settings-menu {
+  position: fixed;
+  background-color: var(--vscode-menu-background);
+  border: 1px solid var(--vscode-menu-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 280px;
+  white-space: nowrap;
+  /* 确保菜单不会超出视口 */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* 设置菜单项 */
+.settings-menu .menu-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.1s ease;
+}
+
+.settings-menu .menu-item:hover {
+  background-color: var(--vscode-menu-selectionBackground);
+  color: var(--vscode-menu-selectionForeground);
+}
+
+/* 菜单项图标 */
+.settings-menu .menu-item .codicon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 设置菜单分隔线 */
+.settings-menu .menu-separator {
+  height: 1px;
+  background-color: var(--vscode-menu-separatorBackground);
+  margin: 4px 0;
+}
+
 /* ==================== 比较面板 ==================== */
 
 /* 全屏比较面板 */

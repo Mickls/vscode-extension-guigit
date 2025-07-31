@@ -145,6 +145,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "resetAutoStashPreference":
           await this._handleResetAutoStashPreference();
           break;
+        case "refreshProxy":
+          await this._handleRefreshProxy();
+          break;
         case "currentFilterState":
           await this._initializeViewWithFilter(data.filterState);
           break;
@@ -154,6 +157,30 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
     // 检查Git仓库状态并初始化加载数据
     this._initializeView();
+  }
+
+  /**
+   * 处理刷新代理配置操作
+   */
+  private async _handleRefreshProxy() {
+    try {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Refreshing proxy configuration...",
+          cancellable: false,
+        },
+        async () => {
+          await this._gitHistoryProvider.refreshProxyConfig();
+        }
+      );
+
+      vscode.window.showInformationMessage("Proxy configuration refreshed successfully");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Failed to refresh proxy configuration: ${errorMessage}`);
+    }
   }
 
   /**
@@ -1337,9 +1364,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         fetch: "git-fetch",
         clone: "repo-clone",
         checkout: "git-branch",
+        settings: "settings-gear",
         resetStash: "settings-gear",
         jumpToHead: "target",
         refresh: "refresh",
+        globe: "globe",
         collapseLeft: "chevron-left",
         collapseRight: "chevron-right",
         close: "close",
@@ -1377,9 +1406,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       { id: "cloneBtn", action: "clone", title: "Clone" },
       { id: "checkoutBtn", action: "checkout", title: "Checkout" },
       {
-        id: "resetStashBtn",
-        action: "resetStash",
-        title: "Reset Auto-Stash Preference",
+        id: "settingsBtn",
+        action: "settings",
+        title: "Settings",
       },
     ];
 
@@ -1526,6 +1555,19 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             }</div>`
                       )
                       .join("")}
+                </div>
+
+                <!-- Settings Dropdown Menu -->
+                <div id="settingsMenu" class="settings-menu" style="display: none;">
+                    <div class="menu-item" data-action="resetStash">
+                        ${getCodiconHtml("refresh", "small")}
+                        Reset Stash Preference
+                    </div>
+                    <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="refreshProxy">
+                        ${getCodiconHtml("globe", "small")}
+                        Refresh Proxy
+                    </div>
                 </div>
 
                 <script type="module" src="${scriptUri}"></script>
