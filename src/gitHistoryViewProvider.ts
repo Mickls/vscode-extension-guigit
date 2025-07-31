@@ -204,6 +204,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     await this._sendRepositories();
     await this._sendBranches();
     await this._sendCommitHistory();
+    await this._sendTotalCommitCount(); // 添加发送总提交数
     this._sendViewMode();
   }
 
@@ -245,6 +246,12 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         filterState?.authorFilter
       );
     }
+    
+    // 发送总提交数
+    await this._sendTotalCommitCount(
+      filterState?.currentBranch, 
+      filterState?.authorFilter
+    );
     
     this._sendViewMode();
   }

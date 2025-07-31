@@ -96,7 +96,10 @@ import { getIcon } from './utils/icons.js';
     // 事件监听器设置
     // 添加滚动监听器以实现无限滚动加载
     commitList.addEventListener('scroll', () => {
-        if (getState('isLoading') || getState('loadedCommits') >= getState('totalCommits')) {
+        const hasMore = getState('hasMore');
+        
+        // 如果正在加载，或者没有更多提交，则不继续加载
+        if (getState('isLoading') || !hasMore) {
             return;
         }
 
@@ -505,9 +508,13 @@ import { getIcon } from './utils/icons.js';
      * @param {Object} data - 包含提交数据的对象
      * @param {Array} data.commits - 提交记录数组
      * @param {number} data.skip - 跳过的提交数量
+     * @param {boolean} data.hasMore - 是否还有更多提交可加载
      */
     function updateCommitHistory(data) {
         setLoading(false);
+
+        // 更新hasMore状态
+        setState('hasMore', data.hasMore || false);
 
         if (data.skip === 0) {
             // 首次加载或刷新
@@ -610,8 +617,8 @@ import { getIcon } from './utils/icons.js';
             }
         }
 
-        // 只在初始加载时显示加载状态指示器
-        if (data.skip === 0 && loadedCommits < totalCommits) {
+        // 只在初始加载时且还有更多提交时显示加载状态指示器
+        if (data.skip === 0 && data.hasMore) {
             showLoadingIndicator();
         }
     }
@@ -809,8 +816,7 @@ import { getIcon } from './utils/icons.js';
         hideLoadingIndicator();
 
         const commits = getState('commits');
-        const loadedCommits = getState('loadedCommits');
-        const totalCommits = getState('totalCommits');
+        const hasMore = getState('hasMore');
 
         newCommits.forEach((commit, index) => {
             const commitElement = createCommitElement(commit, commits.length - newCommits.length + index);
@@ -818,7 +824,7 @@ import { getIcon } from './utils/icons.js';
         });
 
         // 重新检查是否需要显示加载指示器
-        if (loadedCommits < totalCommits) {
+        if (hasMore) {
             showLoadingIndicator();
         }
 
@@ -2013,6 +2019,9 @@ import { getIcon } from './utils/icons.js';
         
         // 隐藏搜索状态（如果有的话）
         hideSearchStatus();
+        
+        // 搜索结果不支持分页，设置hasMore为false
+        setState('hasMore', false);
         
         if (commits.length === 0) {
             // 清空提交列表，显示无结果信息

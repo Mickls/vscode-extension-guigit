@@ -18,6 +18,7 @@ const state = {
     // 加载状态
     loadedCommits: 0,      // 已加载的提交数量
     totalCommits: 0,       // 总提交数量
+    hasMore: false,        // 是否还有更多提交可加载
     isLoading: false,      // 是否正在加载
     
     // UI状态
