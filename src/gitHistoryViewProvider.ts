@@ -1780,44 +1780,62 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      // 选择远程分支
-      const selectedBranch = await vscode.window.showQuickPick(remoteBranches, {
-        placeHolder: "Select remote branch to pull from (e.g., origin/master)",
+      // 创建分支选项，分为 merge 和 rebase 两个区域
+      const mergeOptions = remoteBranches.map(branch => ({
+        label: `$(git-merge) ${branch}`,
+        description: "Pull with merge",
+        detail: `Merge changes from ${branch}`,
+        branch: branch,
+        isRebase: false
+      }));
+
+      const rebaseOptions = remoteBranches.map(branch => ({
+        label: `$(git-pull-request) ${branch}`,
+        description: "Pull with rebase", 
+        detail: `Rebase changes from ${branch}`,
+        branch: branch,
+        isRebase: true
+      }));
+
+      // 添加分隔符和标题
+      const allOptions = [
+        {
+          label: "$(git-merge) Merge Pull",
+          kind: vscode.QuickPickItemKind.Separator
+        },
+        ...mergeOptions,
+        {
+          label: "$(git-pull-request) Rebase Pull", 
+          kind: vscode.QuickPickItemKind.Separator
+        },
+        ...rebaseOptions
+      ];
+
+      // 显示选择器
+      const selectedOption = await vscode.window.showQuickPick(allOptions, {
+        placeHolder: "Select branch and pull method - Merge section for merge pull, Rebase section for rebase pull",
         canPickMany: false,
+        matchOnDescription: true,
+        matchOnDetail: true
       });
 
-      if (!selectedBranch) {
+      if (!selectedOption || !('branch' in selectedOption)) {
         return;
       }
 
-      // 选择操作类型
-      const operation = await vscode.window.showQuickPick(
-        [
-          { label: "Pull (merge)", value: "pull" },
-          { label: "Pull with rebase", value: "rebase" },
-        ],
-        {
-          placeHolder: "Select pull operation",
-          canPickMany: false,
-        }
-      );
-
-      if (!operation) {
-        return;
-      }
-
-      const isRebase = operation.value === "rebase";
+      const { branch, isRebase } = selectedOption as any;
+      
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
           title: `${
             isRebase ? "Pulling with rebase" : "Pulling"
-          } from ${selectedBranch}...`,
+          } from ${branch}...`,
           cancellable: false,
         },
         async () => {
           return await this._gitHistoryProvider.safePullFromFullRemoteBranch(
-            selectedBranch,
+            branch,
             isRebase
           );
         }
@@ -1827,7 +1845,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           `Successfully ${
             isRebase ? "pulled with rebase" : "pulled"
-          } from ${selectedBranch}`
+          } from ${branch}`
         );
         this.refresh();
       }
