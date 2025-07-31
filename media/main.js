@@ -29,7 +29,9 @@ import {
     addAuthorFilter,
     clearAllCache,
     clearAuthorFilter,
+    clearSearchTerm,
     getCachedCommitDetails,
+    getCurrentFilterState,
     getState,
     hasPendingRequest,
     initializeStateManager,
@@ -40,8 +42,11 @@ import {
     setFileViewMode,
     setLoading,
     setPendingJumpCommit,
-    setPendingRequest, setSearchingForCommit,
-    setState, setStates,
+    setPendingRequest, 
+    setSearchingForCommit,
+    setSearchTerm,
+    setState, 
+    setStates,
     updateSelectedCommits
 } from './core/state-manager.js';
 // 导入模板系统
@@ -302,6 +307,14 @@ import { getIcon } from './utils/icons.js';
                 break;
             case 'searchResults':
                 handleSearchResults(message.data);   // 处理搜索结果
+                break;
+            case 'requestCurrentFilterState':
+                // 响应后端请求的当前筛选状态
+                const currentFilterState = getCurrentFilterState();
+                vscode.postMessage({
+                    type: 'currentFilterState',
+                    filterState: currentFilterState
+                });
                 break;
             // 删除了commitEditableStatus处理，现在直接使用预计算的canEditMessage值
         }
@@ -693,6 +706,33 @@ import { getIcon } from './utils/icons.js';
             return;
         }
 
+        // 保留 panel-header，清空其他内容
+        const panelHeader = commitList.querySelector('.panel-header');
+        commitList.innerHTML = '';
+        
+        // 重新添加 panel-header
+        if (panelHeader) {
+            commitList.appendChild(panelHeader);
+        } else {
+            // 如果没有 panel-header，创建一个
+            commitList.innerHTML = `
+                <div class="panel-header">
+                    <div class="commit-list-headers">
+                        <div class="header-hash">Hash</div>
+                        <div class="header-message">Message</div>
+                        <div class="header-refs">Tags</div>
+                        <div class="header-author clickable" id="headerAuthor">Author</div>
+                        <div class="header-date">Date</div>
+                    </div>
+                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
+                </div>
+            `;
+            // 绑定作者筛选点击事件
+            bindAuthorFilterEvent();
+            rebindCollapseButtons();
+        }
+
+        // 渲染所有提交
         commits.forEach((commit, index) => {
             const commitElement = createCommitElement(commit, index);
             commitList.appendChild(commitElement);
@@ -1845,7 +1885,7 @@ import { getIcon } from './utils/icons.js';
         }
 
         // 设置搜索状态
-        setState('searchTerm', searchTerm);
+        setSearchTerm(searchTerm);
 
         // 重置提交状态并重新加载
         resetCommitState();
@@ -1865,7 +1905,7 @@ import { getIcon } from './utils/icons.js';
      * 清除提交搜索
      */
     function clearCommitSearch() {
-        setState('searchTerm', '');
+        clearSearchTerm();
         hideSearchStatus();
 
         // 重新加载所有提交
@@ -1916,24 +1956,42 @@ import { getIcon } from './utils/icons.js';
         hideSearchStatus();
         
         if (commits.length === 0) {
-            // 清空提交列表，不显示任何内容
+            // 清空提交列表，显示无结果信息
+            setState('commits', []);
+            setState('loadedCommits', 0);
+            setState('totalCommits', 0);
+            
             const commitList = document.getElementById('commitList');
             if (commitList) {
-                commitList.innerHTML = '';
+                commitList.innerHTML = `
+                    <div class="panel-header">
+                        <div class="commit-list-headers">
+                            <div class="header-hash">Hash</div>
+                            <div class="header-message">Message</div>
+                            <div class="header-refs">Tags</div>
+                            <div class="header-author clickable" id="headerAuthor">Author</div>
+                            <div class="header-date">Date</div>
+                        </div>
+                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
+                    </div>
+                    <div class="no-results">No commits found for "${escapeHtml(searchTerm)}"</div>
+                `;
+                // 绑定作者筛选点击事件
+                bindAuthorFilterEvent();
+                rebindCollapseButtons();
             }
-            // 设置总数为0
-            setState('totalCommits', 0);
         } else {
-            // 更新提交历史显示
-            updateCommitHistory({
-                commits: commits,
-                skip: 0,
-                hasMore: false
-            });
-
-            // 设置总数
+            // 设置新的提交数据，完全替换之前的数据
+            setState('commits', commits);
+            setState('loadedCommits', commits.length);
             setState('totalCommits', commits.length);
+            
+            // 使用平滑更新机制，与 updateCommitHistory 保持一致
+            updateCommitListSmoothly(commits);
         }
+        
+        // 更新多选信息显示
+        updateMultiSelectInfo();
     }
 
 })(); // 立即执行函数表达式结束

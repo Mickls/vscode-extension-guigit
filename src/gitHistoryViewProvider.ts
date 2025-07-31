@@ -145,6 +145,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "resetAutoStashPreference":
           await this._handleResetAutoStashPreference();
           break;
+        case "currentFilterState":
+          await this._initializeViewWithFilter(data.filterState);
+          break;
         // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
@@ -178,6 +181,48 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * 使用筛选状态初始化视图
+   * @param filterState 筛选状态
+   */
+  private async _initializeViewWithFilter(filterState: any) {
+    if (!this._view) return;
+
+    // 检查是否有Git仓库
+    const hasGitRepo = await this._checkForGitRepository();
+    if (!hasGitRepo) {
+      // 显示无Git仓库的提示
+      this._view.webview.postMessage({
+        type: "noGitRepository",
+        message: "No Git repository found in the current workspace.",
+      });
+      return;
+    }
+
+    // 有Git仓库，按顺序初始化以减少并发压力
+    await this._sendRepositories();
+    await this._sendBranches();
+    
+    // 根据筛选状态决定发送什么数据
+    if (filterState && filterState.searchTerm) {
+      // 如果有搜索词，发送搜索结果
+      await this._sendSearchResults(
+        filterState.searchTerm, 
+        filterState.currentBranch, 
+        filterState.authorFilter
+      );
+    } else {
+      // 否则发送普通的提交历史
+      await this._sendCommitHistory(
+        filterState?.currentBranch, 
+        0, 
+        filterState?.authorFilter
+      );
+    }
+    
+    this._sendViewMode();
+  }
+
+  /**
    * 检查是否有Git仓库
    */
   private async _checkForGitRepository(): Promise<boolean> {
@@ -203,18 +248,25 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   /**
    * 刷新Git历史视图（优化版本）
    * 使用防抖机制避免频繁刷新，增加延迟时间
+   * 保持当前的筛选状态
    */
   public refresh() {
     if (this._refreshTimeout) {
       clearTimeout(this._refreshTimeout);
     }
 
-    this._refreshTimeout = setTimeout(() => {
+    this._refreshTimeout = setTimeout(async () => {
       if (this._view) {
         console.time("refresh-view");
+        
         // 清理后端缓存
         this._gitHistoryProvider.clearCache();
-        this._initializeView();
+        
+        // 请求前端当前的筛选状态，响应将通过 currentFilterState 消息处理
+        this._view.webview.postMessage({
+          type: "requestCurrentFilterState"
+        });
+        
         console.timeEnd("refresh-view");
       }
     }, 1500); // 增加到1.5秒防抖延迟，减少频繁刷新
@@ -1290,6 +1342,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         refresh: "refresh",
         collapseLeft: "chevron-left",
         collapseRight: "chevron-right",
+        close: "close",
       };
 
       const codiconName = iconMap[iconName];

@@ -85,53 +85,75 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // 优化Git仓库变化监听，减少不必要的刷新
+  // 优化Git仓库变化监听，添加完整的仓库状态监听
+  // 创建统一的防抖刷新函数，避免多个监听器同时触发
+  let globalRefreshTimeout: NodeJS.Timeout | undefined;
+  const unifiedDebouncedRefresh = (reason: string) => {
+    if (globalRefreshTimeout) {
+      clearTimeout(globalRefreshTimeout);
+    }
+    console.log(`Git change detected (${reason}), scheduling refresh...`);
+    globalRefreshTimeout = setTimeout(() => {
+      console.log('Executing unified refresh...');
+      gitHistoryViewProvider.refresh();
+    }, 1500); // 统一使用1.5秒防抖延迟
+  };
+
   const gitExtension = vscode.extensions.getExtension("vscode.git");
   if (gitExtension) {
     const git = gitExtension.exports.getAPI(1);
     
-    // 创建防抖刷新函数，避免频繁刷新
-    let refreshTimeout: NodeJS.Timeout | undefined;
-    const debouncedRefresh = () => {
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-      }
-      refreshTimeout = setTimeout(() => {
-        gitHistoryViewProvider.refresh();
-      }, 2000); // 增加到2秒防抖延迟，减少频繁刷新
-    };
-    
-    // 只监听新仓库打开，减少监听器数量
+    // 监听新仓库打开
     git.onDidOpenRepository((repo: any) => {
-      // 只在仓库首次打开时刷新
+      // 仓库首次打开时刷新
       setTimeout(() => {
         gitHistoryViewProvider.refresh();
       }, 1000);
+      
+      // 为新打开的仓库添加状态变化监听
+      if (repo && repo.state && repo.state.onDidChange) {
+        const stateChangeDisposable = repo.state.onDidChange(() => {
+          unifiedDebouncedRefresh('repository state change');
+        });
+        context.subscriptions.push(stateChangeDisposable);
+      }
+    });
+    
+    // 为已存在的仓库添加状态变化监听
+    git.repositories.forEach((repo: any) => {
+      if (repo && repo.state && repo.state.onDidChange) {
+        const stateChangeDisposable = repo.state.onDidChange(() => {
+          unifiedDebouncedRefresh('repository state change');
+        });
+        context.subscriptions.push(stateChangeDisposable);
+      }
     });
   }
   
-  // 只监听最关键的Git文件变化
+  // 监听Git文件系统变化
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
-    // 只监听HEAD文件变化（分支切换）
+    // 监听HEAD文件变化（分支切换）
     const gitHeadWatcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(workspaceFolders[0], '.git/HEAD')
     );
+    gitHeadWatcher.onDidChange(() => unifiedDebouncedRefresh('HEAD file change'));
     
-    // 创建防抖刷新函数
-    let gitFileRefreshTimeout: NodeJS.Timeout | undefined;
-    const debouncedGitFileRefresh = () => {
-      if (gitFileRefreshTimeout) {
-        clearTimeout(gitFileRefreshTimeout);
-      }
-      gitFileRefreshTimeout = setTimeout(() => {
-        gitHistoryViewProvider.refresh();
-      }, 1000); // 1秒防抖延迟
-    };
+    // 监听refs目录变化（新提交、分支创建等）
+    const gitRefsWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(workspaceFolders[0], '.git/refs/**')
+    );
+    gitRefsWatcher.onDidChange(() => unifiedDebouncedRefresh('refs change'));
+    gitRefsWatcher.onDidCreate(() => unifiedDebouncedRefresh('refs create'));
+    gitRefsWatcher.onDidDelete(() => unifiedDebouncedRefresh('refs delete'));
     
-    gitHeadWatcher.onDidChange(debouncedGitFileRefresh);
+    // 监听index文件变化（暂存区变化）
+    const gitIndexWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(workspaceFolders[0], '.git/index')
+    );
+    gitIndexWatcher.onDidChange(() => unifiedDebouncedRefresh('index change'));
     
-    context.subscriptions.push(gitHeadWatcher);
+    context.subscriptions.push(gitHeadWatcher, gitRefsWatcher, gitIndexWatcher);
   }
 
   context.subscriptions.push(

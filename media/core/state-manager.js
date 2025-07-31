@@ -25,6 +25,7 @@ const state = {
     
     // 筛选状态
     authorFilter: [],      // 作者筛选条件数组
+    searchTerm: '',        // 搜索关键词
     
     // 缓存和性能优化
     commitDetailsCache: new Map(), // 缓存commit详情，避免重复请求
@@ -44,7 +45,8 @@ const listeners = {
     currentCommit: [],
     currentBranch: [],
     isLoading: [],
-    authorFilter: []
+    authorFilter: [],
+    searchTerm: []
 };
 
 /**
@@ -221,6 +223,7 @@ export function resetAllState() {
         isLoading: false,
         fileViewMode: 'list',
         authorFilter: [],
+        searchTerm: '',
         searchingForCommit: null,
         pendingJumpCommit: null
     });
@@ -333,6 +336,33 @@ export function removeAuthorFilter(author) {
  */
 export function clearAuthorFilter() {
     setState('authorFilter', []);
+}
+
+/**
+ * 设置搜索关键词
+ * @param {string} term - 搜索关键词
+ */
+export function setSearchTerm(term) {
+    setState('searchTerm', term);
+}
+
+/**
+ * 清空搜索关键词
+ */
+export function clearSearchTerm() {
+    setState('searchTerm', '');
+}
+
+/**
+ * 获取当前筛选状态
+ * @returns {Object} 当前的筛选状态
+ */
+export function getCurrentFilterState() {
+    return {
+        searchTerm: getState('searchTerm'),
+        authorFilter: getState('authorFilter'),
+        currentBranch: getState('currentBranch')
+    };
 }
 
 /**
