@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
-import { GitBlameDecorator } from "./gitBlameDecorator";
-import { GitBlameProvider } from "./gitBlameProvider";
 import { GitHistoryProvider } from "./gitHistoryProvider";
 import { GitHistoryViewProvider } from "./gitHistoryViewProvider";
+import { GitBlameProvider } from "./gitBlameProvider";
+import { GitBlameDecorator } from "./gitBlameDecorator";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("GUI Git extension is now active!");
@@ -63,17 +63,15 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       try {
-        const commitDetails = await gitBlameProvider.getCommitDetails(
-          commitHash
-        );
+        const commitDetails = await gitBlameProvider.getCommitDetails(commitHash);
         if (commitDetails) {
           const panel = vscode.window.createWebviewPanel(
-            "commitDetails",
+            'commitDetails',
             `Commit ${commitHash.substring(0, 7)}`,
             vscode.ViewColumn.One,
             {
               enableScripts: true,
-              retainContextWhenHidden: true,
+              retainContextWhenHidden: true
             }
           );
 
@@ -87,97 +85,58 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // 增强Git仓库变化监听
+  // 优化Git仓库变化监听，减少不必要的刷新
   const gitExtension = vscode.extensions.getExtension("vscode.git");
   if (gitExtension) {
     const git = gitExtension.exports.getAPI(1);
-
-    // 创建防抖刷新函数，使用更长的延迟来避免与筛选操作冲突
+    
+    // 创建防抖刷新函数，避免频繁刷新
     let refreshTimeout: NodeJS.Timeout | undefined;
-    let lastRefreshTime = 0;
     const debouncedRefresh = () => {
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
       }
       refreshTimeout = setTimeout(() => {
-        const now = Date.now();
-        // 避免过于频繁的刷新（至少间隔5秒）
-        if (now - lastRefreshTime > 5000) {
-          lastRefreshTime = now;
-          gitHistoryViewProvider.refresh();
-        }
-      }, 3000); // 3秒防抖延迟，给筛选操作足够的时间
+        gitHistoryViewProvider.refresh();
+      }, 2000); // 增加到2秒防抖延迟，减少频繁刷新
     };
-
-    // 监听仓库打开
+    
+    // 只监听新仓库打开，减少监听器数量
     git.onDidOpenRepository((repo: any) => {
-      console.log("Git repository opened, refreshing view");
+      // 只在仓库首次打开时刷新
       setTimeout(() => {
         gitHistoryViewProvider.refresh();
       }, 1000);
-
-      // 为新打开的仓库添加状态变化监听
-      if (repo && repo.state) {
-        // 监听仓库状态变化（包括提交、分支切换等）
-        repo.state.onDidChange(() => {
-          console.log("Repository state changed, triggering refresh");
-          debouncedRefresh();
-        });
-      }
-    });
-
-    // 监听现有仓库的状态变化
-    git.repositories.forEach((repo: any) => {
-      if (repo && repo.state) {
-        repo.state.onDidChange(() => {
-          console.log("Existing repository state changed, triggering refresh");
-          debouncedRefresh();
-        });
-      }
     });
   }
-
-  // 监听关键的Git文件变化（仅监听真正的提交变化）
+  
+  // 只监听最关键的Git文件变化
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
-    // 创建防抖刷新函数，使用更长的延迟来避免与筛选操作冲突
+    // 只监听HEAD文件变化（分支切换）
+    const gitHeadWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(workspaceFolders[0], '.git/HEAD')
+    );
+    
+    // 创建防抖刷新函数
     let gitFileRefreshTimeout: NodeJS.Timeout | undefined;
-    let lastGitFileRefreshTime = 0;
     const debouncedGitFileRefresh = () => {
       if (gitFileRefreshTimeout) {
         clearTimeout(gitFileRefreshTimeout);
       }
       gitFileRefreshTimeout = setTimeout(() => {
-        const now = Date.now();
-        // 避免过于频繁的刷新（至少间隔3秒）
-        if (now - lastGitFileRefreshTime > 3000) {
-          lastGitFileRefreshTime = now;
-          gitHistoryViewProvider.refresh();
-        }
-      }, 2000); // 2秒防抖延迟，给筛选操作足够的时间
+        gitHistoryViewProvider.refresh();
+      }, 1000); // 1秒防抖延迟
     };
-
-    // 监听HEAD文件变化（分支切换）
-    const gitHeadWatcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(workspaceFolders[0], ".git/HEAD")
-    );
+    
     gitHeadWatcher.onDidChange(debouncedGitFileRefresh);
-
-    // 监听refs/heads目录变化（新提交、分支创建/删除）
-    // 只监听heads目录，避免监听tags等其他refs变化
-    const gitRefsHeadsWatcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(workspaceFolders[0], ".git/refs/heads/**")
-    );
-    gitRefsHeadsWatcher.onDidChange(debouncedGitFileRefresh);
-    gitRefsHeadsWatcher.onDidCreate(debouncedGitFileRefresh);
-    gitRefsHeadsWatcher.onDidDelete(debouncedGitFileRefresh);
-
-    context.subscriptions.push(gitHeadWatcher, gitRefsHeadsWatcher);
+    
+    context.subscriptions.push(gitHeadWatcher);
   }
 
   context.subscriptions.push(
-    provider,
-    showHistoryCommand,
+    provider, 
+    showHistoryCommand, 
     refreshCommand,
     toggleBlameCommand,
     showCommitDetailsCommand,
@@ -196,13 +155,13 @@ function getCommitDetailsHtml(commitDetails: {
   message: string;
   body: string;
 }): string {
-  const formattedDate = commitDetails.date.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+  const formattedDate = commitDetails.date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
   });
 
   return `
@@ -258,32 +217,24 @@ function getCommitDetailsHtml(commitDetails: {
     </head>
     <body>
         <div class="commit-header">
-            <div class="commit-message">${escapeHtml(
-              commitDetails.message
-            )}</div>
+            <div class="commit-message">${escapeHtml(commitDetails.message)}</div>
             <div class="commit-meta">
                 <span class="label">提交哈希:</span> 
                 <span class="commit-hash">${commitDetails.hash}</span>
             </div>
             <div class="commit-meta">
-                <span class="label">作者:</span> ${escapeHtml(
-                  commitDetails.author
-                )} &lt;${escapeHtml(commitDetails.email)}&gt;
+                <span class="label">作者:</span> ${escapeHtml(commitDetails.author)} &lt;${escapeHtml(commitDetails.email)}&gt;
             </div>
             <div class="commit-meta">
                 <span class="label">提交时间:</span> ${formattedDate}
             </div>
         </div>
-        ${
-          commitDetails.body
-            ? `
+        ${commitDetails.body ? `
         <div class="commit-body">
             <div class="label">详细描述:</div>
             ${escapeHtml(commitDetails.body)}
         </div>
-        `
-            : ""
-        }
+        ` : ''}
     </body>
     </html>
   `;
@@ -294,11 +245,11 @@ function getCommitDetailsHtml(commitDetails: {
  */
 function escapeHtml(text: string): string {
   return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function deactivate() {}
