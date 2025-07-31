@@ -13,26 +13,7 @@ export interface GitCommit {
   parents: string[];
   children: string[];
   branchName?: string;
-  graphInfo?: GitGraphInfo;
   canEditMessage?: boolean; // 是否可以编辑提交消息
-}
-
-export interface GitGraphInfo {
-  column: number;
-  lanes: GitLane[];
-  mergeInfo?: {
-    isMerge: boolean;
-    mergeFrom?: number;
-    mergeTo?: number;
-  };
-}
-
-export interface GitLane {
-  type: "commit" | "line" | "merge" | "fork";
-  color: string;
-  column: number;
-  direction?: "up" | "down" | "left" | "right";
-  char?: string; // 原始字符，用于特殊渲染
 }
 
 export interface GitBranch {
@@ -456,7 +437,6 @@ export class GitHistoryProvider {
         // 构建搜索参数
         const args = [
           "log",
-          "--graph",
           `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
           "--encoding=UTF-8",
           `--max-count=${limit}`,
@@ -489,7 +469,6 @@ export class GitHistoryProvider {
           // 先执行一次搜索获取所有可能的提交
           const hashSearchArgs = [
             "log",
-            "--graph",
             `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
             "--encoding=UTF-8",
             `--max-count=${limit * 2}`, // 获取更多提交用于哈希匹配
@@ -522,15 +501,9 @@ export class GitHistoryProvider {
             for (const line of allLines) {
               if (hashMatchCount >= limit) break;
 
-              const graphMatch = line.match(/^([\s\|\\\/*]+)(.*)$/);
-              if (!graphMatch) continue;
+              if (!line.includes("|")) continue;
 
-              const graphPart = graphMatch[1];
-              const commitPart = graphMatch[2];
-
-              if (!commitPart.includes("|")) continue;
-
-              const parts = commitPart.split("|");
+              const parts = line.split("|");
               const hash = parts[0]?.trim() || "";
               
               if (!hash || hash.length < 7) continue;
@@ -544,8 +517,6 @@ export class GitHistoryProvider {
                       .filter((p) => p)
                   : [];
 
-                const graphInfo = this.parseGraphInfo(graphPart, parents.length > 1);
-
                 const commit: GitCommit = {
                   hash,
                   date: parts[1]?.trim() || "",
@@ -556,7 +527,6 @@ export class GitHistoryProvider {
                   body: "",
                   parents,
                   children: [],
-                  graphInfo,
                 };
 
                 hashMatchedCommits.push(commit);
@@ -595,16 +565,10 @@ export class GitHistoryProvider {
         );
 
         for (const line of lines) {
-          const graphMatch = line.match(/^([\s\|\\\/*]+)(.*)$/);
-          if (!graphMatch) continue;
-
-          const graphPart = graphMatch[1];
-          const commitPart = graphMatch[2];
-
           // 检查是否包含提交信息
-          if (!commitPart.includes("|")) continue;
+          if (!line.includes("|")) continue;
 
-          const parts = commitPart.split("|");
+          const parts = line.split("|");
 
           // 验证是否为有效的提交记录
           const hash = parts[0]?.trim() || "";
@@ -618,9 +582,6 @@ export class GitHistoryProvider {
                 .filter((p) => p)
             : [];
 
-          // 解析图形信息
-          const graphInfo = this.parseGraphInfo(graphPart, parents.length > 1);
-
           const commit: GitCommit = {
             hash,
             date: parts[1]?.trim() || "",
@@ -631,7 +592,6 @@ export class GitHistoryProvider {
             body: "",
             parents,
             children: [],
-            graphInfo,
           };
 
           commits.push(commit);
@@ -664,7 +624,6 @@ export class GitHistoryProvider {
         // 使用更简化的格式，减少解析复杂度
         const args = [
           "log",
-          "--graph",
           "--all", // 显示所有分支
           `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
           "--encoding=UTF-8",
@@ -700,16 +659,10 @@ export class GitHistoryProvider {
         console.log(`Found ${lines.length} lines to process`);
 
         for (const line of lines) {
-          const graphMatch = line.match(/^([\s\|\\\/*]+)(.*)$/);
-          if (!graphMatch) continue;
-
-          const graphPart = graphMatch[1];
-          const commitPart = graphMatch[2];
-
           // 检查是否包含提交信息
-          if (!commitPart.includes("|")) continue;
+          if (!line.includes("|")) continue;
 
-          const parts = commitPart.split("|");
+          const parts = line.split("|");
 
           // 验证是否为有效的提交记录
           const hash = parts[0]?.trim() || "";
@@ -723,9 +676,6 @@ export class GitHistoryProvider {
                 .filter((p) => p)
             : [];
 
-          // 解析图形信息
-          const graphInfo = this.parseGraphInfo(graphPart, parents.length > 1);
-
           const commit: GitCommit = {
             hash,
             date: parts[1]?.trim() || "",
@@ -736,7 +686,6 @@ export class GitHistoryProvider {
             body: "", // 简化：不在列表视图中加载body
             parents,
             children: [], // 将在后处理中填充
-            graphInfo,
           };
 
           commits.push(commit);
@@ -757,101 +706,13 @@ export class GitHistoryProvider {
 
         console.timeEnd(`getCommitHistory-${skip}-${limit}`);
         console.log(
-          `Successfully processed ${commits.length} commits with graph info`
+          `Successfully processed ${commits.length} commits`
         );
         return commits;
       },
       "Error getting commit history",
       []
     );
-  }
-
-  /**
-   * 解析图形信息
-   */
-  private parseGraphInfo(graphPart: string, isMerge: boolean): GitGraphInfo {
-    const lanes: GitLane[] = [];
-    let column = 0;
-
-    // 改进的图形解析 - 正确处理git log --graph的输出格式
-    // git log --graph的输出格式：每个字符位置代表一列
-    // 主分支通常在最左侧，次要分支向右延伸
-
-    // 找到提交节点（*）的位置
-    const commitIndex = graphPart.indexOf("*");
-    if (commitIndex !== -1) {
-      // 直接使用字符位置作为列号，确保位置一致性
-      column = commitIndex;
-    }
-
-    // 生成颜色（基于列号）
-    const colors = [
-      "#007acc",
-      "#f14c4c",
-      "#00aa00",
-      "#ff8800",
-      "#aa00aa",
-      "#00aaaa",
-    ];
-    const color = colors[column % colors.length];
-
-    // 解析所有活跃的车道
-    for (let i = 0; i < graphPart.length; i++) {
-      const char = graphPart[i];
-      if (char === "*" || char === "|" || char === "\\" || char === "/") {
-        // 为每个活跃位置创建车道
-        const laneColor = colors[i % colors.length];
-
-        let laneType: "commit" | "line" | "merge" | "fork" = "line";
-        let direction: "up" | "down" | "left" | "right" | undefined;
-
-        // 根据字符类型确定车道类型和方向
-        if (char === "*") {
-          laneType = "commit";
-        } else if (char === "|") {
-          laneType = "line";
-          direction = "up";
-        } else if (char === "\\") {
-          laneType = "merge";
-          direction = "right";
-        } else if (char === "/") {
-          laneType = "fork";
-          direction = "left";
-        }
-
-        lanes.push({
-          type: laneType,
-          color: laneColor,
-          column: i,
-          direction,
-          char,
-        });
-      }
-    }
-
-    // 如果没有找到任何车道，至少创建一个提交车道
-    if (lanes.length === 0) {
-      lanes.push({
-        type: "commit",
-        color: colors[0],
-        column: 0,
-      });
-    }
-
-    // 如果是合并提交，添加合并信息
-    const mergeInfo = isMerge
-      ? {
-          isMerge: true,
-          mergeFrom: column + 1,
-          mergeTo: column,
-        }
-      : undefined;
-
-    return {
-      column,
-      lanes,
-      mergeInfo,
-    };
   }
 
   /**

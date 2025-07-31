@@ -5,8 +5,6 @@
 import { formatDate } from './utils/date-utils.js';
 import { escapeHtml, showError } from './utils/dom-utils.js';
 import { getRefClass, parseRefs } from './utils/git-utils.js';
-// 导入Git图谱绘制模块
-import { createGraphHtml } from './components/commit-graph.js';
 // 导入文件树组件模块
 import {
     buildFileTree,
@@ -334,9 +332,7 @@ import { getIcon } from './utils/icons.js';
                     commitsLength: message.data?.commits?.length,
                     firstCommit: message.data?.commits?.[0] ? {
                         hash: message.data.commits[0].hash?.substring(0, 7),
-                        message: message.data.commits[0].message,
-                        hasGraphInfo: !!message.data.commits[0].graphInfo,
-                        graphInfo: message.data.commits[0].graphInfo
+                        message: message.data.commits[0].message
                     } : null
                 });
                 updateCommitHistory(message.data); // 更新提交历史记录
@@ -873,15 +869,7 @@ import { getIcon } from './utils/icons.js';
 
         const refs = commit.refs ? parseRefs(commit.refs) : [];
         
-        // 创建图形部分
-        // 计算最大列数，确保图形有足够的宽度
-        const maxColumns = Math.max(
-            10, // 默认最小列数
-            commit.graphInfo ? Math.max(...commit.graphInfo.lanes.map(lane => lane.column)) + 2 : 5
-        );
-        const graphHtml = createGraphHtml(commit, index, maxColumns);
-
-        div.innerHTML = Templates.commitElement(commit, graphHtml, refs);
+        div.innerHTML = Templates.commitElement(commit, refs);
 
         // 添加点击事件监听器 - 处理提交记录的选择
         div.addEventListener('click', (e) => {

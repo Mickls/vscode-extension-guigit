@@ -398,7 +398,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 0;
-  margin-left: 50px; /* 与commit-graph宽度对齐 */
+  margin-left: 0; /* 移除图形对齐 */
   font-size: 11px;
   font-weight: 600;
   color: var(--vscode-descriptionForeground);
@@ -900,12 +900,6 @@ body.resizing .resizer {
   pointer-events: none;
 }
 
-/* 让图形部分的垂直线能够穿过分割线 */
-.commit-item .commit-graph {
-  position: relative;
-  z-index: 5;
-}
-
 /* 确保分割线在垂直线条下方 */
 .commit-item {
   position: relative;
@@ -928,165 +922,6 @@ body.resizing .resizer {
 .commit-item.multi-selected .commit-content {
   background-color: var(--vscode-list-inactiveSelectionBackground);
   color: var(--vscode-list-inactiveSelectionForeground);
-}
-
-/* 图形部分 */
-.commit-graph {
-  display: flex;
-  align-items: stretch;
-  min-width: 50px;
-  flex-shrink: 0;
-  position: relative;
-  background-color: var(--vscode-editor-background);
-}
-
-.graph-column {
-  width: 16px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  flex-grow: 0;
-}
-
-/* 垂直线条 - 连续的分支线 */
-.graph-vertical-line {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  transform: translateX(-50%);
-  z-index: 1;
-}
-
-/* 水平连接线 - 用于分支合并 */
-.graph-horizontal-line {
-  position: absolute;
-  height: 2px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  background-color: currentColor;
-  left: 50%;
-  right: 0;
-}
-
-/* 水平线方向变体 */
-.graph-horizontal-line.left {
-  left: 0;
-  right: 50%;
-}
-
-.graph-horizontal-line.right {
-  left: 50%;
-  right: 0;
-}
-
-/* 提交节点 */
-.commit-node {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 2px solid var(--vscode-editor-background);
-  z-index: 3;
-  position: relative;
-}
-
-/* 合并节点 */
-.merge-node {
-  width: 10px;
-  height: 10px;
-  border-radius: 1px;
-  border: 2px solid var(--vscode-editor-background);
-  z-index: 3;
-  position: relative;
-  transform: rotate(45deg);
-}
-
-/* 弯曲连接线 - 用于分支分叉和合并的圆滑过渡 */
-.graph-curve {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border: 2px solid transparent;
-  z-index: 2;
-}
-
-/* 各种弯曲方向 */
-.graph-curve.top-left {
-  top: 0;
-  left: 0;
-  border-top-color: inherit;
-  border-left-color: inherit;
-  border-top-left-radius: 12px;
-}
-
-.graph-curve.top-right {
-  top: 0;
-  right: 0;
-  border-top-color: inherit;
-  border-right-color: inherit;
-  border-top-right-radius: 12px;
-}
-
-.graph-curve.bottom-left {
-  bottom: 0;
-  left: 0;
-  border-bottom-color: inherit;
-  border-left-color: inherit;
-  border-bottom-left-radius: 12px;
-}
-
-.graph-curve.bottom-right {
-  bottom: 0;
-  right: 0;
-  border-bottom-color: inherit;
-  border-right-color: inherit;
-  border-bottom-right-radius: 12px;
-}
-
-/* 分支分叉弯曲连接线样式 */
-.graph-fork-curve {
-  position: absolute;
-  z-index: 2;
-  border: 2px solid transparent;
-  box-sizing: border-box;
-  --fork-width: 16px; /* 默认宽度，会被JavaScript动态设置 */
-}
-
-/* 向右分叉的连接线 - 从提交节点中心向右下连接到目标列 */
-.graph-fork-curve.fork-right {
-  top: 0%;
-  left: 50%;
-  width: calc(var(--fork-width) + 1px); /* 减去1px确保精确对齐 */
-  height: calc(50% + 1px); /* 从中心延伸到底部边界 */
-  border-bottom: 2px solid;
-  border-right: 2px solid;
-  border-left: 0;
-  border-top: 0;
-  border-bottom-right-radius: 20px;
-  transform: translateY(-1px); /* 从commit-node中心开始 */
-}
-
-/* 向左分叉的连接线 - 从提交节点中心向左下连接到目标列 */
-.graph-fork-curve.fork-left {
-  top: 0%;
-  right: 50%;
-  width: calc(var(--fork-width) + 1px); /* 减去1px确保精确对齐 */
-  height: calc(50% + 1px); /* 从中心延伸到底部边界 */
-  border-bottom: 2px solid;
-  border-left: 2px solid;
-  border-right: 0;
-  border-top: 0;
-  border-bottom-left-radius: 20px;
-  transform: translateY(-1px); /* 从commit-node中心开始 */
-}
-
-.graph-placeholder {
-  width: 120px;
-  height: 50px;
 }
 
 /* 提交内容部分 */

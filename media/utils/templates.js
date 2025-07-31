@@ -510,18 +510,16 @@ export const Templates = {
     /**
      * 创建提交元素模板
      * @param {Object} commit - 提交对象
-     * @param {string} graphHtml - 图形HTML
      * @param {Array} refs - 引用列表
      * @returns {string} 提交元素HTML
      */
-    commitElement(commit, graphHtml, refs = []) {
+    commitElement(commit, refs = []) {
         const refsHtml = refs.map(ref => {
             const refClass = getRefClass(ref);
             return `<span class="ref-tag ${refClass}">${ref}</span>`;
         }).join('');
 
         return `
-            <div class="commit-graph">${graphHtml}</div>
             <div class="commit-content">
                 <div class="commit-hash" title="${commit.hash}">${commit.hash.substring(0, 8)}</div>
                 <div class="commit-message" title="${escapeHtml(commit.message)}">${escapeHtml(commit.message)}</div>
