@@ -1,6 +1,6 @@
 import { simpleGit, SimpleGit } from "simple-git";
 import * as vscode from "vscode";
-import { ProxyManager, ProxyConfig } from "./proxyManager";
+import { ProxyManager } from "./proxyManager";
 
 export interface GitCommit {
   hash: string;
@@ -60,6 +60,10 @@ export class GitHistoryProvider {
     { count: number; timestamp: number }
   >();
   private readonly COMMIT_COUNT_CACHE_TTL = 2 * 60 * 1000; // 2分钟缓存
+  // 自动修剪 fetch 节流控制
+  private lastAutoPruneFetchTime: number = 0;
+  private autoFetchInProgress: boolean = false;
+  private readonly AUTO_PRUNE_FETCH_INTERVAL = 10 * 60 * 1000; // 10分钟
 
   constructor() {
     this.proxyManager = ProxyManager.getInstance();
@@ -261,15 +265,12 @@ export class GitHistoryProvider {
 
     // 获取代理配置
     const proxyConfig = await this.proxyManager.getProxyConfig();
-    
+
     // 应用代理配置到环境变量
     this.proxyManager.applyProxyToEnvironment(proxyConfig);
 
     // 构建Git配置
-    const gitConfig = [
-      "core.quotepath=false", 
-      "log.showSignature=false"
-    ];
+    const gitConfig = ["core.quotepath=false", "log.showSignature=false"];
 
     // 添加代理配置
     const proxyGitConfig = this.proxyManager.getGitProxyConfig(proxyConfig);
@@ -286,7 +287,7 @@ export class GitHistoryProvider {
 
     console.log(`切换到仓库: ${repository.name} (${repository.path})`);
     if (proxyConfig.enabled) {
-      console.log('已应用代理配置:', proxyConfig);
+      console.log("已应用代理配置:", proxyConfig);
     }
   }
 
@@ -300,11 +301,11 @@ export class GitHistoryProvider {
 
     // 清除代理缓存
     this.proxyManager.clearCache();
-    
+
     // 重新设置当前仓库以应用新的代理配置
     await this.setCurrentRepository(this.currentRepository);
-    
-    vscode.window.showInformationMessage('代理配置已刷新');
+
+    vscode.window.showInformationMessage("代理配置已刷新");
   }
 
   /**
@@ -324,30 +325,36 @@ export class GitHistoryProvider {
       return await operation();
     } catch (error: any) {
       const errorStr = error?.message || error?.toString() || "Unknown error";
-      
+
       // 检查是否是网络连接错误
       if (this.isNetworkError(errorStr)) {
-        console.warn(`${errorMessage} - 检测到网络错误，尝试刷新代理配置后重试:`, errorStr);
-        
+        console.warn(
+          `${errorMessage} - 检测到网络错误，尝试刷新代理配置后重试:`,
+          errorStr
+        );
+
         try {
           // 刷新代理配置
           await this.refreshProxyConfig();
-          
+
           // 重试操作
           return await operation();
         } catch (retryError: any) {
-          const retryErrorStr = retryError?.message || retryError?.toString() || "Unknown error";
+          const retryErrorStr =
+            retryError?.message || retryError?.toString() || "Unknown error";
           console.error(`${errorMessage} - 重试失败:`, retryErrorStr);
-          
+
           // 如果仍然是网络错误，提供更友好的错误信息
           if (this.isNetworkError(retryErrorStr)) {
-            throw new Error(`网络连接失败: ${retryErrorStr}\n\n建议:\n1. 检查网络连接\n2. 确认代理设置是否正确\n3. 尝试使用VPN或代理工具`);
+            throw new Error(
+              `网络连接失败: ${retryErrorStr}\n\n建议:\n1. 检查网络连接\n2. 确认代理设置是否正确\n3. 尝试使用VPN或代理工具`
+            );
           }
-          
+
           throw retryError;
         }
       }
-      
+
       console.error(`${errorMessage}:`, error);
       throw error;
     }
@@ -358,20 +365,20 @@ export class GitHistoryProvider {
    */
   private isNetworkError(errorMessage: string): boolean {
     const networkErrorPatterns = [
-      'Failed to connect to github.com',
-      'Couldn\'t connect to server',
-      'Connection timed out',
-      'Network is unreachable',
-      'Name or service not known',
-      'Temporary failure in name resolution',
-      'unable to access',
-      'Could not resolve host',
-      'SSL connect error',
-      'OpenSSL SSL_connect',
-      'gnutls_handshake() failed'
+      "Failed to connect to github.com",
+      "Couldn't connect to server",
+      "Connection timed out",
+      "Network is unreachable",
+      "Name or service not known",
+      "Temporary failure in name resolution",
+      "unable to access",
+      "Could not resolve host",
+      "SSL connect error",
+      "OpenSSL SSL_connect",
+      "gnutls_handshake() failed",
     ];
 
-    return networkErrorPatterns.some(pattern => 
+    return networkErrorPatterns.some((pattern) =>
       errorMessage.toLowerCase().includes(pattern.toLowerCase())
     );
   }
@@ -464,7 +471,7 @@ export class GitHistoryProvider {
           // 使用 --grep 搜索提交消息中包含该字符串的提交
           args.push(`--grep=${searchTerm}`);
           args.push("-i"); // 忽略大小写
-          
+
           // 同时尝试哈希前缀匹配
           // 先执行一次搜索获取所有可能的提交
           const hashSearchArgs = [
@@ -473,7 +480,7 @@ export class GitHistoryProvider {
             "--encoding=UTF-8",
             `--max-count=${limit * 2}`, // 获取更多提交用于哈希匹配
           ];
-          
+
           if (branch && branch !== "all") {
             hashSearchArgs.push(branch);
           } else {
@@ -505,7 +512,7 @@ export class GitHistoryProvider {
 
               const parts = line.split("|");
               const hash = parts[0]?.trim() || "";
-              
+
               if (!hash || hash.length < 7) continue;
 
               // 检查哈希是否以搜索词开头
@@ -538,11 +545,15 @@ export class GitHistoryProvider {
             if (hashMatchedCommits.length > 0) {
               this.buildParentChildRelationships(hashMatchedCommits);
               console.timeEnd(`searchCommits-${searchTerm}`);
-              console.log(`Found ${hashMatchedCommits.length} commits by hash prefix`);
+              console.log(
+                `Found ${hashMatchedCommits.length} commits by hash prefix`
+              );
               return hashMatchedCommits;
             }
           } catch (error) {
-            console.log("Hash prefix search failed, falling back to grep search");
+            console.log(
+              "Hash prefix search failed, falling back to grep search"
+            );
           }
         } else {
           // 如果不是哈希值，在提交消息中搜索
@@ -705,9 +716,7 @@ export class GitHistoryProvider {
         }
 
         console.timeEnd(`getCommitHistory-${skip}-${limit}`);
-        console.log(
-          `Successfully processed ${commits.length} commits`
-        );
+        console.log(`Successfully processed ${commits.length} commits`);
         return commits;
       },
       "Error getting commit history",
@@ -2062,7 +2071,8 @@ export class GitHistoryProvider {
       );
       return true;
     } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
       throw new Error(`Pull failed: ${errorMessage}`);
     }
   }
@@ -2118,7 +2128,8 @@ export class GitHistoryProvider {
       );
       return true;
     } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
       throw new Error(`Push failed: ${errorMessage}`);
     }
   }
@@ -2348,9 +2359,10 @@ export class GitHistoryProvider {
 
   /**
    * 从远程仓库抓取代码
+   * @param prune 是否修剪已删除的远程分支引用
    * @returns 是否成功
    */
-  async fetchFromRemote(): Promise<boolean> {
+  async fetchFromRemote(prune: boolean = false): Promise<boolean> {
     if (!this.git) {
       throw new Error("Git instance not available");
     }
@@ -2358,7 +2370,12 @@ export class GitHistoryProvider {
     try {
       await this.executeGitCommand(
         async () => {
-          await this.git!.fetch();
+          if (prune) {
+            // 使用 --all --prune 参数，确保清理已删除的远程分支引用
+            await this.git!.fetch(['--all', '--prune']);
+          } else {
+            await this.git!.fetch();
+          }
           return true;
         },
         "Fetch from remote failed",
@@ -2366,8 +2383,37 @@ export class GitHistoryProvider {
       );
       return true;
     } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
       throw new Error(`Fetch failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 自动在合适时机执行带 --prune 的 fetch，避免频繁触发
+   * @param force 是否强制执行（忽略间隔限制）
+   */
+  async autoFetchPruneIfNeeded(force: boolean = false): Promise<void> {
+    if (!this.git) return;
+
+    const now = Date.now();
+    if (!force) {
+      if (this.autoFetchInProgress) {
+        return;
+      }
+      if (now - this.lastAutoPruneFetchTime < this.AUTO_PRUNE_FETCH_INTERVAL) {
+        return;
+      }
+    }
+
+    this.autoFetchInProgress = true;
+    try {
+      await this.fetchFromRemote(true);
+      this.lastAutoPruneFetchTime = Date.now();
+    } catch (err) {
+      console.warn('autoFetchPruneIfNeeded failed:', err);
+    } finally {
+      this.autoFetchInProgress = false;
     }
   }
 

@@ -1648,7 +1648,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           cancellable: false,
         },
         async () => {
-          return await this._gitHistoryProvider.fetchFromRemote();
+          return await this._gitHistoryProvider.fetchFromRemote(true);
         }
       );
 
@@ -1821,6 +1821,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitPullAdvanced() {
     try {
+      // 先尝试抓取并修剪远程引用，确保列表最新
+      // await this._gitHistoryProvider.fetchFromRemote(true);
+
       // 获取所有远程分支列表
       const remoteBranches =
         await this._gitHistoryProvider.getAllRemoteBranches();
@@ -1910,6 +1913,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitPushAdvanced() {
     try {
+      // 先尝试抓取并修剪远程引用，确保列表最新
+      // await this._gitHistoryProvider.fetchFromRemote(true);
+
       // 获取所有远程分支列表
       const remoteBranches =
         await this._gitHistoryProvider.getAllRemoteBranches();

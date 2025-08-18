@@ -95,6 +95,8 @@ export function activate(context: vscode.ExtensionContext) {
     console.log(`Git change detected (${reason}), scheduling refresh...`);
     globalRefreshTimeout = setTimeout(() => {
       console.log('Executing unified refresh...');
+      // 异步触发带 prune 的自动 fetch（节流控制内）
+      gitHistoryProvider.autoFetchPruneIfNeeded().catch(err => console.warn('auto fetch prune skipped/failed:', err));
       gitHistoryViewProvider.refresh();
     }, 1500); // 统一使用1.5秒防抖延迟
   };
