@@ -1,9 +1,13 @@
-import { simpleGit, SimpleGit } from "simple-git";
 import * as vscode from "vscode";
 import { GitCommit, GitBranch, GitRepository, GitFileChange } from "./types/gitTypes";
 import { isNetworkError } from "./utils/gitUtils";
 import { GitCacheManager } from "./cache/gitCacheManager";
 import { GitRepositoryManager } from "./repository/gitRepositoryManager";
+import { GitBranchOperations } from "./operations/branchOperations";
+import { GitRemoteOperations } from "./operations/remoteOperations";
+import { GitCommitOperations } from "./operations/commitOperations";
+import { GitFileOperations } from "./operations/fileOperations";
+import { GitSafetyOperations } from "./operations/safetyOperations";
 
 
 /**
@@ -33,6 +37,31 @@ export class GitHistoryProvider {
   /** 获取当前 Git 实例（向后兼容的 getter） */
   private get git() {
     return this.repoManager.getGit();
+  }
+
+  private get branchOps(): GitBranchOperations | null {
+    const git = this.git;
+    return git ? new GitBranchOperations(git) : null;
+  }
+
+  private get remoteOps(): GitRemoteOperations | null {
+    const git = this.git;
+    return git ? new GitRemoteOperations(git) : null;
+  }
+
+  private get commitOps(): GitCommitOperations | null {
+    const git = this.git;
+    return git ? new GitCommitOperations(git!, this.cacheManager) : null;
+  }
+
+  private get fileOps(): GitFileOperations | null {
+    const git = this.git;
+    return git ? new GitFileOperations(git!) : null;
+  }
+
+  private get safetyOps(): GitSafetyOperations | null {
+    const git = this.git;
+    return git ? new GitSafetyOperations(git) : null;
   }
 
   /**
@@ -188,49 +217,14 @@ export class GitHistoryProvider {
    * 获取所有分支信息
    */
   async getBranches(): Promise<GitBranch[]> {
-    return this.executeGitCommand(
-      async () => {
-        const branchSummary = await this.git!.branch();
-        const branches = branchSummary.all.map((branch) => ({
-          name: branch,
-          current: branch === branchSummary.current,
-          commit: "",
-        }));
-
-        // 对分支进行排序，让 main 或 master 排在最上方
-        return branches.sort((a, b) => {
-          // 检查是否是 main 或 master
-          const isAMainOrMaster = a.name === "main" || a.name === "master";
-          const isBMainOrMaster = b.name === "main" || b.name === "master";
-
-          // 如果 a 是 main/master 而 b 不是，a 排在前面
-          if (isAMainOrMaster && !isBMainOrMaster) {
-            return -1;
-          }
-
-          // 如果 b 是 main/master 而 a 不是，b 排在前面
-          if (isBMainOrMaster && !isAMainOrMaster) {
-            return 1;
-          }
-
-          // 如果都是 main/master，优先显示 main
-          if (isAMainOrMaster && isBMainOrMaster) {
-            if (a.name === "main") return -1;
-            if (b.name === "main") return 1;
-            return 0;
-          }
-
-          // 其他情况按字母顺序排序
-          return a.name.localeCompare(b.name);
-        });
-      },
-      "Error getting branches",
-      []
-    );
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
+    }
+    return this.branchOps.getBranches();
   }
 
   /**
-   * 获取提交历史（带图形信息，优化版本）
+   * 搜索提交
    */
   async searchCommits(
     searchTerm: string,
@@ -238,189 +232,11 @@ export class GitHistoryProvider {
     limit: number = 50,
     authorFilter?: string[]
   ): Promise<GitCommit[]> {
-    return this.executeGitCommand(
-      async () => {
-        console.time(`searchCommits-${searchTerm}`);
-
-        // 构建搜索参数
-        const args = [
-          "log",
-          `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
-          "--encoding=UTF-8",
-          `--max-count=${limit}`,
-        ];
-
-        // 如果指定了分支，只在该分支中搜索
-        if (branch && branch !== "all") {
-          args.push(branch);
-        } else {
-          args.push("--all"); // 在所有分支中搜索
-        }
-
-        // 添加作者筛选
-        if (authorFilter && authorFilter.length > 0) {
-          authorFilter.forEach((author) => {
-            args.push(`--author=${author}`);
-          });
-        }
-
-        // 检查搜索词是否可能是哈希值（至少4个字符的十六进制）
-        const isPossibleHash = /^[a-f0-9]{4,40}$/i.test(searchTerm);
-
-        if (isPossibleHash) {
-          // 对于可能的哈希值，同时搜索哈希和提交消息
-          // 使用 --grep 搜索提交消息中包含该字符串的提交
-          args.push(`--grep=${searchTerm}`);
-          args.push("-i"); // 忽略大小写
-
-          // 同时尝试哈希前缀匹配
-          // 先执行一次搜索获取所有可能的提交
-          const hashSearchArgs = [
-            "log",
-            `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
-            "--encoding=UTF-8",
-            `--max-count=${limit * 2}`, // 获取更多提交用于哈希匹配
-          ];
-
-          if (branch && branch !== "all") {
-            hashSearchArgs.push(branch);
-          } else {
-            hashSearchArgs.push("--all");
-          }
-
-          // 添加作者筛选到哈希搜索
-          if (authorFilter && authorFilter.length > 0) {
-            authorFilter.forEach((author) => {
-              hashSearchArgs.push(`--author=${author}`);
-            });
-          }
-
-          try {
-            // 获取所有提交并筛选哈希匹配的
-            const allCommitsResult = await this.git!.raw(hashSearchArgs);
-            const allLines = allCommitsResult
-              .trim()
-              .split("\n")
-              .filter((line) => line.trim());
-
-            const hashMatchedCommits: GitCommit[] = [];
-            let hashMatchCount = 0;
-
-            for (const line of allLines) {
-              if (hashMatchCount >= limit) break;
-
-              if (!line.includes("|")) continue;
-
-              const parts = line.split("|");
-              const hash = parts[0]?.trim() || "";
-
-              if (!hash || hash.length < 7) continue;
-
-              // 检查哈希是否以搜索词开头
-              if (hash.toLowerCase().startsWith(searchTerm.toLowerCase())) {
-                const parents = parts[6]
-                  ? parts[6]
-                      .trim()
-                      .split(" ")
-                      .filter((p) => p)
-                  : [];
-
-                const commit: GitCommit = {
-                  hash,
-                  date: parts[1]?.trim() || "",
-                  message: parts[2]?.trim() || "",
-                  author: parts[3]?.trim() || "",
-                  email: parts[4]?.trim() || "",
-                  refs: parts[5]?.trim() || "",
-                  body: "",
-                  parents,
-                  children: [],
-                };
-
-                hashMatchedCommits.push(commit);
-                hashMatchCount++;
-              }
-            }
-
-            // 如果找到哈希匹配的提交，优先返回这些
-            if (hashMatchedCommits.length > 0) {
-              this.buildParentChildRelationships(hashMatchedCommits);
-              console.timeEnd(`searchCommits-${searchTerm}`);
-              console.log(
-                `Found ${hashMatchedCommits.length} commits by hash prefix`
-              );
-              return hashMatchedCommits;
-            }
-          } catch (error) {
-            console.log(
-              "Hash prefix search failed, falling back to grep search"
-            );
-          }
-        } else {
-          // 如果不是哈希值，在提交消息中搜索
-          args.push(`--grep=${searchTerm}`);
-          args.push("-i"); // 忽略大小写
-        }
-
-        // 执行常规搜索（提交消息搜索）
-        const result = await this.git!.raw(args);
-
-        // 解析带图形信息的输出
-        const lines = result
-          .trim()
-          .split("\n")
-          .filter((line) => line.trim());
-        const commits: GitCommit[] = [];
-
-        console.log(
-          `Found ${lines.length} lines to process for search: ${searchTerm}`
-        );
-
-        for (const line of lines) {
-          // 检查是否包含提交信息
-          if (!line.includes("|")) continue;
-
-          const parts = line.split("|");
-
-          // 验证是否为有效的提交记录
-          const hash = parts[0]?.trim() || "";
-          if (!hash || hash.length < 7) continue;
-
-          // 解析父提交
-          const parents = parts[6]
-            ? parts[6]
-                .trim()
-                .split(" ")
-                .filter((p) => p)
-            : [];
-
-          const commit: GitCommit = {
-            hash,
-            date: parts[1]?.trim() || "",
-            message: parts[2]?.trim() || "",
-            author: parts[3]?.trim() || "",
-            email: parts[4]?.trim() || "",
-            refs: parts[5]?.trim() || "",
-            body: "",
-            parents,
-            children: [],
-          };
-
-          commits.push(commit);
-        }
-
-        // 后处理：建立父子关系
-        this.buildParentChildRelationships(commits);
-
-        console.timeEnd(`searchCommits-${searchTerm}`);
-        console.log(
-          `Successfully found ${commits.length} commits matching: ${searchTerm}`
-        );
-        return commits;
-      },
-      "Error searching commits",
-      []
-    );
+    const commitOps = this.commitOps;
+    if (!commitOps) {
+      throw new Error("Git not initialized");
+    }
+    return commitOps.searchCommits(searchTerm, branch, limit, authorFilter);
   }
 
   async getCommitHistory(
@@ -429,214 +245,14 @@ export class GitHistoryProvider {
     skip: number = 0,
     authorFilter?: string[]
   ): Promise<GitCommit[]> {
-    return this.executeGitCommand(
-      async () => {
-        console.time(`getCommitHistory-${skip}-${limit}`);
-
-        // 使用更简化的格式，减少解析复杂度
-        const args = [
-          "log",
-          "--all", // 显示所有分支
-          `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
-          "--encoding=UTF-8",
-          `--max-count=${limit}`,
-        ];
-
-        if (skip > 0) {
-          args.push(`--skip=${skip}`);
-        }
-
-        if (branch && branch !== "all") {
-          // 如果指定了特定分支，只显示该分支
-          args.splice(args.indexOf("--all"), 1);
-          args.push(branch);
-        }
-
-        // 添加作者筛选
-        if (authorFilter && authorFilter.length > 0) {
-          authorFilter.forEach((author) => {
-            args.push(`--author=${author}`);
-          });
-        }
-
-        const result = await this.git!.raw(args);
-
-        // 解析带图形信息的输出
-        const lines = result
-          .trim()
-          .split("\n")
-          .filter((line) => line.trim());
-        const commits: GitCommit[] = [];
-
-        console.log(`Found ${lines.length} lines to process`);
-
-        for (const line of lines) {
-          // 检查是否包含提交信息
-          if (!line.includes("|")) continue;
-
-          const parts = line.split("|");
-
-          // 验证是否为有效的提交记录
-          const hash = parts[0]?.trim() || "";
-          if (!hash || hash.length < 7) continue;
-
-          // 解析父提交
-          const parents = parts[6]
-            ? parts[6]
-                .trim()
-                .split(" ")
-                .filter((p) => p)
-            : [];
-
-          const commit: GitCommit = {
-            hash,
-            date: parts[1]?.trim() || "",
-            message: parts[2]?.trim() || "",
-            author: parts[3]?.trim() || "",
-            email: parts[4]?.trim() || "",
-            refs: parts[5]?.trim() || "",
-            body: "", // 简化：不在列表视图中加载body
-            parents,
-            children: [], // 将在后处理中填充
-          };
-
-          commits.push(commit);
-        }
-
-        // 后处理：建立父子关系
-        this.buildParentChildRelationships(commits);
-
-        // 优化：只在首次加载时计算canEditMessage，减少性能开销
-        if (skip === 0) {
-          await this.calculateCanEditMessage(commits);
-        } else {
-          // 对于后续加载的提交，默认设置为false，需要时再计算
-          commits.forEach((commit) => {
-            commit.canEditMessage = false;
-          });
-        }
-
-        console.timeEnd(`getCommitHistory-${skip}-${limit}`);
-        console.log(`Successfully processed ${commits.length} commits`);
-        return commits;
-      },
-      "Error getting commit history",
-      []
-    );
-  }
-
-  /**
-   * 建立父子关系
-   */
-  private buildParentChildRelationships(commits: GitCommit[]): void {
-    const commitMap = new Map<string, GitCommit>();
-
-    // 创建哈希到提交的映射
-    commits.forEach((commit) => {
-      commitMap.set(commit.hash, commit);
-    });
-
-    // 建立父子关系
-    commits.forEach((commit) => {
-      commit.parents.forEach((parentHash) => {
-        const parent = commitMap.get(parentHash);
-        if (parent) {
-          parent.children.push(commit.hash);
-        }
-      });
-    });
-  }
-
-  /**
-   * 预先计算每个提交是否可以编辑消息
-   * 判断条件：提交属于当前用户且是最新的提交
-   */
-  private async calculateCanEditMessage(commits: GitCommit[]): Promise<void> {
-    try {
-      // 获取当前用户信息和最新提交哈希
-      const [currentUser, latestCommitHash] = await Promise.all([
-        this.getCurrentUserInfo(),
-        this.getLatestCommitHash(),
-      ]);
-
-      if (!currentUser || !latestCommitHash) {
-        // 如果无法获取用户信息或最新提交，则所有提交都不可编辑
-        commits.forEach((commit) => {
-          commit.canEditMessage = false;
-        });
-        return;
-      }
-
-      // 为每个提交计算canEditMessage
-      commits.forEach((commit) => {
-        // 检查是否是当前用户的提交
-        const isOwnCommit =
-          commit.author === currentUser.name ||
-          commit.email === currentUser.email;
-
-        // 检查是否是最新提交（支持短哈希匹配）
-        const isLatestCommit =
-          commit.hash === latestCommitHash ||
-          latestCommitHash.startsWith(commit.hash) ||
-          commit.hash.startsWith(latestCommitHash);
-
-        // 只有当提交属于当前用户且是最新提交时才可以编辑
-        commit.canEditMessage = isOwnCommit && isLatestCommit;
-      });
-
-      console.log(
-        `Calculated canEditMessage for ${
-          commits.length
-        } commits. Latest commit: ${latestCommitHash?.substring(0, 8)}`
-      );
-    } catch (error) {
-      console.warn("Failed to calculate canEditMessage:", error);
-      // 出错时默认所有提交都不可编辑
-      commits.forEach((commit) => {
-        commit.canEditMessage = false;
-      });
+    const commitOps = this.commitOps;
+    if (!commitOps) {
+      throw new Error("Git not initialized");
     }
+    return commitOps.getCommitHistory(branch, limit, skip, authorFilter);
   }
 
-  /**
-   * 为单个提交计算canEditMessage值
-   * @param commitInfo 提交信息
-   * @returns 是否可以编辑
-   */
-  private async calculateSingleCommitCanEdit(commitInfo: {
-    hash: string;
-    author: string;
-    email: string;
-  }): Promise<boolean> {
-    try {
-      // 获取当前用户信息和最新提交哈希
-      const [currentUser, latestCommitHash] = await Promise.all([
-        this.getCurrentUserInfo(),
-        this.getLatestCommitHash(),
-      ]);
 
-      if (!currentUser || !latestCommitHash) {
-        return false;
-      }
-
-      // 检查是否是当前用户的提交
-      const isOwnCommit =
-        commitInfo.author === currentUser.name ||
-        commitInfo.email === currentUser.email;
-
-      // 检查是否是最新提交（支持短哈希匹配）
-      const isLatestCommit =
-        commitInfo.hash === latestCommitHash ||
-        latestCommitHash.startsWith(commitInfo.hash) ||
-        commitInfo.hash.startsWith(latestCommitHash);
-
-      // 只有当提交属于当前用户且是最新提交时才可以编辑
-      return isOwnCommit && isLatestCommit;
-    } catch (error) {
-      console.warn("Failed to calculate single commit canEditMessage:", error);
-      return false;
-    }
-  }
 
   /**
    * 获取提交总数（带缓存优化）
@@ -645,47 +261,11 @@ export class GitHistoryProvider {
     branch?: string,
     authorFilter?: string[]
   ): Promise<number> {
-    const cacheKey = `${branch || "all"}-${
-      authorFilter ? authorFilter.join(",") : "no-filter"
-    }`;
-
-    // 检查缓存
-    const cached = this.cacheManager.getCachedTotalCommitCount(cacheKey);
-    if (cached !== null) {
-      console.log(`Cache hit for commit count (${cacheKey}): ${cached}`);
-      return cached;
+    const commitOps = this.commitOps;
+    if (!commitOps) {
+      throw new Error("Git instance not available");
     }
-
-    return this.executeGitCommand(
-      async () => {
-        console.time(`getTotalCommitCount-${cacheKey}`);
-        const options: string[] = ["rev-list", "--count"];
-        if (branch && branch !== "all") {
-          options.push(branch);
-        } else {
-          options.push("--all");
-        }
-
-        // 添加作者筛选
-        if (authorFilter && authorFilter.length > 0) {
-          authorFilter.forEach((author) => {
-            options.push(`--author=${author}`);
-          });
-        }
-
-        const result = await this.git!.raw(options);
-        const count = parseInt(result.trim()) || 0;
-
-        // 缓存结果
-        this.cacheManager.cacheTotalCommitCount(cacheKey, count);
-
-        console.timeEnd(`getTotalCommitCount-${cacheKey}`);
-        console.log(`Total commit count for ${cacheKey}: ${count}`);
-        return count;
-      },
-      "Error getting total commit count",
-      0
-    );
+    return commitOps.getTotalCommitCount(branch, authorFilter);
   }
 
   /**
@@ -694,6 +274,11 @@ export class GitHistoryProvider {
   async getCommitDetails(
     hash: string
   ): Promise<{ commit: GitCommit; files: GitFileChange[] } | null> {
+    const commitOps = this.commitOps;
+    if (!commitOps) {
+      throw new Error("Git not initialized");
+    }
+    
     // 性能优化：检查缓存
     const cached = this.cacheManager.getCachedCommitDetails(hash);
     if (cached) {
@@ -711,12 +296,8 @@ export class GitHistoryProvider {
           this.getCommitFileChanges(hash),
         ]);
 
-        // 计算canEditMessage
-        const canEditMessage = await this.calculateSingleCommitCanEdit({
-          hash: commit.hash,
-          author: commit.author_name || "",
-          email: commit.author_email || "",
-        });
+        // 使用委托的方法计算canEditMessage
+        const canEditMessage = await commitOps.canEditCommitMessage(hash);
 
         const result = {
           commit: {
@@ -866,204 +447,13 @@ export class GitHistoryProvider {
    * 获取提交的文件变更
    */
   private async getCommitFileChanges(hash: string): Promise<GitFileChange[]> {
-    // 优化：直接尝试获取文件变更，避免额外的isInitialCommit检查
-    // 先尝试常规方法，如果失败再尝试初始提交方法
-    try {
-      const files = await this.getRegularCommitFiles(hash);
-      if (files.length > 0) {
-        return files;
-      }
-      // 如果常规方法没有返回文件，可能是初始提交
-      return this.getInitialCommitFiles(hash);
-    } catch (error) {
-      console.log(
-        "Regular commit method failed, trying initial commit method:",
-        error
-      );
-      return this.getInitialCommitFiles(hash);
+    if (!this.fileOps) {
+      throw new Error("Git not initialized");
     }
+    return this.fileOps.getCommitFileChanges(hash);
   }
 
-  /**
-   * 获取初始提交的文件列表
-   */
-  private async getInitialCommitFiles(hash: string): Promise<GitFileChange[]> {
-    console.log("Processing initial commit...");
 
-    // 尝试多种方法获取文件变更
-    const methods = [
-      () => this.getFilesWithNumstat(hash),
-      () => this.getFilesWithNameStatus(hash, true),
-      () => this.getFilesWithLsTree(hash),
-    ];
-
-    for (const method of methods) {
-      try {
-        const files = await method();
-        if (files.length > 0) {
-          console.log(`Found ${files.length} files`);
-          return files;
-        }
-      } catch (error) {
-        console.log("Method failed, trying next:", error);
-      }
-    }
-
-    return [];
-  }
-
-  /**
-   * 获取普通提交的文件列表
-   */
-  private async getRegularCommitFiles(hash: string): Promise<GitFileChange[]> {
-    console.log("Processing regular commit...");
-
-    // 优化：直接使用最高效的numstat方法
-    // numstat通常是最快且最可靠的方法
-    try {
-      const files = await this.getFilesWithNumstat(hash);
-      console.log(`Found ${files.length} files with numstat`);
-      return files;
-    } catch (error) {
-      console.log("Numstat method failed, trying diffSummary:", error);
-      // 如果numstat失败，尝试diffSummary作为备选
-      try {
-        const files = await this.getFilesWithDiffSummary(hash);
-        console.log(`Found ${files.length} files with diffSummary`);
-        return files;
-      } catch (error2) {
-        console.log("DiffSummary method also failed:", error2);
-        return [];
-      }
-    }
-  }
-
-  /**
-   * 使用numstat方法获取文件变更
-   */
-  private async getFilesWithNumstat(hash: string): Promise<GitFileChange[]> {
-    // 优化：使用更高效的git命令参数
-    const numstatOutput = await this.git!.show([
-      "--numstat",
-      "--format=", // 不显示commit信息
-      hash,
-    ]);
-    const lines = numstatOutput
-      .trim()
-      .split("\n")
-      .filter((line) => line.trim());
-
-    return lines
-      .map((line) => {
-        const parts = line.split("\t");
-        if (parts.length < 3) return null; // 跳过无效行
-
-        const insertions = parts[0] === "-" ? 0 : parseInt(parts[0]) || 0;
-        const deletions = parts[1] === "-" ? 0 : parseInt(parts[1]) || 0;
-        const fileName = parts[2] || "";
-
-        return {
-          file: fileName,
-          insertions,
-          deletions,
-          binary: parts[0] === "-" && parts[1] === "-",
-        };
-      })
-      .filter((item): item is GitFileChange => item !== null); // 过滤掉null值并修复类型
-  }
-
-  /**
-   * 使用name-status方法获取文件变更
-   */
-  private async getFilesWithNameStatus(
-    hash: string,
-    isInitial: boolean
-  ): Promise<GitFileChange[]> {
-    const showOutput = await this.git!.show([
-      "--name-status",
-      "--format=",
-      "--encoding=UTF-8",
-      hash,
-    ]);
-    const lines = showOutput
-      .trim()
-      .split("\n")
-      .filter((line) => line.trim());
-    const files: GitFileChange[] = [];
-
-    for (const line of lines) {
-      const parts = line.split("\t");
-      const status = parts[0];
-      const fileName = parts[1] || "";
-
-      if (status === "A" && isInitial) {
-        try {
-          const fileContent = await this.git!.show([`${hash}:${fileName}`]);
-          const lineCount = fileContent.split("\n").length;
-          files.push({
-            file: fileName,
-            insertions: lineCount,
-            deletions: 0,
-            binary: false,
-          });
-        } catch {
-          files.push({
-            file: fileName,
-            insertions: 1,
-            deletions: 0,
-            binary: true,
-          });
-        }
-      } else {
-        files.push({
-          file: fileName,
-          insertions: status === "A" ? 1 : 0,
-          deletions: status === "D" ? 1 : 0,
-          binary: false,
-        });
-      }
-    }
-
-    return files;
-  }
-
-  /**
-   * 使用ls-tree方法获取文件变更
-   */
-  private async getFilesWithLsTree(hash: string): Promise<GitFileChange[]> {
-    const lsTreeOutput = await this.git!.raw([
-      "ls-tree",
-      "-r",
-      "--name-only",
-      hash,
-    ]);
-    const fileNames = lsTreeOutput
-      .trim()
-      .split("\n")
-      .filter((name) => name.trim());
-
-    return fileNames.map((fileName) => ({
-      file: fileName,
-      insertions: 1,
-      deletions: 0,
-      binary: false,
-    }));
-  }
-
-  /**
-   * 使用diff summary方法获取文件变更
-   */
-  private async getFilesWithDiffSummary(
-    hash: string
-  ): Promise<GitFileChange[]> {
-    const diffSummary = await this.git!.diffSummary([`${hash}^`, hash]);
-    return diffSummary.files.map((file) => ({
-      file: file.file,
-      insertions: "insertions" in file ? file.insertions : 0,
-      deletions: "deletions" in file ? file.deletions : 0,
-      binary: file.binary,
-    }));
-  }
 
   /**
    * 合并多个提交为一个提交
@@ -1574,17 +964,11 @@ export class GitHistoryProvider {
    * @returns 文件内容
    */
   async getFileDiff(hash: string, filePath: string): Promise<string> {
-    if (!this.git) {
-      return "";
+    if (!this.fileOps) {
+      throw new Error("Git not initialized");
     }
 
-    return this.executeGitCommand(
-      async () => {
-        return await this.git!.show([`${hash}:${filePath}`]);
-      },
-      "Failed to get file content",
-      ""
-    );
+    return this.fileOps.getFileDiff(hash, filePath);
   }
 
   /**
@@ -1679,23 +1063,10 @@ export class GitHistoryProvider {
    * @returns 文件变化列表
    */
   async compareCommits(hash1: string, hash2: string): Promise<GitFileChange[]> {
-    if (!this.git) {
-      return [];
+    if (!this.fileOps) {
+      throw new Error("Git not initialized");
     }
-
-    return this.executeGitCommand(
-      async () => {
-        const diffSummary = await this.git!.diffSummary([hash1, hash2]);
-        return diffSummary.files.map((file) => ({
-          file: file.file,
-          insertions: "insertions" in file ? file.insertions : 0,
-          deletions: "deletions" in file ? file.deletions : 0,
-          binary: file.binary,
-        }));
-      },
-      "Failed to compare commits",
-      []
-    );
+    return this.fileOps.compareCommits(hash1, hash2);
   }
 
   /**
@@ -1738,16 +1109,10 @@ export class GitHistoryProvider {
    * @returns 是否为初始提交
    */
   async isInitialCommit(hash: string): Promise<boolean> {
-    if (!this.git) {
-      return false;
+    if (!this.fileOps) {
+      throw new Error("Git not initialized");
     }
-
-    try {
-      await this.git.raw(["rev-parse", `${hash}^`]);
-      return false;
-    } catch {
-      return true;
-    }
+    return this.fileOps.isInitialCommit(hash);
   }
 
   /**
@@ -1757,17 +1122,10 @@ export class GitHistoryProvider {
    * @returns 文件内容
    */
   async getFileContent(hash: string, filePath: string): Promise<string | null> {
-    if (!this.git) {
-      return null;
+    if (!this.fileOps) {
+      throw new Error("Git not initialized");
     }
-
-    return this.executeGitCommand(
-      async () => {
-        return await this.git!.show([`${hash}:${filePath}`]);
-      },
-      "Failed to get file content",
-      null
-    );
+    return this.fileOps.getFileContent(hash, filePath);
   }
 
   /**
@@ -1776,40 +1134,10 @@ export class GitHistoryProvider {
    * @returns 文件的提交历史
    */
   async getFileHistory(filePath: string): Promise<GitCommit[]> {
-    if (!this.git) {
-      return [];
+    if (!this.fileOps) {
+      throw new Error("Git not initialized");
     }
-
-    return this.executeGitCommand(
-      async () => {
-        const log = await this.git!.log({
-          file: filePath,
-          format: {
-            hash: "%H",
-            date: "%ai",
-            message: "%s",
-            author: "%an",
-            email: "%ae",
-            refs: "%D",
-            body: "%b",
-          },
-        });
-
-        return log.all.map((commit) => ({
-          hash: commit.hash,
-          date: commit.date,
-          message: commit.message,
-          author: (commit as any).author_name || "",
-          email: (commit as any).author_email || "",
-          refs: commit.refs || "",
-          body: (commit as any).body || "",
-          parents: [],
-          children: [],
-        }));
-      },
-      "Failed to get file history",
-      []
-    );
+    return this.fileOps.getFileHistory(filePath);
   }
 
   /**
@@ -1817,27 +1145,10 @@ export class GitHistoryProvider {
    * @returns 远程仓库URL
    */
   async getRemoteUrl(): Promise<string | null> {
-    if (!this.git) {
+    if (!this.remoteOps) {
       return null;
     }
-
-    return this.executeGitCommand(
-      async () => {
-        const remotes = await this.git!.getRemotes(true);
-
-        // 优先查找 origin，如果没有则使用第一个远程仓库
-        const origin = remotes.find((remote) => remote.name === "origin");
-        const remote = origin || remotes[0];
-
-        if (remote && remote.refs && remote.refs.fetch) {
-          return remote.refs.fetch;
-        }
-
-        return null;
-      },
-      "Failed to get remote URL",
-      null
-    );
+    return this.remoteOps.getRemoteUrl();
   }
 
   /**
@@ -1850,33 +1161,10 @@ export class GitHistoryProvider {
     hash: string,
     filePath: string
   ): Promise<string | null> {
-    if (!this.git) {
-      return null;
+    if (!this.fileOps) {
+      throw new Error("Git not initialized");
     }
-
-    return this.executeGitCommand(
-      async () => {
-        // 检查是否是初始提交
-        const isInitial = await this.isInitialCommit(hash);
-
-        if (isInitial) {
-          // 对于初始提交，使用 git show 命令生成标准的 diff 格式
-          const diff = await this.git!.show([
-            "--format=",
-            hash,
-            "--",
-            filePath,
-          ]);
-          return diff || "No changes in this file";
-        } else {
-          // 对于普通提交，显示与父提交的差异
-          const diff = await this.git!.diff([`${hash}^`, hash, "--", filePath]);
-          return diff || "No changes in this file";
-        }
-      },
-      "Failed to get file diff content",
-      null
-    );
+    return this.fileOps.getFileDiffContent(hash, filePath);
   }
 
   /**
@@ -1884,25 +1172,18 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async pullFromRemote(): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
-
+    
     try {
-      await this.executeGitCommand(
-        async () => {
-          await this.git!.pull();
-          return true;
-        },
-        "Pull from remote failed",
-        false
-      );
-      this.invalidateCachesAfterHistoryChange();
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Pull failed: ${errorMessage}`);
+      const result = await this.remoteOps.pullFromRemote();
+      if (result) {
+        this.invalidateCachesAfterHistoryChange();
+      }
+      return result;
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -1918,23 +1199,18 @@ export class GitHistoryProvider {
     branch: string,
     rebase: boolean = false
   ): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      if (rebase) {
-        await this.git.pull(remote, branch, { "--rebase": "true" });
-      } else {
-        await this.git.pull(remote, branch);
+      const result = await this.remoteOps.pullFromRemoteBranch(remote, branch, rebase);
+      if (result) {
+        this.invalidateCachesAfterHistoryChange();
       }
-      this.invalidateCachesAfterHistoryChange();
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      const operation = rebase ? "Pull with rebase" : "Pull";
-      throw new Error(`${operation} failed: ${errorMessage}`);
+      return result;
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -1943,24 +1219,14 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async pushToRemote(): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      await this.executeGitCommand(
-        async () => {
-          await this.git!.push();
-          return true;
-        },
-        "Push to remote failed",
-        false
-      );
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Push failed: ${errorMessage}`);
+      return await this.remoteOps.pushToRemote();
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -1976,22 +1242,14 @@ export class GitHistoryProvider {
     branch: string,
     force: boolean = false
   ): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      const options: any = {};
-      if (force) {
-        options["--force"] = null;
-      }
-      await this.git.push(remote, branch, options);
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      const operation = force ? "Force push" : "Push";
-      throw new Error(`${operation} failed: ${errorMessage}`);
+      return await this.remoteOps.pushToRemoteBranch(remote, branch, force);
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2000,17 +1258,14 @@ export class GitHistoryProvider {
    * @returns 远程仓库列表
    */
   async getRemotes(): Promise<string[]> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      const remotes = await this.git.getRemotes();
-      return remotes.map((remote) => remote.name);
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Get remotes failed: ${errorMessage}`);
+      return await this.remoteOps.getRemotes();
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2020,47 +1275,14 @@ export class GitHistoryProvider {
    * @returns 远程分支列表
    */
   async getRemoteBranches(remote: string): Promise<string[]> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      const branches = await this.git.branch(["-r"]);
-      const filteredBranches = branches.all
-        .filter((branch) => branch.startsWith(`${remote}/`))
-        .map((branch) => branch.replace(`${remote}/`, ""))
-        .filter((branch) => branch !== "HEAD");
-
-      // 对分支进行排序，让 main 或 master 排在最上方
-      return filteredBranches.sort((a, b) => {
-        // 检查是否是 main 或 master
-        const isAMainOrMaster = a === "main" || a === "master";
-        const isBMainOrMaster = b === "main" || b === "master";
-
-        // 如果 a 是 main/master 而 b 不是，a 排在前面
-        if (isAMainOrMaster && !isBMainOrMaster) {
-          return -1;
-        }
-
-        // 如果 b 是 main/master 而 a 不是，b 排在前面
-        if (isBMainOrMaster && !isAMainOrMaster) {
-          return 1;
-        }
-
-        // 如果都是 main/master，优先显示 main
-        if (isAMainOrMaster && isBMainOrMaster) {
-          if (a === "main") return -1;
-          if (b === "main") return 1;
-          return 0;
-        }
-
-        // 其他情况按字母顺序排序
-        return a.localeCompare(b);
-      });
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Get remote branches failed: ${errorMessage}`);
+      return await this.remoteOps.getRemoteBranches(remote);
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2069,46 +1291,14 @@ export class GitHistoryProvider {
    * @returns 远程分支列表，格式为 remote/branch
    */
   async getAllRemoteBranches(): Promise<string[]> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      const branches = await this.git.branch(["-r"]);
-      const filteredBranches = branches.all
-        .filter((branch) => !branch.includes("HEAD"))
-        .map((branch) => branch.trim());
-
-      // 对分支进行排序，让 origin/main 或 origin/master 排在最上方
-      return filteredBranches.sort((a, b) => {
-        // 检查是否是 origin/main 或 origin/master
-        const isAMainOrMaster = a === "origin/main" || a === "origin/master";
-        const isBMainOrMaster = b === "origin/main" || b === "origin/master";
-
-        // 如果 a 是 main/master 而 b 不是，a 排在前面
-        if (isAMainOrMaster && !isBMainOrMaster) {
-          return -1;
-        }
-
-        // 如果 b 是 main/master 而 a 不是，b 排在前面
-        if (isBMainOrMaster && !isAMainOrMaster) {
-          return 1;
-        }
-
-        // 如果都是 main/master，优先显示 main
-        if (isAMainOrMaster && isBMainOrMaster) {
-          if (a === "origin/main") return -1;
-          if (b === "origin/main") return 1;
-          return 0;
-        }
-
-        // 其他情况按字母顺序排序
-        return a.localeCompare(b);
-      });
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Get all remote branches failed: ${errorMessage}`);
+      return await this.remoteOps.getAllRemoteBranches();
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2122,28 +1312,18 @@ export class GitHistoryProvider {
     remoteBranch: string,
     rebase: boolean = false
   ): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      const [remote, branch] = remoteBranch.split("/", 2);
-      if (!remote || !branch) {
-        throw new Error(`Invalid remote branch format: ${remoteBranch}`);
+      const result = await this.remoteOps.pullFromFullRemoteBranch(remoteBranch, rebase);
+      if (result) {
+        this.invalidateCachesAfterHistoryChange();
       }
-
-      if (rebase) {
-        await this.git.pull(remote, branch, { "--rebase": "true" });
-      } else {
-        await this.git.pull(remote, branch);
-      }
-      this.invalidateCachesAfterHistoryChange();
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      const operation = rebase ? "Pull with rebase" : "Pull";
-      throw new Error(`${operation} failed: ${errorMessage}`);
+      return result;
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2157,34 +1337,14 @@ export class GitHistoryProvider {
     remoteBranch: string,
     force: boolean = false
   ): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      const [remote, branch] = remoteBranch.split("/", 2);
-      if (!remote || !branch) {
-        throw new Error(`Invalid remote branch format: ${remoteBranch}`);
-      }
-
-      // 获取当前分支名称
-      const currentBranch = await this.git.revparse(["--abbrev-ref", "HEAD"]);
-      const currentBranchName = currentBranch.trim();
-
-      const options: any = {};
-      if (force) {
-        options["--force"] = null;
-      }
-
-      // 使用 currentBranch:remoteBranch 格式推送
-      // 这样可以将当前分支的内容推送到指定的远程分支
-      await this.git.push(remote, `${currentBranchName}:${branch}`, options);
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      const operation = force ? "Force push" : "Push";
-      throw new Error(`${operation} failed: ${errorMessage}`);
+      return await this.remoteOps.pushToFullRemoteBranch(remoteBranch, force);
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2194,29 +1354,14 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async fetchFromRemote(prune: boolean = false): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      await this.executeGitCommand(
-        async () => {
-          if (prune) {
-            // 使用 --all --prune 参数，确保清理已删除的远程分支引用
-            await this.git!.fetch(["--all", "--prune"]);
-          } else {
-            await this.git!.fetch();
-          }
-          return true;
-        },
-        "Fetch from remote failed",
-        false
-      );
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Fetch failed: ${errorMessage}`);
+      return await this.remoteOps.fetchFromRemote(prune);
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2258,18 +1403,14 @@ export class GitHistoryProvider {
     repoUrl: string,
     targetPath: string
   ): Promise<string | null> {
-    try {
-      const path = require("path");
-      const repoName =
-        repoUrl.split("/").pop()?.replace(".git", "") || "repository";
-      const clonePath = path.join(targetPath, repoName);
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
+    }
 
-      await simpleGit().clone(repoUrl, clonePath);
-      return clonePath;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Clone failed: ${errorMessage}`);
+    try {
+      return await this.remoteOps.cloneRepository(repoUrl, targetPath);
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2279,19 +1420,15 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async checkoutBranch(branchName: string): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
     }
 
-    try {
-      await this.git.checkout(branchName);
+    const result = await this.branchOps.checkoutBranch(branchName);
+    if (result) {
       this.invalidateCachesAfterHistoryChange();
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Checkout failed: ${errorMessage}`);
     }
+    return result;
   }
 
   /**
@@ -2300,19 +1437,15 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async createAndCheckoutBranch(branchName: string): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
     }
 
-    try {
-      await this.git.checkoutLocalBranch(branchName);
+    const result = await this.branchOps.createAndCheckoutBranch(branchName);
+    if (result) {
       this.invalidateCachesAfterHistoryChange();
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Create and checkout branch failed: ${errorMessage}`);
     }
+    return result;
   }
 
   /**
@@ -2325,19 +1458,15 @@ export class GitHistoryProvider {
     hash: string,
     branchName: string
   ): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
     }
 
-    try {
-      await this.git.checkoutBranch(branchName, hash);
+    const result = await this.branchOps.createBranchFromCommit(hash, branchName);
+    if (result) {
       this.invalidateCachesAfterHistoryChange();
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Create branch from commit failed: ${errorMessage}`);
     }
+    return result;
   }
 
   /**
@@ -2350,24 +1479,14 @@ export class GitHistoryProvider {
     hash: string,
     remoteBranch: string
   ): Promise<boolean> {
-    if (!this.git) {
-      throw new Error("Git instance not available");
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
     }
 
     try {
-      const [remote, branch] = remoteBranch.split("/", 2);
-      if (!remote || !branch) {
-        throw new Error(`Invalid remote branch format: ${remoteBranch}`);
-      }
-
-      // 推送指定提交到远程分支
-      // 使用 git push remote hash:refs/heads/branch 格式
-      await this.git.push(remote, `${hash}:refs/heads/${branch}`);
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Push commits to remote branch failed: ${errorMessage}`);
+      return await this.remoteOps.pushCommitsToRemoteBranch(hash, remoteBranch);
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -2377,56 +1496,11 @@ export class GitHistoryProvider {
    * @returns 是否可以编辑
    */
   async canEditCommitMessage(hash: string): Promise<boolean> {
-    try {
-      // 优先从缓存中查找已计算的结果
-      const cachedResult = this.getCachedCanEditMessage(hash);
-      if (cachedResult !== null) {
-        return cachedResult;
-      }
-
-      // 如果缓存中没有，则进行实时计算
-      const [currentUser, latestCommitHash] = await Promise.all([
-        this.getCurrentUserInfo(),
-        this.getLatestCommitHash(),
-      ]);
-
-      if (!currentUser || !latestCommitHash) {
-        return false;
-      }
-
-      // 检查是否是最新提交
-      const isLatestCommit =
-        hash === latestCommitHash ||
-        latestCommitHash.startsWith(hash) ||
-        hash.startsWith(latestCommitHash);
-
-      if (!isLatestCommit) {
-        return false;
-      }
-
-      // 获取提交的作者信息
-      const commitInfo = await this.git!.show([
-        "--format=%an|%ae",
-        "--no-patch",
-        hash,
-      ]);
-
-      const [author, email] = commitInfo.trim().split("|");
-
-      // 检查是否是当前用户的提交
-      const isOwnCommit =
-        author === currentUser.name || email === currentUser.email;
-
-      // 写入缓存
-      this.cacheManager.cacheCanEditMessage(hash, isOwnCommit);
-
-      return isOwnCommit;
-    } catch (error: any) {
-      console.warn(
-        `Check commit editability failed: ${error?.message || error}`
-      );
-      return false;
+    const commitOps = this.commitOps;
+    if (!commitOps) {
+      throw new Error("Git instance not available");
     }
+    return commitOps.canEditCommitMessage(hash);
   }
 
   /**
@@ -2445,8 +1519,11 @@ export class GitHistoryProvider {
    * @returns 是否可以编辑，如果未预计算则返回false
    */
   canEditCommitMessageSync(hash: string): boolean {
-    const cachedResult = this.getCachedCanEditMessage(hash);
-    return cachedResult ?? false;
+    const commitOps = this.commitOps;
+    if (!commitOps) {
+      return false;
+    }
+    return commitOps.canEditCommitMessageSync(hash);
   }
 
   /**
@@ -2456,42 +1533,12 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async amendCommitMessage(hash: string, newMessage: string): Promise<boolean> {
-    if (!this.git) {
+    const commitOps = this.commitOps;
+    if (!commitOps) {
       throw new Error("Git instance not available");
     }
-
-    try {
-      // 检查是否为最新提交
-      const latestCommit = await this.git.log({ maxCount: 1 });
-      if (
-        latestCommit.latest &&
-        (latestCommit.latest.hash === hash ||
-          latestCommit.latest.hash.startsWith(hash) ||
-          hash.startsWith(latestCommit.latest.hash))
-      ) {
-        // 如果是最新提交，使用 --amend 参数
-        await this.git.commit(newMessage, { "--amend": null });
-      } else {
-        // 如果不是最新提交，使用 filter-branch 重写历史
-        const escapedMessage = newMessage.replace(/'/g, "\\'");
-        await this.git.raw([
-          "filter-branch",
-          "-f",
-          "--msg-filter",
-          `if [ "$GIT_COMMIT" = "${hash}" ]; then echo '${escapedMessage}'; else cat; fi`,
-          "HEAD",
-        ]);
-      }
-
-      // 清理相关缓存，因为提交信息已经改变
-      this.invalidateCachesAfterHistoryChange();
-
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Amend commit message failed: ${errorMessage}`);
-    }
+    const result = await commitOps.amendCommitMessage(hash, newMessage);
+    return result;
   }
 
   /**
@@ -2499,14 +1546,11 @@ export class GitHistoryProvider {
    * @returns 当前用户的姓名和邮箱
    */
   async getCurrentUser(): Promise<{ name: string; email: string } | null> {
-    return this.executeGitCommand(
-      async () => {
-        const userInfo = await this.getCurrentUserInfo();
-        return userInfo;
-      },
-      "Error getting current user",
-      null
-    );
+    const commitOps = this.commitOps;
+    if (!commitOps) {
+      throw new Error("Git instance not available");
+    }
+    return commitOps.getCurrentUser();
   }
 
   /**
@@ -2514,18 +1558,11 @@ export class GitHistoryProvider {
    * @returns 是否有未提交的变更
    */
   async hasUncommittedChanges(): Promise<boolean> {
-    if (!this.git) {
+    const safetyOps = this.safetyOps;
+    if (!safetyOps) {
       throw new Error("Git instance not available");
     }
-
-    try {
-      const status = await this.git.status();
-      return status.files.length > 0;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Check uncommitted changes failed: ${errorMessage}`);
-    }
+    return safetyOps.hasUncommittedChanges();
   }
 
   /**
@@ -2537,22 +1574,11 @@ export class GitHistoryProvider {
     unstaged: string[];
     untracked: string[];
   }> {
-    if (!this.git) {
+    const safetyOps = this.safetyOps;
+    if (!safetyOps) {
       throw new Error("Git instance not available");
     }
-
-    try {
-      const status = await this.git.status();
-      return {
-        staged: status.staged,
-        unstaged: status.modified.concat(status.deleted),
-        untracked: status.not_added,
-      };
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Get uncommitted changes failed: ${errorMessage}`);
-    }
+    return safetyOps.getUncommittedChanges();
   }
 
   /**
@@ -2560,30 +1586,11 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async stashUncommittedChanges(): Promise<boolean> {
-    if (!this.git) {
+    const safetyOps = this.safetyOps;
+    if (!safetyOps) {
       throw new Error("Git instance not available");
     }
-
-    try {
-      // 检查是否有变更需要暂存
-      const hasChanges = await this.hasUncommittedChanges();
-      if (!hasChanges) {
-        return true; // 没有变更，直接返回成功
-      }
-
-      // 暂存所有变更，包括未跟踪的文件
-      await this.git.stash([
-        "push",
-        "--include-untracked",
-        "--message",
-        "Auto-stash before pull/rebase",
-      ]);
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Stash uncommitted changes failed: ${errorMessage}`);
-    }
+    return safetyOps.stashUncommittedChanges();
   }
 
   /**
@@ -2591,24 +1598,11 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async popStash(): Promise<boolean> {
-    if (!this.git) {
+    const safetyOps = this.safetyOps;
+    if (!safetyOps) {
       throw new Error("Git instance not available");
     }
-
-    try {
-      // 检查是否有暂存可以恢复
-      const stashList = await this.git.stashList();
-      if (stashList.total === 0) {
-        return true; // 没有暂存，直接返回成功
-      }
-
-      await this.git.stash(["pop"]);
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      throw new Error(`Pop stash failed: ${errorMessage}`);
-    }
+    return safetyOps.popStash();
   }
 
   /**
@@ -2623,88 +1617,17 @@ export class GitHistoryProvider {
     branch?: string,
     rebase: boolean = false
   ): Promise<boolean> {
-    if (!this.git) {
+    const safetyOps = this.safetyOps;
+    if (!safetyOps) {
       throw new Error("Git instance not available");
     }
 
     let stashed = false;
     try {
-      // 检查是否有未提交的变更
-      const hasChanges = await this.hasUncommittedChanges();
-
-      if (hasChanges) {
-        // 检查用户是否设置了默认行为
-        const config = vscode.workspace.getConfiguration("guigit");
-        const autoStashPreference = config.get<string>("autoStashOnPull");
-
-        let shouldStash = false;
-
-        if (autoStashPreference === "always") {
-          // 用户设置了总是自动暂存
-          shouldStash = true;
-        } else if (autoStashPreference === "never") {
-          // 用户设置了从不自动暂存，直接取消操作
-          vscode.window.showWarningMessage(
-            "检测到未提交的变更，操作已取消。请先提交或手动暂存变更。"
-          );
-          return false;
-        } else {
-          // 第一步：询问用户如何处理未提交的变更
-          const choice = await vscode.window.showWarningMessage(
-            "检测到未提交的变更。请选择如何处理：",
-            { modal: true },
-            "自动暂存并继续",
-            "取消操作"
-          );
-
-          if (choice === "取消操作" || choice === undefined) {
-            // 询问是否记住选择
-            const rememberChoice = await vscode.window.showInformationMessage(
-              "是否记住此选择？下次遇到未提交变更时将自动取消操作。",
-              "记住选择",
-              "仅此次"
-            );
-
-            if (rememberChoice === "记住选择") {
-              await config.update(
-                "autoStashOnPull",
-                "never",
-                vscode.ConfigurationTarget.Global
-              );
-              vscode.window.showInformationMessage(
-                "已设置为遇到未提交变更时总是取消操作。可通过重置偏好按钮修改此行为。"
-              );
-            }
-            return false;
-          }
-
-          if (choice === "自动暂存并继续") {
-            shouldStash = true;
-            // 询问是否记住选择
-            const rememberChoice = await vscode.window.showInformationMessage(
-              "是否记住此选择？下次遇到未提交变更时将自动暂存并继续。",
-              "记住选择",
-              "仅此次"
-            );
-
-            if (rememberChoice === "记住选择") {
-              await config.update(
-                "autoStashOnPull",
-                "always",
-                vscode.ConfigurationTarget.Global
-              );
-              vscode.window.showInformationMessage(
-                "已设置为总是自动暂存未提交的变更。可通过重置偏好按钮修改此行为。"
-              );
-            }
-          }
-        }
-
-        if (shouldStash) {
-          await this.stashUncommittedChanges();
-          stashed = true;
-          vscode.window.showInformationMessage("已自动暂存未提交的变更");
-        }
+      const { shouldContinue, stashed: didStash } = await safetyOps.handleUncommittedChanges();
+      stashed = didStash;
+      if (!shouldContinue) {
+        return false;
       }
 
       // 执行pull操作
@@ -2717,14 +1640,7 @@ export class GitHistoryProvider {
 
       // 如果pull成功且之前有暂存，尝试恢复暂存
       if (success && stashed) {
-        try {
-          await this.popStash();
-          vscode.window.showInformationMessage("已恢复之前暂存的变更");
-        } catch (error) {
-          vscode.window.showWarningMessage(
-            '拉取成功，但恢复暂存时出现问题。请手动执行 "git stash pop" 来恢复变更。'
-          );
-        }
+        await safetyOps.safePopStash("拉取");
       }
 
       return success;
@@ -2766,22 +1682,10 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async resetAutoStashPreference(): Promise<boolean> {
-    try {
-      const config = vscode.workspace.getConfiguration("guigit");
-      await config.update(
-        "autoStashOnPull",
-        "ask",
-        vscode.ConfigurationTarget.Global
-      );
-      vscode.window.showInformationMessage(
-        "已重置自动暂存偏好设置，下次遇到未提交变更时将重新询问。"
-      );
-      return true;
-    } catch (error: any) {
-      const errorMessage =
-        error?.message || error?.toString() || "Unknown error";
-      vscode.window.showErrorMessage(`重置偏好设置失败: ${errorMessage}`);
-      return false;
+    const safetyOps = this.safetyOps;
+    if (!safetyOps) {
+      throw new Error("Git instance not available");
     }
+    return safetyOps.resetAutoStashPreference();
   }
 }

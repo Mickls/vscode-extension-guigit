@@ -391,6 +391,17 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   private async _sendBranches() {
     if (!this._view) return;
 
+    // 检查 Git 是否已初始化
+    const hasGitRepo = await this._checkForGitRepository();
+    if (!hasGitRepo) {
+      // Git 未初始化时，发送空的分支列表而不是错误信息
+      this._view.webview.postMessage({
+        type: "branches",
+        data: [],
+      });
+      return;
+    }
+
     try {
       const branches = await this._gitHistoryProvider.getBranches();
       this._view.webview.postMessage({
@@ -420,6 +431,21 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     authorFilter?: string[]
   ) {
     if (!this._view) return;
+
+    // 检查 Git 是否已初始化
+    const hasGitRepo = await this._checkForGitRepository();
+    if (!hasGitRepo) {
+      // Git 未初始化时，发送空的提交历史而不是错误信息
+      this._view.webview.postMessage({
+        type: "commitHistory",
+        data: {
+          commits: [],
+          skip: 0,
+          hasMore: false,
+        },
+      });
+      return;
+    }
 
     try {
       const commits = await this._gitHistoryProvider.getCommitHistory(
@@ -459,6 +485,21 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   ) {
     if (!this._view) return;
 
+    // 检查 Git 是否已初始化
+    const hasGitRepo = await this._checkForGitRepository();
+    if (!hasGitRepo) {
+      // Git 未初始化时，发送空的搜索结果而不是错误信息
+      this._view.webview.postMessage({
+        type: "searchResults",
+        data: {
+          commits: [],
+          searchTerm,
+          branch,
+        },
+      });
+      return;
+    }
+
     try {
       const commits = await this._gitHistoryProvider.searchCommits(
         searchTerm,
@@ -495,6 +536,17 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     authorFilter?: string[]
   ) {
     if (!this._view) return;
+
+    // 检查 Git 是否已初始化
+    const hasGitRepo = await this._checkForGitRepository();
+    if (!hasGitRepo) {
+      // Git 未初始化时，发送0作为提交总数
+      this._view.webview.postMessage({
+        type: "totalCommitCount",
+        data: 0,
+      });
+      return;
+    }
 
     try {
       const totalCount = await this._gitHistoryProvider.getTotalCommitCount(
