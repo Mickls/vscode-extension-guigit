@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { GitBlameProvider, GitBlameLineInfo } from "./gitBlameProvider";
+import { GitBlameProvider, GitBlameLineInfo } from "../providers/blame/gitBlameProvider";
 
 /**
  * Git Blame 装饰器，负责在编辑器中显示 blame 信息

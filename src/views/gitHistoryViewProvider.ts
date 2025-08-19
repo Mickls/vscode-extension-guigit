@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { GitCommit, GitHistoryProvider } from "./gitHistoryProvider";
+import { GitHistoryProvider } from "../providers/git/gitHistoryProvider";
+import { GitCommit } from "../providers/git/types/gitTypes";
 
 /**
  * Git历史视图提供者，负责管理Git历史的WebView界面
@@ -46,7 +47,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           );
           break;
         case "searchCommits":
-          await this._sendSearchResults(data.searchTerm, data.branch, data.authorFilter);
+          await this._sendSearchResults(
+            data.searchTerm,
+            data.branch,
+            data.authorFilter
+          );
           break;
         case "getTotalCommitCount":
           await this._sendTotalCommitCount(data.branch, data.authorFilter);
@@ -175,11 +180,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }
       );
 
-      vscode.window.showInformationMessage("Proxy configuration refreshed successfully");
+      vscode.window.showInformationMessage(
+        "Proxy configuration refreshed successfully"
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`Failed to refresh proxy configuration: ${errorMessage}`);
+      vscode.window.showErrorMessage(
+        `Failed to refresh proxy configuration: ${errorMessage}`
+      );
     }
   }
 
@@ -229,30 +238,30 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     // 有Git仓库，按顺序初始化以减少并发压力
     await this._sendRepositories();
     await this._sendBranches();
-    
+
     // 根据筛选状态决定发送什么数据
     if (filterState && filterState.searchTerm) {
       // 如果有搜索词，发送搜索结果
       await this._sendSearchResults(
-        filterState.searchTerm, 
-        filterState.currentBranch, 
+        filterState.searchTerm,
+        filterState.currentBranch,
         filterState.authorFilter
       );
     } else {
       // 否则发送普通的提交历史
       await this._sendCommitHistory(
-        filterState?.currentBranch, 
-        0, 
+        filterState?.currentBranch,
+        0,
         filterState?.authorFilter
       );
     }
-    
+
     // 发送总提交数
     await this._sendTotalCommitCount(
-      filterState?.currentBranch, 
+      filterState?.currentBranch,
       filterState?.authorFilter
     );
-    
+
     this._sendViewMode();
   }
 
@@ -292,15 +301,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     this._refreshTimeout = setTimeout(async () => {
       if (this._view) {
         console.time("refresh-view");
-        
+
         // 清理后端缓存
         this._gitHistoryProvider.clearCache();
-        
+
         // 请求前端当前的筛选状态，响应将通过 currentFilterState 消息处理
         this._view.webview.postMessage({
-          type: "requestCurrentFilterState"
+          type: "requestCurrentFilterState",
         });
-        
+
         console.timeEnd("refresh-view");
       }
     }, 1500); // 增加到1.5秒防抖延迟，减少频繁刷新
@@ -443,7 +452,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    * @param searchTerm 搜索词
    * @param branch 分支名称
    */
-  private async _sendSearchResults(searchTerm: string, branch?: string, authorFilter?: string[]) {
+  private async _sendSearchResults(
+    searchTerm: string,
+    branch?: string,
+    authorFilter?: string[]
+  ) {
     if (!this._view) return;
 
     try {
@@ -1833,50 +1846,51 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       }
 
       // 创建分支选项，分为 merge 和 rebase 两个区域
-      const mergeOptions = remoteBranches.map(branch => ({
+      const mergeOptions = remoteBranches.map((branch) => ({
         label: `$(git-merge) ${branch}`,
         description: "Pull with merge",
         detail: `Merge changes from ${branch}`,
         branch: branch,
-        isRebase: false
+        isRebase: false,
       }));
 
-      const rebaseOptions = remoteBranches.map(branch => ({
+      const rebaseOptions = remoteBranches.map((branch) => ({
         label: `$(git-pull-request) ${branch}`,
-        description: "Pull with rebase", 
+        description: "Pull with rebase",
         detail: `Rebase changes from ${branch}`,
         branch: branch,
-        isRebase: true
+        isRebase: true,
       }));
 
       // 添加分隔符和标题
       const allOptions = [
         {
           label: "$(git-merge) Merge Pull",
-          kind: vscode.QuickPickItemKind.Separator
+          kind: vscode.QuickPickItemKind.Separator,
         },
         ...mergeOptions,
         {
-          label: "$(git-pull-request) Rebase Pull", 
-          kind: vscode.QuickPickItemKind.Separator
+          label: "$(git-pull-request) Rebase Pull",
+          kind: vscode.QuickPickItemKind.Separator,
         },
-        ...rebaseOptions
+        ...rebaseOptions,
       ];
 
       // 显示选择器
       const selectedOption = await vscode.window.showQuickPick(allOptions, {
-        placeHolder: "Select branch and pull method - Merge section for merge pull, Rebase section for rebase pull",
+        placeHolder:
+          "Select branch and pull method - Merge section for merge pull, Rebase section for rebase pull",
         canPickMany: false,
         matchOnDescription: true,
-        matchOnDetail: true
+        matchOnDetail: true,
       });
 
-      if (!selectedOption || !('branch' in selectedOption)) {
+      if (!selectedOption || !("branch" in selectedOption)) {
         return;
       }
 
       const { branch, isRebase } = selectedOption as any;
-      
+
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,

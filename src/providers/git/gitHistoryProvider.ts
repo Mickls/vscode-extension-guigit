@@ -1,76 +1,38 @@
 import { simpleGit, SimpleGit } from "simple-git";
 import * as vscode from "vscode";
-import { ProxyManager } from "./proxyManager";
+import { GitCommit, GitBranch, GitRepository, GitFileChange } from "./types/gitTypes";
+import { isNetworkError } from "./utils/gitUtils";
+import { GitCacheManager } from "./cache/gitCacheManager";
+import { GitRepositoryManager } from "./repository/gitRepositoryManager";
 
-export interface GitCommit {
-  hash: string;
-  date: string;
-  message: string;
-  author: string;
-  email: string;
-  refs: string;
-  body: string;
-  parents: string[];
-  children: string[];
-  branchName?: string;
-  canEditMessage?: boolean; // 是否可以编辑提交消息
-}
-
-export interface GitBranch {
-  name: string;
-  current: boolean;
-  commit: string;
-}
-
-export interface GitRepository {
-  name: string;
-  path: string;
-  isActive: boolean;
-}
-
-export interface GitFileChange {
-  file: string;
-  insertions: number;
-  deletions: number;
-  binary: boolean;
-}
 
 /**
  * Git操作提供者，封装所有Git相关功能
  */
 export class GitHistoryProvider {
-  private git: SimpleGit | null = null;
-  private workspaceRoot: string | null = null;
-  private availableRepositories: GitRepository[] = [];
-  private currentRepository: GitRepository | null = null;
-  private proxyManager: ProxyManager;
-  // 性能优化：添加后端缓存
-  private commitDetailsCache = new Map<
-    string,
-    { commit: GitCommit; files: GitFileChange[] }
-  >();
-  private readonly CACHE_SIZE_LIMIT = 100;
-  // 缓存当前用户信息，避免重复执行git命令
-  private currentUserCache: { name: string; email: string } | null = null;
-  private userCacheTimestamp: number = 0;
-  private readonly USER_CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
-  // 缓存提交总数
-  private totalCommitCountCache = new Map<
-    string,
-    { count: number; timestamp: number }
-  >();
-  private readonly COMMIT_COUNT_CACHE_TTL = 2 * 60 * 1000; // 2分钟缓存
+  // 管理器实例
+  private repoManager: GitRepositoryManager;
+  private cacheManager: GitCacheManager;
+  
   // 自动修剪 fetch 节流控制
   private lastAutoPruneFetchTime: number = 0;
   private autoFetchInProgress: boolean = false;
   private readonly AUTO_PRUNE_FETCH_INTERVAL = 10 * 60 * 1000; // 10分钟
 
   constructor() {
-    this.proxyManager = ProxyManager.getInstance();
+    // 初始化管理器
+    this.repoManager = new GitRepositoryManager();
+    this.cacheManager = new GitCacheManager();
+    
     // 异步初始化
     this.initializeGit().catch((error) => {
       console.error("Git初始化失败:", error);
     });
+  }
+
+  /** 获取当前 Git 实例（向后兼容的 getter） */
+  private get git() {
+    return this.repoManager.getGit();
   }
 
   /**
@@ -80,30 +42,27 @@ export class GitHistoryProvider {
     name: string;
     email: string;
   } | null> {
-    if (!this.git) {
+    const git = this.git;
+    if (!git) {
       return null;
     }
 
     // 检查缓存是否有效
-    const now = Date.now();
-    if (
-      this.currentUserCache &&
-      now - this.userCacheTimestamp < this.USER_CACHE_TTL
-    ) {
-      return this.currentUserCache;
+    const cachedUserInfo = this.cacheManager.getCachedUserInfo();
+    if (cachedUserInfo) {
+      return cachedUserInfo;
     }
 
     try {
-      const name = await this.git.raw(["config", "user.name"]);
-      const email = await this.git.raw(["config", "user.email"]);
+      const name = await git.raw(["config", "user.name"]);
+      const email = await git.raw(["config", "user.email"]);
       const userInfo = {
         name: name.trim(),
         email: email.trim(),
       };
 
       // 更新缓存
-      this.currentUserCache = userInfo;
-      this.userCacheTimestamp = now;
+      this.cacheManager.cacheUserInfo(userInfo);
 
       return userInfo;
     } catch (error) {
@@ -116,12 +75,13 @@ export class GitHistoryProvider {
    * 获取最新提交的哈希值
    */
   private async getLatestCommitHash(): Promise<string | null> {
-    if (!this.git) {
+    const git = this.git;
+    if (!git) {
       return null;
     }
 
     try {
-      const result = await this.git.raw(["rev-parse", "HEAD"]);
+      const result = await git.raw(["rev-parse", "HEAD"]);
       return result.trim();
     } catch (error) {
       console.warn("Failed to get latest commit hash:", error);
@@ -133,179 +93,43 @@ export class GitHistoryProvider {
    * 初始化Git实例
    */
   private async initializeGit() {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders && workspaceFolders.length > 0) {
-      this.workspaceRoot = workspaceFolders[0].uri.fsPath;
-
-      // 发现所有Git仓库
-      await this.discoverRepositories();
-
-      // 设置默认仓库
-      if (this.availableRepositories.length > 0) {
-        await this.setCurrentRepository(this.availableRepositories[0]);
-      }
-    }
-  }
-
-  /**
-   * 发现工作区中的所有Git仓库（优化版本）
-   */
-  private async discoverRepositories(): Promise<void> {
-    if (!this.workspaceRoot) {
-      return;
-    }
-
-    console.time("discoverRepositories");
-    this.availableRepositories = [];
-
-    try {
-      await this.searchForGitRepositories(this.workspaceRoot);
-      console.log(
-        `发现 ${this.availableRepositories.length} 个Git仓库:`,
-        this.availableRepositories.map((repo) => repo.path)
-      );
-    } catch (error) {
-      console.error("发现仓库时出错:", error);
-    } finally {
-      console.timeEnd("discoverRepositories");
-    }
-  }
-
-  /**
-   * 递归搜索Git仓库（优化版本）
-   */
-  private async searchForGitRepositories(
-    searchPath: string,
-    maxDepth: number = 3,
-    currentDepth: number = 0
-  ): Promise<void> {
-    if (currentDepth > maxDepth) {
-      return;
-    }
-
-    try {
-      const fs = require("fs").promises;
-      const path = require("path");
-
-      // 检查当前目录是否是Git仓库
-      const gitPath = path.join(searchPath, ".git");
-      try {
-        const gitStat = await fs.stat(gitPath);
-        if (gitStat.isDirectory() || gitStat.isFile()) {
-          // 找到Git仓库
-          const repoName = path.basename(searchPath);
-          this.availableRepositories.push({
-            name: repoName,
-            path: searchPath,
-            isActive: false,
-          });
-          // 找到Git仓库后，不再搜索其子目录
-          return;
-        }
-      } catch (error) {
-        // .git 不存在，继续搜索子目录
-      }
-
-      // 优化：并行搜索子目录，但限制并发数量
-      const entries = await fs.readdir(searchPath, { withFileTypes: true });
-      const subDirs = entries.filter(
-        (entry: any) =>
-          entry.isDirectory() &&
-          !entry.name.startsWith(".") &&
-          entry.name !== "node_modules" &&
-          entry.name !== "dist" &&
-          entry.name !== "build" &&
-          entry.name !== "target" &&
-          entry.name !== "vendor"
-      );
-
-      // 限制并发搜索数量，避免过多的文件系统操作
-      const CONCURRENT_LIMIT = 5;
-      for (let i = 0; i < subDirs.length; i += CONCURRENT_LIMIT) {
-        const batch = subDirs.slice(i, i + CONCURRENT_LIMIT);
-        const promises = batch.map((entry: any) => {
-          const subPath = path.join(searchPath, entry.name);
-          return this.searchForGitRepositories(
-            subPath,
-            maxDepth,
-            currentDepth + 1
-          );
-        });
-        await Promise.all(promises);
-      }
-    } catch (error) {
-      console.warn(`搜索Git仓库时出错 ${searchPath}:`, error);
-    }
+    await this.repoManager.initialize();
   }
 
   /**
    * 获取所有可用的Git仓库
    */
   getAvailableRepositories(): GitRepository[] {
-    return this.availableRepositories;
+    return this.repoManager.getAvailableRepositories();
   }
 
   /**
    * 获取当前活动的仓库
    */
   getCurrentRepository(): GitRepository | null {
-    return this.currentRepository;
+    return this.repoManager.getCurrentRepository();
   }
 
   /**
    * 设置当前仓库
    */
   async setCurrentRepository(repository: GitRepository): Promise<void> {
-    // 重置之前的活动状态
-    this.availableRepositories.forEach((repo) => (repo.isActive = false));
-
-    // 设置新的活动仓库
-    repository.isActive = true;
-    this.currentRepository = repository;
-
-    // 获取代理配置
-    const proxyConfig = await this.proxyManager.getProxyConfig();
-
-    // 应用代理配置到环境变量
-    this.proxyManager.applyProxyToEnvironment(proxyConfig);
-
-    // 构建Git配置
-    const gitConfig = ["core.quotepath=false", "log.showSignature=false"];
-
-    // 添加代理配置
-    const proxyGitConfig = this.proxyManager.getGitProxyConfig(proxyConfig);
-    gitConfig.push(...proxyGitConfig);
-
-    // 重新初始化Git实例
-    this.git = simpleGit(repository.path, {
-      config: gitConfig,
-    });
+    await this.repoManager.setCurrentRepository(repository);
 
     // 清除缓存
-    this.commitDetailsCache.clear();
-    this.currentUserCache = null;
+    this.cacheManager.clearAll();
 
     console.log(`切换到仓库: ${repository.name} (${repository.path})`);
-    if (proxyConfig.enabled) {
-      console.log("已应用代理配置:", proxyConfig);
-    }
   }
 
   /**
    * 刷新代理配置
    */
   public async refreshProxyConfig(): Promise<void> {
-    if (!this.currentRepository) {
-      return;
+    const git = await this.repoManager.refreshProxyConfig();
+    if (git) {
+      vscode.window.showInformationMessage("代理配置已刷新");
     }
-
-    // 清除代理缓存
-    this.proxyManager.clearCache();
-
-    // 重新设置当前仓库以应用新的代理配置
-    await this.setCurrentRepository(this.currentRepository);
-
-    vscode.window.showInformationMessage("代理配置已刷新");
   }
 
   /**
@@ -327,7 +151,7 @@ export class GitHistoryProvider {
       const errorStr = error?.message || error?.toString() || "Unknown error";
 
       // 检查是否是网络连接错误
-      if (this.isNetworkError(errorStr)) {
+      if (isNetworkError(errorStr)) {
         console.warn(
           `${errorMessage} - 检测到网络错误，尝试刷新代理配置后重试:`,
           errorStr
@@ -345,7 +169,7 @@ export class GitHistoryProvider {
           console.error(`${errorMessage} - 重试失败:`, retryErrorStr);
 
           // 如果仍然是网络错误，提供更友好的错误信息
-          if (this.isNetworkError(retryErrorStr)) {
+          if (isNetworkError(retryErrorStr)) {
             throw new Error(
               `网络连接失败: ${retryErrorStr}\n\n建议:\n1. 检查网络连接\n2. 确认代理设置是否正确\n3. 尝试使用VPN或代理工具`
             );
@@ -358,29 +182,6 @@ export class GitHistoryProvider {
       console.error(`${errorMessage}:`, error);
       throw error;
     }
-  }
-
-  /**
-   * 检查是否是网络连接错误
-   */
-  private isNetworkError(errorMessage: string): boolean {
-    const networkErrorPatterns = [
-      "Failed to connect to github.com",
-      "Couldn't connect to server",
-      "Connection timed out",
-      "Network is unreachable",
-      "Name or service not known",
-      "Temporary failure in name resolution",
-      "unable to access",
-      "Could not resolve host",
-      "SSL connect error",
-      "OpenSSL SSL_connect",
-      "gnutls_handshake() failed",
-    ];
-
-    return networkErrorPatterns.some((pattern) =>
-      errorMessage.toLowerCase().includes(pattern.toLowerCase())
-    );
   }
 
   /**
@@ -847,13 +648,12 @@ export class GitHistoryProvider {
     const cacheKey = `${branch || "all"}-${
       authorFilter ? authorFilter.join(",") : "no-filter"
     }`;
-    const now = Date.now();
 
     // 检查缓存
-    const cached = this.totalCommitCountCache.get(cacheKey);
-    if (cached && now - cached.timestamp < this.COMMIT_COUNT_CACHE_TTL) {
-      console.log(`Cache hit for commit count (${cacheKey}): ${cached.count}`);
-      return cached.count;
+    const cached = this.cacheManager.getCachedTotalCommitCount(cacheKey);
+    if (cached !== null) {
+      console.log(`Cache hit for commit count (${cacheKey}): ${cached}`);
+      return cached;
     }
 
     return this.executeGitCommand(
@@ -877,7 +677,7 @@ export class GitHistoryProvider {
         const count = parseInt(result.trim()) || 0;
 
         // 缓存结果
-        this.totalCommitCountCache.set(cacheKey, { count, timestamp: now });
+        this.cacheManager.cacheTotalCommitCount(cacheKey, count);
 
         console.timeEnd(`getTotalCommitCount-${cacheKey}`);
         console.log(`Total commit count for ${cacheKey}: ${count}`);
@@ -894,10 +694,11 @@ export class GitHistoryProvider {
   async getCommitDetails(
     hash: string
   ): Promise<{ commit: GitCommit; files: GitFileChange[] } | null> {
-    // 性能优化：检查后端缓存
-    if (this.commitDetailsCache.has(hash)) {
+    // 性能优化：检查缓存
+    const cached = this.cacheManager.getCachedCommitDetails(hash);
+    if (cached) {
       console.log(`Cache hit for commit ${hash.substring(0, 8)}`);
-      return this.commitDetailsCache.get(hash)!;
+      return cached;
     }
 
     return this.executeGitCommand(
@@ -977,26 +778,25 @@ export class GitHistoryProvider {
     hash: string,
     details: { commit: GitCommit; files: GitFileChange[] }
   ) {
-    // 限制缓存大小，避免内存泄漏
-    if (this.commitDetailsCache.size >= this.CACHE_SIZE_LIMIT) {
-      const firstKey = this.commitDetailsCache.keys().next().value;
-      if (firstKey) {
-        this.commitDetailsCache.delete(firstKey);
-      }
-    }
-
-    this.commitDetailsCache.set(hash, details);
+    this.cacheManager.cacheCommitDetails(hash, details);
   }
 
   /**
    * 清理缓存（用于刷新时）
    */
   public clearCache() {
-    this.commitDetailsCache.clear();
-    this.totalCommitCountCache.clear();
-    this.currentUserCache = null;
-    this.userCacheTimestamp = 0;
+    this.cacheManager.clearAll();
     console.log("All caches cleared");
+  }
+
+  /**
+   * 在成功执行可能影响提交历史的 Git 操作后清理相关缓存
+   * 这确保了 UI 显示的数据与仓库状态保持一致
+   */
+  private invalidateCachesAfterHistoryChange() {
+    this.cacheManager.clearCommitDetails();
+    this.cacheManager.clearCanEditMessage();
+    this.cacheManager.clearTotalCommitCount();
   }
 
   /**
@@ -1275,7 +1075,7 @@ export class GitHistoryProvider {
       return false;
     }
 
-    return this.executeGitCommand(
+    const result = await this.executeGitCommand(
       async () => {
         // 按时间排序（从旧到新）
         const sortedCommits = [...commits].sort(
@@ -1329,6 +1129,13 @@ export class GitHistoryProvider {
       "Squash failed",
       false
     );
+
+    // 清理相关缓存，因为历史已经改变
+    if (result) {
+      this.invalidateCachesAfterHistoryChange();
+    }
+
+    return result;
   }
 
   /**
@@ -1790,7 +1597,7 @@ export class GitHistoryProvider {
       return false;
     }
 
-    return this.executeGitCommand(
+    const result = await this.executeGitCommand(
       async () => {
         await this.git!.raw(["cherry-pick", hash]);
         return true;
@@ -1798,6 +1605,13 @@ export class GitHistoryProvider {
       "Cherry-pick failed",
       false
     );
+
+    // 清理相关缓存，因为历史已经改变
+    if (result) {
+      this.invalidateCachesAfterHistoryChange();
+    }
+
+    return result;
   }
 
   /**
@@ -1810,7 +1624,7 @@ export class GitHistoryProvider {
       return false;
     }
 
-    return this.executeGitCommand(
+    const result = await this.executeGitCommand(
       async () => {
         await this.git!.revert(hash);
         return true;
@@ -1818,6 +1632,13 @@ export class GitHistoryProvider {
       "Revert failed",
       false
     );
+
+    // 清理相关缓存，因为历史已经改变
+    if (result) {
+      this.invalidateCachesAfterHistoryChange();
+    }
+
+    return result;
   }
 
   /**
@@ -1834,7 +1655,7 @@ export class GitHistoryProvider {
       return false;
     }
 
-    return this.executeGitCommand(
+    const result = await this.executeGitCommand(
       async () => {
         await this.git!.reset([`--${mode}`, hash]);
         return true;
@@ -1842,6 +1663,13 @@ export class GitHistoryProvider {
       "Reset failed",
       false
     );
+
+    // 清理相关缓存，因为历史已经改变
+    if (result) {
+      this.invalidateCachesAfterHistoryChange();
+    }
+
+    return result;
   }
 
   /**
@@ -2069,6 +1897,7 @@ export class GitHistoryProvider {
         "Pull from remote failed",
         false
       );
+      this.invalidateCachesAfterHistoryChange();
       return true;
     } catch (error: any) {
       const errorMessage =
@@ -2099,6 +1928,7 @@ export class GitHistoryProvider {
       } else {
         await this.git.pull(remote, branch);
       }
+      this.invalidateCachesAfterHistoryChange();
       return true;
     } catch (error: any) {
       const errorMessage =
@@ -2307,6 +2137,7 @@ export class GitHistoryProvider {
       } else {
         await this.git.pull(remote, branch);
       }
+      this.invalidateCachesAfterHistoryChange();
       return true;
     } catch (error: any) {
       const errorMessage =
@@ -2372,7 +2203,7 @@ export class GitHistoryProvider {
         async () => {
           if (prune) {
             // 使用 --all --prune 参数，确保清理已删除的远程分支引用
-            await this.git!.fetch(['--all', '--prune']);
+            await this.git!.fetch(["--all", "--prune"]);
           } else {
             await this.git!.fetch();
           }
@@ -2411,7 +2242,7 @@ export class GitHistoryProvider {
       await this.fetchFromRemote(true);
       this.lastAutoPruneFetchTime = Date.now();
     } catch (err) {
-      console.warn('autoFetchPruneIfNeeded failed:', err);
+      console.warn("autoFetchPruneIfNeeded failed:", err);
     } finally {
       this.autoFetchInProgress = false;
     }
@@ -2454,6 +2285,7 @@ export class GitHistoryProvider {
 
     try {
       await this.git.checkout(branchName);
+      this.invalidateCachesAfterHistoryChange();
       return true;
     } catch (error: any) {
       const errorMessage =
@@ -2474,6 +2306,7 @@ export class GitHistoryProvider {
 
     try {
       await this.git.checkoutLocalBranch(branchName);
+      this.invalidateCachesAfterHistoryChange();
       return true;
     } catch (error: any) {
       const errorMessage =
@@ -2498,6 +2331,7 @@ export class GitHistoryProvider {
 
     try {
       await this.git.checkoutBranch(branchName, hash);
+      this.invalidateCachesAfterHistoryChange();
       return true;
     } catch (error: any) {
       const errorMessage =
@@ -2583,6 +2417,9 @@ export class GitHistoryProvider {
       const isOwnCommit =
         author === currentUser.name || email === currentUser.email;
 
+      // 写入缓存
+      this.cacheManager.cacheCanEditMessage(hash, isOwnCommit);
+
       return isOwnCommit;
     } catch (error: any) {
       console.warn(
@@ -2598,17 +2435,7 @@ export class GitHistoryProvider {
    * @returns 缓存的canEditMessage值，如果未找到则返回null
    */
   private getCachedCanEditMessage(hash: string): boolean | null {
-    // 从提交详情缓存中查找
-    for (const [cachedHash, details] of this.commitDetailsCache) {
-      if (
-        cachedHash === hash ||
-        cachedHash.startsWith(hash) ||
-        hash.startsWith(cachedHash)
-      ) {
-        return details.commit.canEditMessage ?? null;
-      }
-    }
-    return null;
+    return this.cacheManager.getCachedCanEditMessage(hash);
   }
 
   /**
@@ -2639,17 +2466,14 @@ export class GitHistoryProvider {
       if (
         latestCommit.latest &&
         (latestCommit.latest.hash === hash ||
-          latestCommit.latest.hash.startsWith(hash))
+          latestCommit.latest.hash.startsWith(hash) ||
+          hash.startsWith(latestCommit.latest.hash))
       ) {
-        // 如果是最新提交，使用 --amend
-        await this.git.commit(newMessage, undefined, { "--amend": null });
+        // 如果是最新提交，使用 --amend 参数
+        await this.git.commit(newMessage, { "--amend": null });
       } else {
-        // 如果不是最新提交，使用filter-branch重写历史
-        // 这是一个更安全的方法来修改提交消息
-        const escapedMessage = newMessage
-          .replace(/'/g, "'\"'\"'")
-          .replace(/"/g, '\\"');
-
+        // 如果不是最新提交，使用 filter-branch 重写历史
+        const escapedMessage = newMessage.replace(/'/g, "\\'");
         await this.git.raw([
           "filter-branch",
           "-f",
@@ -2658,6 +2482,10 @@ export class GitHistoryProvider {
           "HEAD",
         ]);
       }
+
+      // 清理相关缓存，因为提交信息已经改变
+      this.invalidateCachesAfterHistoryChange();
+
       return true;
     } catch (error: any) {
       const errorMessage =

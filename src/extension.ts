@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
-import { GitHistoryProvider } from "./gitHistoryProvider";
-import { GitHistoryViewProvider } from "./gitHistoryViewProvider";
-import { GitBlameProvider } from "./gitBlameProvider";
-import { GitBlameDecorator } from "./gitBlameDecorator";
+import { GitHistoryProvider } from "./providers/git/gitHistoryProvider";
+import { GitHistoryViewProvider } from "./views/gitHistoryViewProvider";
+import { GitBlameProvider } from "./providers/blame/gitBlameProvider";
+import { GitBlameDecorator } from "./decorators/gitBlameDecorator";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("GUI Git extension is now active!");
@@ -58,49 +58,56 @@ export function activate(context: vscode.ExtensionContext) {
     "guigit.showCommitDetails",
     async (commitHash: string) => {
       if (!commitHash) {
-        vscode.window.showErrorMessage("No commit hash provided");
+        return;
+      }
+      const commitDetails = await gitHistoryProvider.getCommitDetails(commitHash);
+      if (!commitDetails) {
+        vscode.window.showErrorMessage("Commit details not found");
         return;
       }
 
-      try {
-        const commitDetails = await gitBlameProvider.getCommitDetails(commitHash);
-        if (commitDetails) {
-          const panel = vscode.window.createWebviewPanel(
-            'commitDetails',
-            `Commit ${commitHash.substring(0, 7)}`,
-            vscode.ViewColumn.One,
-            {
-              enableScripts: true,
-              retainContextWhenHidden: true
-            }
-          );
-
-          panel.webview.html = getCommitDetailsHtml(commitDetails);
-        } else {
-          vscode.window.showErrorMessage("Failed to get commit details");
+      const panel = vscode.window.createWebviewPanel(
+        "guigit.commitDetails",
+        `Commit Details: ${commitDetails.commit.hash.substring(0, 7)}`,
+        vscode.ViewColumn.Active,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
         }
-      } catch (error) {
-        vscode.window.showErrorMessage(`Error: ${error}`);
-      }
+      );
+
+      panel.webview.html = getCommitDetailsHtml({
+        hash: commitDetails.commit.hash,
+        author: commitDetails.commit.author,
+        email: commitDetails.commit.email,
+        date: new Date(commitDetails.commit.date),
+        message: commitDetails.commit.message,
+        body: commitDetails.commit.body,
+      });
     }
   );
 
-  // 优化Git仓库变化监听，添加完整的仓库状态监听
-  // 创建统一的防抖刷新函数，避免多个监听器同时触发
-  let globalRefreshTimeout: NodeJS.Timeout | undefined;
-  const unifiedDebouncedRefresh = (reason: string) => {
-    if (globalRefreshTimeout) {
-      clearTimeout(globalRefreshTimeout);
+  // 统一刷新函数，防抖处理
+  const refreshDelay = 500; // 500ms 防抖
+  let refreshTimeout: NodeJS.Timeout | undefined;
+  function unifiedDebouncedRefresh(reason: string) {
+    if (refreshTimeout) {
+      clearTimeout(refreshTimeout);
     }
-    console.log(`Git change detected (${reason}), scheduling refresh...`);
-    globalRefreshTimeout = setTimeout(() => {
-      console.log('Executing unified refresh...');
-      // 异步触发带 prune 的自动 fetch（节流控制内）
-      gitHistoryProvider.autoFetchPruneIfNeeded().catch(err => console.warn('auto fetch prune skipped/failed:', err));
+    refreshTimeout = setTimeout(() => {
       gitHistoryViewProvider.refresh();
-    }, 1500); // 统一使用1.5秒防抖延迟
-  };
+    }, refreshDelay);
+  }
 
+  // 监听扩展激活
+  const onDidChangeActiveTextEditorDisposable = vscode.window.onDidChangeActiveTextEditor(
+    () => {
+      unifiedDebouncedRefresh('active editor changed');
+    }
+  );
+  context.subscriptions.push(onDidChangeActiveTextEditorDisposable);
+
+  // 监听Git扩展和仓库事件
   const gitExtension = vscode.extensions.getExtension("vscode.git");
   if (gitExtension) {
     const git = gitExtension.exports.getAPI(1);
@@ -140,37 +147,29 @@ export function activate(context: vscode.ExtensionContext) {
       new vscode.RelativePattern(workspaceFolders[0], '.git/HEAD')
     );
     gitHeadWatcher.onDidChange(() => unifiedDebouncedRefresh('HEAD file change'));
-    
-    // 监听refs目录变化（新提交、分支创建等）
+    context.subscriptions.push(gitHeadWatcher);
+
+    // 监听refs/heads 变化（分支更新）
     const gitRefsWatcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(workspaceFolders[0], '.git/refs/**')
+      new vscode.RelativePattern(workspaceFolders[0], '.git/refs/heads/**')
     );
-    gitRefsWatcher.onDidChange(() => unifiedDebouncedRefresh('refs change'));
-    gitRefsWatcher.onDidCreate(() => unifiedDebouncedRefresh('refs create'));
-    gitRefsWatcher.onDidDelete(() => unifiedDebouncedRefresh('refs delete'));
-    
-    // 监听index文件变化（暂存区变化）
-    const gitIndexWatcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(workspaceFolders[0], '.git/index')
-    );
-    gitIndexWatcher.onDidChange(() => unifiedDebouncedRefresh('index change'));
-    
-    context.subscriptions.push(gitHeadWatcher, gitRefsWatcher, gitIndexWatcher);
+    gitRefsWatcher.onDidChange(() => unifiedDebouncedRefresh('refs changed'));
+    gitRefsWatcher.onDidCreate(() => unifiedDebouncedRefresh('refs created'));
+    gitRefsWatcher.onDidDelete(() => unifiedDebouncedRefresh('refs deleted'));
+    context.subscriptions.push(gitRefsWatcher);
   }
 
   context.subscriptions.push(
-    provider, 
-    showHistoryCommand, 
+    provider,
+    showHistoryCommand,
     refreshCommand,
     toggleBlameCommand,
-    showCommitDetailsCommand,
-    gitBlameDecorator
+    showCommitDetailsCommand
   );
 }
 
-/**
- * 生成提交详情的HTML内容
- */
+export function deactivate() {}
+
 function getCommitDetailsHtml(commitDetails: {
   hash: string;
   author: string;
@@ -179,101 +178,41 @@ function getCommitDetailsHtml(commitDetails: {
   message: string;
   body: string;
 }): string {
-  const formattedDate = commitDetails.date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-
   return `
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Commit Details</title>
-        <style>
-            body {
-                font-family: var(--vscode-font-family);
-                font-size: var(--vscode-font-size);
-                color: var(--vscode-foreground);
-                background-color: var(--vscode-editor-background);
-                padding: 20px;
-                line-height: 1.6;
-            }
-            .commit-header {
-                border-bottom: 1px solid var(--vscode-panel-border);
-                padding-bottom: 15px;
-                margin-bottom: 20px;
-            }
-            .commit-hash {
-                font-family: var(--vscode-editor-font-family);
-                background-color: var(--vscode-textBlockQuote-background);
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-size: 0.9em;
-            }
-            .commit-message {
-                font-size: 1.2em;
-                font-weight: bold;
-                margin: 10px 0;
-            }
-            .commit-meta {
-                color: var(--vscode-descriptionForeground);
-                margin: 5px 0;
-            }
-            .commit-body {
-                margin-top: 20px;
-                white-space: pre-wrap;
-                background-color: var(--vscode-textBlockQuote-background);
-                padding: 15px;
-                border-radius: 4px;
-                border-left: 4px solid var(--vscode-textBlockQuote-border);
-            }
-            .label {
-                font-weight: bold;
-                color: var(--vscode-foreground);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="commit-header">
-            <div class="commit-message">${escapeHtml(commitDetails.message)}</div>
-            <div class="commit-meta">
-                <span class="label">提交哈希:</span> 
-                <span class="commit-hash">${commitDetails.hash}</span>
-            </div>
-            <div class="commit-meta">
-                <span class="label">作者:</span> ${escapeHtml(commitDetails.author)} &lt;${escapeHtml(commitDetails.email)}&gt;
-            </div>
-            <div class="commit-meta">
-                <span class="label">提交时间:</span> ${formattedDate}
-            </div>
-        </div>
-        ${commitDetails.body ? `
-        <div class="commit-body">
-            <div class="label">详细描述:</div>
-            ${escapeHtml(commitDetails.body)}
-        </div>
-        ` : ''}
-    </body>
-    </html>
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commit Details</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; padding: 16px; }
+      .header { margin-bottom: 12px; }
+      .hash { font-family: monospace; color: #888; }
+      .author { font-weight: bold; }
+      .date { color: #666; }
+      .message { margin-top: 12px; font-size: 1.1em; }
+      .body { margin-top: 12px; white-space: pre-wrap; border-top: 1px solid #eee; padding-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="hash">${commitDetails.hash}</div>
+      <div><span class="author">${escapeHtml(commitDetails.author)}</span> &lt;${escapeHtml(commitDetails.email)}&gt;</div>
+      <div class="date">${commitDetails.date.toLocaleString()}</div>
+    </div>
+    <div class="message">${escapeHtml(commitDetails.message)}</div>
+    <div class="body">${escapeHtml(commitDetails.body)}</div>
+  </body>
+  </html>
   `;
 }
 
-/**
- * HTML转义函数
- */
 function escapeHtml(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
-
-export function deactivate() {}
