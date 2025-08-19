@@ -484,6 +484,10 @@ import { getIcon } from './utils/icons.js';
      */
     function updateBranches(branchData) {
         setState('branches', branchData);
+        
+        // 保存当前选中的分支
+        const currentSelectedBranch = getState('currentBranch') || 'all';
+        
         branchSelect.innerHTML = Templates.defaultBranchOption();
 
         // 遍历分支数据，创建选项元素
@@ -494,9 +498,19 @@ import { getIcon } from './utils/icons.js';
             branchSelect.appendChild(option);
         });
 
-        // 默认选择"All branches"
-        branchSelect.value = 'all';
-        setCurrentBranch('all');
+        // 检查当前选中的分支是否仍然存在于新的分支列表中
+        const branchExists = currentSelectedBranch === 'all' || 
+                            branchData.some(branch => branch.name === currentSelectedBranch);
+        
+        if (branchExists) {
+            // 如果当前分支仍然存在，保持选中状态
+            branchSelect.value = currentSelectedBranch;
+            setCurrentBranch(currentSelectedBranch);
+        } else {
+            // 如果当前分支不存在了，才重置为"All branches"
+            branchSelect.value = 'all';
+            setCurrentBranch('all');
+        }
     }
 
     /**
