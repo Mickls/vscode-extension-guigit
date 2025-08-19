@@ -1188,107 +1188,8 @@ export class GitHistoryProvider {
   }
 
   /**
-   * 从指定远程分支拉取代码
-   * @param remote 远程仓库名称
-   * @param branch 分支名称
-   * @param rebase 是否使用rebase
-   * @returns 是否成功
-   */
-  async pullFromRemoteBranch(
-    remote: string,
-    branch: string,
-    rebase: boolean = false
-  ): Promise<boolean> {
-    if (!this.remoteOps) {
-      throw new Error("Remote operations not available");
-    }
-
-    try {
-      const result = await this.remoteOps.pullFromRemoteBranch(remote, branch, rebase);
-      if (result) {
-        this.invalidateCachesAfterHistoryChange();
-      }
-      return result;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * 推送代码到远程仓库
-   * @returns 是否成功
-   */
-  async pushToRemote(): Promise<boolean> {
-    if (!this.remoteOps) {
-      throw new Error("Remote operations not available");
-    }
-
-    try {
-      return await this.remoteOps.pushToRemote();
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * 推送代码到指定远程分支
-   * @param remote 远程仓库名称
-   * @param branch 分支名称
-   * @param force 是否强制推送
-   * @returns 是否成功
-   */
-  async pushToRemoteBranch(
-    remote: string,
-    branch: string,
-    force: boolean = false
-  ): Promise<boolean> {
-    if (!this.remoteOps) {
-      throw new Error("Remote operations not available");
-    }
-
-    try {
-      return await this.remoteOps.pushToRemoteBranch(remote, branch, force);
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * 获取远程仓库列表
-   * @returns 远程仓库列表
-   */
-  async getRemotes(): Promise<string[]> {
-    if (!this.remoteOps) {
-      throw new Error("Remote operations not available");
-    }
-
-    try {
-      return await this.remoteOps.getRemotes();
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * 获取远程分支列表
-   * @param remote 远程仓库名称
+   * 获取所有远程分支列表
    * @returns 远程分支列表
-   */
-  async getRemoteBranches(remote: string): Promise<string[]> {
-    if (!this.remoteOps) {
-      throw new Error("Remote operations not available");
-    }
-
-    try {
-      return await this.remoteOps.getRemoteBranches(remote);
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * 获取所有远程分支列表（包含远程仓库名称）
-   * @returns 远程分支列表，格式为 remote/branch
    */
   async getAllRemoteBranches(): Promise<string[]> {
     if (!this.remoteOps) {
@@ -1297,31 +1198,6 @@ export class GitHistoryProvider {
 
     try {
       return await this.remoteOps.getAllRemoteBranches();
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * 从指定的完整远程分支拉取代码
-   * @param remoteBranch 完整的远程分支名称，格式为 remote/branch
-   * @param rebase 是否使用rebase
-   * @returns 是否成功
-   */
-  async pullFromFullRemoteBranch(
-    remoteBranch: string,
-    rebase: boolean = false
-  ): Promise<boolean> {
-    if (!this.remoteOps) {
-      throw new Error("Remote operations not available");
-    }
-
-    try {
-      const result = await this.remoteOps.pullFromFullRemoteBranch(remoteBranch, rebase);
-      if (result) {
-        this.invalidateCachesAfterHistoryChange();
-      }
-      return result;
     } catch (error) {
       throw error;
     }
@@ -1366,34 +1242,6 @@ export class GitHistoryProvider {
   }
 
   /**
-   * 自动在合适时机执行带 --prune 的 fetch，避免频繁触发
-   * @param force 是否强制执行（忽略间隔限制）
-   */
-  async autoFetchPruneIfNeeded(force: boolean = false): Promise<void> {
-    if (!this.git) return;
-
-    const now = Date.now();
-    if (!force) {
-      if (this.autoFetchInProgress) {
-        return;
-      }
-      if (now - this.lastAutoPruneFetchTime < this.AUTO_PRUNE_FETCH_INTERVAL) {
-        return;
-      }
-    }
-
-    this.autoFetchInProgress = true;
-    try {
-      await this.fetchFromRemote(true);
-      this.lastAutoPruneFetchTime = Date.now();
-    } catch (err) {
-      console.warn("autoFetchPruneIfNeeded failed:", err);
-    } finally {
-      this.autoFetchInProgress = false;
-    }
-  }
-
-  /**
    * 克隆远程仓库
    * @param repoUrl 仓库URL
    * @param targetPath 目标路径
@@ -1415,6 +1263,27 @@ export class GitHistoryProvider {
   }
 
   /**
+   * 创建并切换到新分支
+   * @param branchName 分支名称
+   * @returns 是否成功
+   */
+  async createAndCheckoutBranch(branchName: string): Promise<boolean> {
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
+    }
+
+    try {
+      const result = await this.branchOps.createAndCheckoutBranch(branchName);
+      if (result) {
+        this.invalidateCachesAfterHistoryChange();
+      }
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
    * 切换到指定分支
    * @param branchName 分支名称
    * @returns 是否成功
@@ -1424,28 +1293,15 @@ export class GitHistoryProvider {
       throw new Error("Branch operations not available");
     }
 
-    const result = await this.branchOps.checkoutBranch(branchName);
-    if (result) {
-      this.invalidateCachesAfterHistoryChange();
+    try {
+      const result = await this.branchOps.checkoutBranch(branchName);
+      if (result) {
+        this.invalidateCachesAfterHistoryChange();
+      }
+      return result;
+    } catch (error) {
+      throw error;
     }
-    return result;
-  }
-
-  /**
-   * 创建并切换到新分支
-   * @param branchName 新分支名称
-   * @returns 是否成功
-   */
-  async createAndCheckoutBranch(branchName: string): Promise<boolean> {
-    if (!this.branchOps) {
-      throw new Error("Branch operations not available");
-    }
-
-    const result = await this.branchOps.createAndCheckoutBranch(branchName);
-    if (result) {
-      this.invalidateCachesAfterHistoryChange();
-    }
-    return result;
   }
 
   /**
@@ -1462,18 +1318,84 @@ export class GitHistoryProvider {
       throw new Error("Branch operations not available");
     }
 
-    const result = await this.branchOps.createBranchFromCommit(hash, branchName);
-    if (result) {
-      this.invalidateCachesAfterHistoryChange();
+    try {
+      const result = await this.branchOps.createBranchFromCommit(hash, branchName);
+      if (result) {
+        this.invalidateCachesAfterHistoryChange();
+      }
+      return result;
+    } catch (error) {
+      throw error;
     }
-    return result;
   }
 
   /**
-   * 推送指定提交及其之前的所有提交到远程分支
-   * @param hash 目标提交哈希值
-   * @param remoteBranch 远程分支名称，格式为 remote/branch
+   * 从指定远程分支拉取代码
+   * @param remote 远程仓库名称
+   * @param branch 分支名称
+   * @param rebase 是否使用rebase
    * @returns 是否成功
+   */
+  async pullFromRemoteBranch(
+    remote: string,
+    branch: string,
+    rebase: boolean = false
+  ): Promise<boolean> {
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
+    }
+
+    try {
+      const result = await this.remoteOps.pullFromRemoteBranch(remote, branch, rebase);
+      if (result) {
+        this.invalidateCachesAfterHistoryChange();
+      }
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 推送代码到远程仓库
+   * @returns 是否成功
+   */
+  async pushToRemote(): Promise<boolean> {
+    if (!this.remoteOps) {
+      throw new Error("Remote operations not available");
+    }
+
+    try {
+      return await this.remoteOps.pushToRemote();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+
+
+  /**
+   * 检查分支是否存在（本地或远程）
+   * @param branchName 分支名称
+   * @returns 是否存在
+   */
+  async branchExists(branchName: string): Promise<boolean> {
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
+    }
+
+    try {
+      return await this.branchOps.branchExists(branchName);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Check branch existence failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 推送提交到远程分支
+   * @param hash 提交哈希值
+   * @param remoteBranch 远程分支名称，格式为 remote/branch
    */
   async pushCommitsToRemoteBranch(
     hash: string,

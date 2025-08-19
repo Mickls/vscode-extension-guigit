@@ -1979,80 +1979,147 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitPushAdvanced() {
     try {
-      // 先尝试抓取并修剪远程引用，确保列表最新
-      // await this._gitHistoryProvider.fetchFromRemote(true);
-
       // 获取所有远程分支列表
       const remoteBranches =
         await this._gitHistoryProvider.getAllRemoteBranches();
 
-      // 添加"新建分支"选项
-      const branchOptions = [...remoteBranches, "+ Create new branch"];
+      // 创建一个 QuickPick 来显示所有远程分支并支持输入筛选
+      const quickPick = vscode.window.createQuickPick();
+      quickPick.placeholder = "Select a remote branch or type to create new one";
+      quickPick.items = remoteBranches.map(branch => ({
+        label: branch,
+        description: "Existing remote branch"
+      }));
+      quickPick.canSelectMany = false;
+      quickPick.matchOnDescription = true;
 
-      // 选择目标分支
-      const selectedOption = await vscode.window.showQuickPick(branchOptions, {
-        placeHolder:
-          "Select target branch or create new one (e.g., origin/master)",
-        canPickMany: false,
+      return new Promise<void>((resolve) => {
+        let selectedBranch: string | undefined;
+        let isNewBranch = false;
+
+        quickPick.onDidChangeValue((value) => {
+          const trimmedValue = value.trim();
+          
+          if (!trimmedValue) {
+            // 如果输入为空，显示所有远程分支
+            quickPick.items = remoteBranches.map(branch => ({
+              label: branch,
+              description: "Existing remote branch"
+            }));
+            return;
+          }
+
+          // 筛选现有分支
+          const filteredBranches = remoteBranches.filter(branch =>
+            branch.toLowerCase().includes(trimmedValue.toLowerCase())
+          );
+
+          const items: vscode.QuickPickItem[] = [];
+          
+          // 添加筛选出的现有分支
+          items.push(...filteredBranches.map(branch => ({
+            label: branch,
+            description: "Existing remote branch"
+          })));
+
+          // 如果筛选结果为空或用户输入的不是现有分支的完全匹配，
+          // 则提供创建新分支的选项
+          let targetBranch = trimmedValue;
+          
+          // 智能处理远程仓库前缀：如果输入不包含斜杠，自动添加 origin/ 前缀
+          if (!trimmedValue.includes("/")) {
+            targetBranch = `origin/${trimmedValue}`;
+          }
+
+          // 检查是否完全匹配现有分支
+          const exactMatch = remoteBranches.find(branch => 
+            branch.toLowerCase() === targetBranch.toLowerCase()
+          );
+
+          if (!exactMatch) {
+            items.push({
+              label: `$(add) Create: ${targetBranch}`,
+              description: "Create new remote branch",
+              detail: "This will create a new branch and push to it"
+            });
+          }
+
+          quickPick.items = items;
+        });
+
+        quickPick.onDidAccept(() => {
+          const selected = quickPick.selectedItems[0];
+          if (selected) {
+            if (selected.label.startsWith("$(add) Create: ")) {
+              // 用户选择创建新分支
+              selectedBranch = selected.label.replace("$(add) Create: ", "");
+              isNewBranch = true;
+            } else {
+              // 用户选择现有分支
+              selectedBranch = selected.label;
+              isNewBranch = false;
+            }
+            quickPick.hide();
+          }
+        });
+
+        quickPick.onDidHide(() => {
+          quickPick.dispose();
+          if (selectedBranch) {
+            this._performPushOperation(selectedBranch, isNewBranch).then(() => resolve());
+          } else {
+            resolve();
+          }
+        });
+
+        quickPick.show();
       });
 
-      if (!selectedOption) {
-        return;
-      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(errorMessage);
+    }
+  }
 
-      let targetBranch: string;
-      if (selectedOption === "+ Create new branch") {
-        // 创建新分支 - 需要用户输入完整的远程分支名称
-        const newBranchName = await vscode.window.showInputBox({
-          prompt: "Enter new remote branch name (format: remote/branch)",
-          placeHolder: "origin/new-branch-name",
-          validateInput: (value) => {
-            if (!value || value.trim().length === 0) {
-              return "Branch name is required";
-            }
-            if (!value.includes("/")) {
-              return "Invalid format. Please use 'remote/branch' format.";
-            }
-            return null;
-          },
-        });
-        if (!newBranchName) {
-          return;
-        }
-        targetBranch = newBranchName;
-      } else {
-        targetBranch = selectedOption;
-      }
+  /**
+   * 执行推送操作
+   */
+  private async _performPushOperation(targetBranch: string, isNewBranch: boolean) {
+    try {
+      let isForce = false;
 
-      // 选择推送选项
-      const pushOptions = await vscode.window.showQuickPick(
-        [
-          { label: "Normal push", value: "normal" },
-          { label: "Force push (--force)", value: "force" },
-        ],
-        {
-          placeHolder: "Select push option",
-          canPickMany: false,
-        }
-      );
-
-      if (!pushOptions) {
-        return;
-      }
-
-      const isForce = pushOptions.value === "force";
-
-      // 如果是强制推送，显示警告
-      if (isForce) {
-        const confirm = await vscode.window.showWarningMessage(
-          "Force push can overwrite remote changes and may cause data loss. Are you sure?",
-          { modal: true },
-          "Yes, force push",
-          "Cancel"
+      // 对于新分支，自动选择 normal push；对于现有分支，让用户选择
+      if (!isNewBranch) {
+        const pushOptions = await vscode.window.showQuickPick(
+          [
+            { label: "Normal push", value: "normal" },
+            { label: "Force push (--force)", value: "force" },
+          ],
+          {
+            placeHolder: "Select push option",
+            canPickMany: false,
+          }
         );
 
-        if (confirm !== "Yes, force push") {
+        if (!pushOptions) {
           return;
+        }
+
+        isForce = pushOptions.value === "force";
+
+        // 如果是强制推送，显示警告
+        if (isForce) {
+          const confirm = await vscode.window.showWarningMessage(
+            "Force push can overwrite remote changes and may cause data loss. Are you sure?",
+            { modal: true },
+            "Yes, force push",
+            "Cancel"
+          );
+
+          if (confirm !== "Yes, force push") {
+            return;
+          }
         }
       }
 
@@ -2061,7 +2128,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           location: vscode.ProgressLocation.Notification,
           title: `${
             isForce ? "Force pushing" : "Pushing"
-          } to ${targetBranch}...`,
+          } to ${targetBranch}${isNewBranch ? " (new branch)" : ""}...`,
           cancellable: false,
         },
         async () => {
@@ -2076,7 +2143,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           `Successfully ${
             isForce ? "force pushed" : "pushed"
-          } to ${targetBranch}`
+          } to ${targetBranch}${isNewBranch ? " (new branch created)" : ""}`
         );
         this.refresh();
       }
