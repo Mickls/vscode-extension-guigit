@@ -297,7 +297,7 @@ export class GitHistoryProvider {
         ]);
 
         // 使用委托的方法计算canEditMessage
-        const canEditMessage = await commitOps.canEditCommitMessage(hash);
+        const canEditMessage = true
 
         const result = {
           commit: {
@@ -334,7 +334,7 @@ export class GitHistoryProvider {
    * 获取提交信息
    */
   private async getCommitInfo(hash: string): Promise<any> {
-    const log = await this.git!.log({ maxCount: 1, from: hash, to: hash });
+    const log = await this.git!.log({ maxCount: 1, from: hash });
 
     if (log.all.length > 0) {
       return log.all[0];
@@ -365,7 +365,8 @@ export class GitHistoryProvider {
   /**
    * 清理缓存（用于刷新时）
    */
-  public clearCache() {
+  public async clearCache() {
+    // 清理所有缓存
     this.cacheManager.clearAll();
     console.log("All caches cleared");
   }
@@ -376,7 +377,6 @@ export class GitHistoryProvider {
    */
   private invalidateCachesAfterHistoryChange() {
     this.cacheManager.clearCommitDetails();
-    this.cacheManager.clearCanEditMessage();
     this.cacheManager.clearTotalCommitCount();
   }
 
@@ -1410,42 +1410,6 @@ export class GitHistoryProvider {
     } catch (error) {
       throw error;
     }
-  }
-
-  /**
-   * 检查提交是否可以编辑消息（高效版本，优先使用缓存的结果）
-   * @param hash 提交哈希值
-   * @returns 是否可以编辑
-   */
-  async canEditCommitMessage(hash: string): Promise<boolean> {
-    const commitOps = this.commitOps;
-    if (!commitOps) {
-      throw new Error("Git instance not available");
-    }
-    return commitOps.canEditCommitMessage(hash);
-  }
-
-  /**
-   * 从已加载的提交缓存中获取canEditMessage值
-   * @param hash 提交哈希值
-   * @returns 缓存的canEditMessage值，如果未找到则返回null
-   */
-  private getCachedCanEditMessage(hash: string): boolean | null {
-    return this.cacheManager.getCachedCanEditMessage(hash);
-  }
-
-  /**
-   * 快速检查提交是否可以编辑消息（仅使用预计算的结果）
-   * 这个方法专门用于UI交互，如右键菜单，需要立即响应
-   * @param hash 提交哈希值
-   * @returns 是否可以编辑，如果未预计算则返回false
-   */
-  canEditCommitMessageSync(hash: string): boolean {
-    const commitOps = this.commitOps;
-    if (!commitOps) {
-      return false;
-    }
-    return commitOps.canEditCommitMessageSync(hash);
   }
 
   /**

@@ -277,6 +277,7 @@ export class GitCommitOperations {
         body: "", // 简化：不在列表视图中加载body
         parents,
         children: [], // 将在后处理中填充
+        canEditMessage: true,
       };
 
       commits.push(commit);
@@ -284,16 +285,6 @@ export class GitCommitOperations {
 
     // 后处理：建立父子关系
     this.buildParentChildRelationships(commits);
-
-    // 优化：只在首次加载时计算canEditMessage，减少性能开销
-    if (skip === 0) {
-      await this.calculateCanEditMessage(commits);
-    } else {
-      // 对于后续加载的提交，默认设置为false，需要时再计算
-      commits.forEach((commit) => {
-        commit.canEditMessage = false;
-      });
-    }
 
     console.timeEnd(`getCommitHistory-${skip}-${limit}`);
     console.log(`Successfully processed ${commits.length} commits`);
@@ -321,58 +312,6 @@ export class GitCommitOperations {
       });
     });
   }
-
-  /**
-   * 预先计算每个提交是否可以编辑消息
-   * 判断条件：提交属于当前用户且是最新的提交
-   */
-  private async calculateCanEditMessage(commits: GitCommit[]): Promise<void> {
-    try {
-      // 获取当前用户信息和最新提交哈希
-      const [currentUser, latestCommitHash] = await Promise.all([
-        this.getCurrentUserInfo(),
-        this.getLatestCommitHash(),
-      ]);
-
-      if (!currentUser || !latestCommitHash) {
-        // 如果无法获取用户信息或最新提交，则所有提交都不可编辑
-        commits.forEach((commit) => {
-          commit.canEditMessage = false;
-        });
-        return;
-      }
-
-      // 为每个提交计算canEditMessage
-      commits.forEach((commit) => {
-        // 检查是否是当前用户的提交
-        const isOwnCommit =
-          commit.author === currentUser.name ||
-          commit.email === currentUser.email;
-
-        // 检查是否是最新提交（支持短哈希匹配）
-        const isLatestCommit =
-          commit.hash === latestCommitHash ||
-          latestCommitHash.startsWith(commit.hash) ||
-          commit.hash.startsWith(latestCommitHash);
-
-        // 只有当提交属于当前用户且是最新提交时才可以编辑
-        commit.canEditMessage = isOwnCommit && isLatestCommit;
-      });
-
-      console.log(
-        `Calculated canEditMessage for ${
-          commits.length
-        } commits. Latest commit: ${latestCommitHash?.substring(0, 8)}`
-      );
-    } catch (error) {
-      console.warn("Failed to calculate canEditMessage:", error);
-      // 出错时默认所有提交都不可编辑
-      commits.forEach((commit) => {
-        commit.canEditMessage = false;
-      });
-    }
-  }
-
   /**
    * 获取当前Git用户信息（带缓存优化）
    */
@@ -502,78 +441,6 @@ export class GitCommitOperations {
   }
 
   /**
-   * 检查是否可以编辑提交消息
-   */
-  async canEditCommitMessage(hash: string): Promise<boolean> {
-    // 首先检查缓存
-    const cachedResult = this.getCachedCanEditMessage(hash);
-    if (cachedResult !== null) {
-      return cachedResult;
-    }
-
-    // 获取提交信息
-    const log = await this.git.log({ from: hash, to: hash });
-    if (log.all.length === 0) {
-      return false;
-    }
-
-    const commit = log.all[0];
-    const [currentUser, latestCommitHash] = await Promise.all([
-      this.getCurrentUserInfo(),
-      this.getLatestCommitHash(),
-    ]);
-
-    if (!currentUser || !latestCommitHash) {
-      return false;
-    }
-
-    // 检查是否是当前用户的提交
-    const isOwnCommit =
-      commit.author_name === currentUser.name ||
-      commit.author_email === currentUser.email;
-
-    // 检查是否是最新提交（支持短哈希匹配）
-    const isLatestCommit =
-      hash === latestCommitHash ||
-      latestCommitHash.startsWith(hash) ||
-      hash.startsWith(latestCommitHash);
-
-    if (!isLatestCommit) {
-      console.log(
-        `Commit ${hash.substring(
-          0,
-          8
-        )} is not the latest commit. Latest: ${latestCommitHash?.substring(
-          0,
-          8
-        )}`
-      );
-    }
-
-    const canEdit = isOwnCommit && isLatestCommit;
-
-    // 缓存结果（有效期为缓存管理器设定的时间）
-    this.cacheManager.cacheCanEditMessage(hash, canEdit);
-
-    return canEdit;
-  }
-
-  /**
-   * 从缓存获取是否可以编辑提交消息
-   */
-  private getCachedCanEditMessage(hash: string): boolean | null {
-    return this.cacheManager.getCachedCanEditMessage(hash);
-  }
-
-  /**
-   * 同步版本的检查是否可以编辑提交消息（仅使用缓存）
-   */
-  canEditCommitMessageSync(hash: string): boolean {
-    const cached = this.getCachedCanEditMessage(hash);
-    return cached ?? false;
-  }
-
-  /**
    * 修改提交消息
    */
   async amendCommitMessage(hash: string, newMessage: string): Promise<boolean> {
@@ -592,9 +459,6 @@ export class GitCommitOperations {
 
       // 使用 git commit --amend -m 修改提交消息
       await this.git.raw(["commit", "--amend", "-m", newMessage]);
-
-      // 清除相关缓存
-      this.cacheManager.clearAll();
 
       vscode.window.showInformationMessage("提交消息已成功修改");
       return true;

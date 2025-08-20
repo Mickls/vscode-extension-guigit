@@ -292,18 +292,19 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    * 刷新Git历史视图（优化版本）
    * 使用防抖机制避免频繁刷新，增加延迟时间
    * 保持当前的筛选状态
+   * @param immediate 是否立即刷新，绕过防抖延迟
    */
-  public refresh() {
+  public refresh(immediate: boolean = false) {
     if (this._refreshTimeout) {
       clearTimeout(this._refreshTimeout);
     }
 
-    this._refreshTimeout = setTimeout(async () => {
+    const doRefresh = async () => {
       if (this._view) {
         console.time("refresh-view");
 
-        // 清理后端缓存
-        this._gitHistoryProvider.clearCache();
+        // 清理后端缓存并重新计算canEditMessage状态
+        await this._gitHistoryProvider.clearCache();
 
         // 请求前端当前的筛选状态，响应将通过 currentFilterState 消息处理
         this._view.webview.postMessage({
@@ -312,7 +313,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
         console.timeEnd("refresh-view");
       }
-    }, 1500); // 增加到1.5秒防抖延迟，减少频繁刷新
+    };
+
+    if (immediate) {
+      // 立即刷新，绕过防抖延迟
+      void doRefresh();
+      return;
+    }
+
+    this._refreshTimeout = setTimeout(doRefresh, 1500); // 增加到1.5秒防抖延迟，减少频繁刷新
   }
 
   /**
@@ -633,7 +642,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           "Cherry-pick completed successfully"
         );
-        this.refresh();
+        this.refresh(true);
       }
     }
   }
@@ -653,7 +662,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const success = await this._gitHistoryProvider.revertCommit(hash);
       if (success) {
         vscode.window.showInformationMessage("Revert completed successfully");
-        this.refresh();
+        this.refresh(true);
       }
     }
   }
@@ -679,7 +688,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           `Reset (${mode}) completed successfully`
         );
-        this.refresh();
+        this.refresh(true);
       }
     }
   }
@@ -734,7 +743,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     const success = await this._gitHistoryProvider.squashCommits(commits);
     if (success) {
       vscode.window.showInformationMessage("Squash completed successfully");
-      this.refresh();
+      this.refresh(true);
     }
   }
 
@@ -1665,7 +1674,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage("Successfully pulled from remote");
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -1692,7 +1701,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage("Successfully pushed to remote");
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -1721,7 +1730,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           "Successfully fetched from remote"
         );
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -1872,7 +1881,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             ? `Successfully created and checked out branch: ${targetBranch}`
             : `Successfully checked out branch: ${targetBranch}`
         );
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -1965,7 +1974,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             isRebase ? "pulled with rebase" : "pulled"
           } from ${branch}`
         );
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -2145,7 +2154,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             isForce ? "force pushed" : "pushed"
           } to ${targetBranch}${isNewBranch ? " (new branch created)" : ""}`
         );
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -2211,7 +2220,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
           );
         }
 
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -2299,7 +2308,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           `Successfully pushed commits to ${targetBranch}`
         );
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -2313,16 +2322,6 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _editCommitMessage(hash: string) {
     try {
-      // 检查提交是否可以编辑（本地未推送的提交可以编辑）
-      const canEdit = await this._gitHistoryProvider.canEditCommitMessage(hash);
-
-      if (!canEdit) {
-        vscode.window.showWarningMessage(
-          "This commit has already been pushed to the remote repository and cannot be edited."
-        );
-        return;
-      }
-
       // 获取当前提交信息
       const commitDetails = await this._gitHistoryProvider.getCommitDetails(
         hash
@@ -2368,7 +2367,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           "Commit message updated successfully"
         );
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =
@@ -2412,7 +2411,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await this._gitHistoryProvider.resetAutoStashPreference();
       if (result) {
         // 成功重置，刷新视图
-        this.refresh();
+        this.refresh(true);
       }
     } catch (error) {
       const errorMessage =

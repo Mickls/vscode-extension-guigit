@@ -20,8 +20,6 @@ export class GitCacheManager {
     { count: number; timestamp: number }
   >();
 
-  private canEditMessageCache = new Map<string, boolean>();
-
   /**
    * 缓存提交详情
    */
@@ -96,26 +94,11 @@ export class GitCacheManager {
   }
 
   /**
-   * 缓存可编辑状态
-   */
-  cacheCanEditMessage(hash: string, canEdit: boolean) {
-    this.canEditMessageCache.set(hash, canEdit);
-  }
-
-  /**
-   * 获取缓存的可编辑状态
-   */
-  getCachedCanEditMessage(hash: string): boolean | null {
-    return this.canEditMessageCache.get(hash) ?? null;
-  }
-
-  /**
    * 清理所有缓存
    */
   clearAll() {
     this.commitDetailsCache.clear();
     this.totalCommitCountCache.clear();
-    this.canEditMessageCache.clear();
     this.currentUserCache = null;
     this.userCacheTimestamp = 0;
     console.log("All caches cleared");
@@ -135,9 +118,5 @@ export class GitCacheManager {
 
   clearTotalCommitCount() {
     this.totalCommitCountCache.clear();
-  }
-
-  clearCanEditMessage() {
-    this.canEditMessageCache.clear();
   }
 }
