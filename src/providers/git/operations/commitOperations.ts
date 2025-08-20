@@ -1,7 +1,7 @@
 import { SimpleGit } from "simple-git";
 import * as vscode from "vscode";
-import { GitCommit } from "../types/gitTypes";
 import { GitCacheManager } from "../cache/gitCacheManager";
+import { GitCommit } from "../types/gitTypes";
 
 /**
  * Git提交操作管理器
@@ -39,7 +39,9 @@ export class GitCommitOperations {
     if (branch && branch !== "all") {
       args.push(branch);
     } else {
-      args.push("--all"); // 在所有分支中搜索
+      args.push("--branches");
+      args.push("--remotes");
+      args.push("--tags"); // 在所有常规引用中搜索（不包含 stash）
     }
 
     // 添加作者筛选
@@ -70,7 +72,9 @@ export class GitCommitOperations {
       if (branch && branch !== "all") {
         hashSearchArgs.push(branch);
       } else {
-        hashSearchArgs.push("--all");
+        hashSearchArgs.push("--branches");
+        hashSearchArgs.push("--remotes");
+        hashSearchArgs.push("--tags");
       }
 
       // 添加作者筛选到哈希搜索
@@ -137,9 +141,7 @@ export class GitCommitOperations {
           return hashMatchedCommits;
         }
       } catch (error) {
-        console.log(
-          "Hash prefix search failed, falling back to grep search"
-        );
+        console.log("Hash prefix search failed, falling back to grep search");
       }
     } else {
       // 如果不是哈希值，在提交消息中搜索
@@ -215,7 +217,9 @@ export class GitCommitOperations {
     // 使用更简化的格式，减少解析复杂度
     const args = [
       "log",
-      "--all", // 显示所有分支
+      "--branches", // 显示本地分支
+      "--remotes", // 显示远程分支
+      "--tags", // 显示标签
       `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
       "--encoding=UTF-8",
       `--max-count=${limit}`,
@@ -227,7 +231,10 @@ export class GitCommitOperations {
 
     if (branch && branch !== "all") {
       // 如果指定了特定分支，只显示该分支
-      args.splice(args.indexOf("--all"), 1);
+      ["--branches", "--remotes", "--tags"].forEach((flag) => {
+        const idx = args.indexOf(flag);
+        if (idx !== -1) args.splice(idx, 1);
+      });
       args.push(branch);
     }
 
@@ -379,7 +386,7 @@ export class GitCommitOperations {
     if (branch && branch !== "all") {
       options.push(branch);
     } else {
-      options.push("--all");
+      options.push("--branches", "--remotes", "--tags");
     }
 
     // 添加作者筛选
@@ -463,7 +470,8 @@ export class GitCommitOperations {
       vscode.window.showInformationMessage("提交消息已成功修改");
       return true;
     } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
       console.error("Failed to amend commit message:", error);
       vscode.window.showErrorMessage(`修改提交消息失败: ${errorMessage}`);
       return false;
