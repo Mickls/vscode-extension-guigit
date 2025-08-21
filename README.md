@@ -1,13 +1,12 @@
 # GUI Git History - VSCode Extension
 
-![GUI Git History 展示](./GUI_git_history_show.png)
+![GUI Git History 展示](./gui_git_history_main.png)
 
 一个功能强大的可视化Git历史记录查看器，为VSCode提供专业级的Git操作界面和丰富的交互功能。支持多仓库管理、智能分支图谱、Git Blame集成等高级特性。
 
 ## ✨ 核心功能
 
 ### 📊 可视化提交历史
-- **图形化分支展示** - 使用ASCII图形显示分支合并和分叉关系，智能计算提交节点位置
 - **多分支视图** - 同时显示所有分支的提交历史，支持分支切换和对比
 - **无限滚动加载** - 支持大型仓库的性能优化，按需加载提交记录
 - **智能缓存系统** - 前后端双重缓存，提升大仓库浏览性能
@@ -71,6 +70,10 @@
    - **基础操作**：使用顶部工具栏的 Pull、Push、Fetch 等按钮
    - **高级选项**：按住 `Ctrl/Cmd` 点击操作按钮显示高级选项
    - **分支操作**：使用Checkout按钮创建或切换分支
+
+![GIT Pull 高级功能展示](./gui_git_history_pull.png)
+
+![GIT Push 高级功能展示](./gui_git_history_push.png)
 
 ### 高级功能
 
