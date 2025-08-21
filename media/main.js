@@ -40,10 +40,10 @@ import {
     setFileViewMode,
     setLoading,
     setPendingJumpCommit,
-    setPendingRequest, 
+    setPendingRequest,
     setSearchingForCommit,
     setSearchTerm,
-    setState, 
+    setState,
     setStates,
     updateSelectedCommits
 } from './core/state-manager.js';
@@ -356,9 +356,22 @@ import { getIcon } from './utils/icons.js';
                 handleCommitBranchesFound(message.data); // 处理找到提交所在分支的响应
                 break;
             case 'error':
-                // 重置加载状态
+                // 重置加载状态（用于提交历史等全局加载）
                 setLoading(false);
-                showError(message.message, commitDetails, commitList);        // 显示错误信息
+
+                // 如果是提交详情的错误，清理对应的pending标记，避免卡在“Loading”状态
+                if (message.context === 'commitDetails' && message.hash) {
+                    setPendingRequest(message.hash, false);
+
+                    // 仅当该错误对应当前选中的提交时，才在右侧面板显示错误
+                    const currentCommit = getState('currentCommit');
+                    if (message.hash === currentCommit) {
+                        showError(message.message, commitDetails, commitList);
+                    }
+                } else {
+                    // 其他错误类型，保持原有行为
+                    showError(message.message, commitDetails, commitList);
+                }
                 break;
             case 'viewMode':
                 setFileViewMode(message.data);       // 设置文件视图模式

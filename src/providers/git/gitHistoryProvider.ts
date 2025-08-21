@@ -334,13 +334,17 @@ export class GitHistoryProvider {
    * 获取提交信息
    */
   private async getCommitInfo(hash: string): Promise<any> {
-    const log = await this.git!.log({ maxCount: 1, from: hash });
-
-    if (log.all.length > 0) {
-      return log.all[0];
+    // 优先使用明确范围的 log 获取指定哈希的提交，避免仅使用 { from: hash } 导致返回非目标提交
+    try {
+      const log = await this.git!.log({ from: hash, to: hash, maxCount: 1 });
+      if (log.all.length > 0 && (log.all[0].hash === hash || log.all[0].hash.startsWith(hash))) {
+        return log.all[0];
+      }
+    } catch (e) {
+      console.warn("git log with range failed, fallback to show", e);
     }
 
-    // 使用show命令作为备选方案
+    // 使用 show 作为可靠的后备方案
     console.log("Trying to get commit info with show command...");
     const showOutput = await this.git!.show([
       "--format=fuller",

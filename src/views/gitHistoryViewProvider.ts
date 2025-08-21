@@ -595,6 +595,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         this._view.webview.postMessage({
           type: "error",
           message: `Failed to load commit details for ${hash.substring(0, 8)}`,
+          context: "commitDetails",
+          hash,
         });
       }
     } catch (error) {
@@ -604,6 +606,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         message: `Failed to load commit details: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
+        context: "commitDetails",
+        hash,
       });
     }
   }
@@ -1994,10 +1998,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       // 创建一个 QuickPick 来显示所有远程分支并支持输入筛选
       const quickPick = vscode.window.createQuickPick();
-      quickPick.placeholder = "Select a remote branch or type to create new one";
-      quickPick.items = remoteBranches.map(branch => ({
+      quickPick.placeholder =
+        "Select a remote branch or type to create new one";
+      quickPick.items = remoteBranches.map((branch) => ({
         label: branch,
-        description: "Existing remote branch"
+        description: "Existing remote branch",
       }));
       quickPick.canSelectMany = false;
       quickPick.matchOnDescription = true;
@@ -2008,48 +2013,50 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
         quickPick.onDidChangeValue((value) => {
           const trimmedValue = value.trim();
-          
+
           if (!trimmedValue) {
             // 如果输入为空，显示所有远程分支
-            quickPick.items = remoteBranches.map(branch => ({
+            quickPick.items = remoteBranches.map((branch) => ({
               label: branch,
-              description: "Existing remote branch"
+              description: "Existing remote branch",
             }));
             return;
           }
 
           // 筛选现有分支
-          const filteredBranches = remoteBranches.filter(branch =>
+          const filteredBranches = remoteBranches.filter((branch) =>
             branch.toLowerCase().includes(trimmedValue.toLowerCase())
           );
 
           const items: vscode.QuickPickItem[] = [];
-          
+
           // 添加筛选出的现有分支
-          items.push(...filteredBranches.map(branch => ({
-            label: branch,
-            description: "Existing remote branch"
-          })));
+          items.push(
+            ...filteredBranches.map((branch) => ({
+              label: branch,
+              description: "Existing remote branch",
+            }))
+          );
 
           // 如果筛选结果为空或用户输入的不是现有分支的完全匹配，
           // 则提供创建新分支的选项
           let targetBranch = trimmedValue;
-          
+
           // 智能处理远程仓库前缀：如果输入不包含斜杠，自动添加 origin/ 前缀
           if (!trimmedValue.includes("/")) {
             targetBranch = `origin/${trimmedValue}`;
           }
 
           // 检查是否完全匹配现有分支
-          const exactMatch = remoteBranches.find(branch => 
-            branch.toLowerCase() === targetBranch.toLowerCase()
+          const exactMatch = remoteBranches.find(
+            (branch) => branch.toLowerCase() === targetBranch.toLowerCase()
           );
 
           if (!exactMatch) {
             items.push({
               label: `$(add) Create: ${targetBranch}`,
               description: "Create new remote branch",
-              detail: "This will create a new branch and push to it"
+              detail: "This will create a new branch and push to it",
             });
           }
 
@@ -2075,7 +2082,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         quickPick.onDidHide(() => {
           quickPick.dispose();
           if (selectedBranch) {
-            this._performPushOperation(selectedBranch, isNewBranch).then(() => resolve());
+            this._performPushOperation(selectedBranch, isNewBranch).then(() =>
+              resolve()
+            );
           } else {
             resolve();
           }
@@ -2083,7 +2092,6 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
         quickPick.show();
       });
-
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -2094,7 +2102,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   /**
    * 执行推送操作
    */
-  private async _performPushOperation(targetBranch: string, isNewBranch: boolean) {
+  private async _performPushOperation(
+    targetBranch: string,
+    isNewBranch: boolean
+  ) {
     try {
       let isForce = false;
 
@@ -2135,9 +2146,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `${
-            isForce ? "Force pushing" : "Pushing"
-          } to ${targetBranch}${isNewBranch ? " (new branch)" : ""}...`,
+          title: `${isForce ? "Force pushing" : "Pushing"} to ${targetBranch}${
+            isNewBranch ? " (new branch)" : ""
+          }...`,
           cancellable: false,
         },
         async () => {
