@@ -1210,17 +1210,42 @@ import { getIcon } from './utils/icons.js';
             files.length > 0 ? filesHtml : '<div class="no-files">No files changed</div>'
         );
 
+        // 如果内容没有变化，跳过DOM更新，避免打断滚动
+        const newContent = headerHtml + fileChangesHtml;
+        if (commitDetails.innerHTML === newContent) {
+            return;
+        }
+
+        // 仅当同一提交重新渲染时才保留滚动位置；切换到不同提交则从顶部开始
+        const prevRenderedHash = commitDetails.dataset && commitDetails.dataset.renderedHash;
+        const sameCommitRender = prevRenderedHash === commit.hash;
+        const prevScrollTop = sameCommitRender ? (commitDetails.scrollTop || 0) : 0;
+
         // 完全替换内容
-        commitDetails.innerHTML = headerHtml + fileChangesHtml;
+        commitDetails.innerHTML = newContent;
+        if (commitDetails.dataset) {
+            commitDetails.dataset.renderedHash = commit.hash;
+        }
 
         // 重新绑定折叠按钮事件监听器
         rebindCollapseButtons();
 
-        // 如果是树形视图，恢复文件夹状态
+        // 如果是树形视图，恢复文件夹状态，并在渲染完成后恢复滚动位置
         if (fileViewMode === 'tree') {
             // 使用 requestAnimationFrame 确保 DOM 更新完成后再恢复状态
             requestAnimationFrame(() => {
                 restoreFolderStates(commit.hash);
+                // 再次等待一帧，确保折叠/展开状态应用完成后再恢复滚动位置
+                requestAnimationFrame(() => {
+                    const maxScrollTop = Math.max(0, commitDetails.scrollHeight - commitDetails.clientHeight);
+                    commitDetails.scrollTop = Math.min(prevScrollTop, maxScrollTop);
+                });
+            });
+        } else {
+            // 列表视图：直接在下一帧恢复滚动位置
+            requestAnimationFrame(() => {
+                const maxScrollTop = Math.max(0, commitDetails.scrollHeight - commitDetails.clientHeight);
+                commitDetails.scrollTop = Math.min(prevScrollTop, maxScrollTop);
             });
         }
 
