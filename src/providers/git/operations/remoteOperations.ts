@@ -234,10 +234,12 @@ export class GitRemoteOperations {
     rebase: boolean = false
   ): Promise<boolean> {
     try {
-      const [remote, branch] = remoteBranch.split("/", 2);
-      if (!remote || !branch) {
+      const slashIdx = remoteBranch.indexOf("/");
+      if (slashIdx <= 0 || slashIdx === remoteBranch.length - 1) {
         throw new Error(`Invalid remote branch format: ${remoteBranch}`);
       }
+      const remote = remoteBranch.slice(0, slashIdx);
+      const branch = remoteBranch.slice(slashIdx + 1);
 
       if (rebase) {
         await this.git.pull(remote, branch, { "--rebase": "true" });
@@ -264,10 +266,12 @@ export class GitRemoteOperations {
     force: boolean = false
   ): Promise<boolean> {
     try {
-      const [remote, branch] = remoteBranch.split("/", 2);
-      if (!remote || !branch) {
+      const slashIdx = remoteBranch.indexOf("/");
+      if (slashIdx <= 0 || slashIdx === remoteBranch.length - 1) {
         throw new Error(`Invalid remote branch format: ${remoteBranch}`);
       }
+      const remote = remoteBranch.slice(0, slashIdx);
+      const branch = remoteBranch.slice(slashIdx + 1);
 
       // 获取当前分支名称
       const currentBranch = await this.git.revparse(["--abbrev-ref", "HEAD"]);
@@ -347,10 +351,12 @@ export class GitRemoteOperations {
     remoteBranch: string
   ): Promise<boolean> {
     try {
-      const [remote, branch] = remoteBranch.split("/", 2);
-      if (!remote || !branch) {
+      const slashIdx = remoteBranch.indexOf("/");
+      if (slashIdx <= 0 || slashIdx === remoteBranch.length - 1) {
         throw new Error(`Invalid remote branch format: ${remoteBranch}`);
       }
+      const remote = remoteBranch.slice(0, slashIdx);
+      const branch = remoteBranch.slice(slashIdx + 1);
 
       // 推送指定提交到远程分支
       // 使用 git push remote hash:refs/heads/branch 格式

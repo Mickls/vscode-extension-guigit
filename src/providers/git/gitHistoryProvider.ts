@@ -1593,10 +1593,12 @@ export class GitHistoryProvider {
     remoteBranch: string,
     rebase: boolean = false
   ): Promise<boolean> {
-    const [remote, branch] = remoteBranch.split("/", 2);
-    if (!remote || !branch) {
+    const slashIdx = remoteBranch.indexOf("/");
+    if (slashIdx <= 0 || slashIdx === remoteBranch.length - 1) {
       throw new Error(`Invalid remote branch format: ${remoteBranch}`);
     }
+    const remote = remoteBranch.slice(0, slashIdx);
+    const branch = remoteBranch.slice(slashIdx + 1);
     return this.safePull(remote, branch, rebase);
   }
 
