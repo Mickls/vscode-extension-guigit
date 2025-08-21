@@ -1309,6 +1309,39 @@ export class GitHistoryProvider {
   }
 
   /**
+   * 获取当前分支名称
+   * @returns 当前分支名称
+   */
+  async getCurrentBranchName(): Promise<string | null> {
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
+    }
+
+    try {
+      return await this.branchOps.getCurrentBranchName();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 获取当前分支的上游分支
+   * @param branchName 分支名称（可选，默认当前分支）
+   * @returns 上游分支名称
+   */
+  async getUpstreamBranch(branchName?: string): Promise<string | null> {
+    if (!this.branchOps) {
+      throw new Error("Branch operations not available");
+    }
+
+    try {
+      return await this.branchOps.getUpstreamBranch(branchName);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
    * 从指定提交创建新分支
    * @param hash 提交哈希值
    * @param branchName 新分支名称

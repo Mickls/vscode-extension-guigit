@@ -13,7 +13,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
-    private readonly _gitHistoryProvider: GitHistoryProvider
+    private readonly _gitHistoryProvider: GitHistoryProvider,
+    private readonly _state: vscode.Memento
   ) {}
 
   /**
@@ -1899,69 +1900,82 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitPullAdvanced() {
     try {
-      // 先尝试抓取并修剪远程引用，确保列表最新
-      // await this._gitHistoryProvider.fetchFromRemote(true);
+      // 并行获取远程分支、当前分支与上游分支，提高效率
+      const [remoteBranches, currentBranch, upstream] = await Promise.all([
+        this._gitHistoryProvider.getAllRemoteBranches(),
+        this._gitHistoryProvider.getCurrentBranchName(),
+        this._gitHistoryProvider.getUpstreamBranch(),
+      ]);
 
-      // 获取所有远程分支列表
-      const remoteBranches =
-        await this._gitHistoryProvider.getAllRemoteBranches();
-      if (remoteBranches.length === 0) {
-        vscode.window.showErrorMessage("No remote branches found");
+      if (!remoteBranches || remoteBranches.length === 0) {
+        vscode.window.showErrorMessage("未发现任何远程分支");
         return;
       }
 
-      // 创建分支选项，分为 merge 和 rebase 两个区域
-      const mergeOptions = remoteBranches.map((branch) => ({
-        label: `$(git-merge) ${branch}`,
-        description: "Pull with merge",
-        detail: `Merge changes from ${branch}`,
-        branch: branch,
-        isRebase: false,
-      }));
+      // 读取上次选择的拉取方式，并在列表中置顶（使用 Memento，不暴露到设置中）
+      const lastMethod = this._state.get<"merge" | "rebase">("guigit:lastPullMethod");
 
-      const rebaseOptions = remoteBranches.map((branch) => ({
-        label: `$(git-pull-request) ${branch}`,
-        description: "Pull with rebase",
-        detail: `Rebase changes from ${branch}`,
-        branch: branch,
-        isRebase: true,
-      }));
-
-      // 添加分隔符和标题
-      const allOptions = [
-        {
-          label: "$(git-merge) Merge Pull",
-          kind: vscode.QuickPickItemKind.Separator,
-        },
-        ...mergeOptions,
-        {
-          label: "$(git-pull-request) Rebase Pull",
-          kind: vscode.QuickPickItemKind.Separator,
-        },
-        ...rebaseOptions,
+      let methodOptions: (vscode.QuickPickItem & { isRebase: boolean; key: "merge" | "rebase" })[] = [
+        { label: "$(git-merge) Merge", description: "使用 merge 拉取", isRebase: false, key: "merge" },
+        { label: "$(git-pull-request) Rebase", description: "使用 rebase 拉取", isRebase: true, key: "rebase" },
       ];
+      if (lastMethod) {
+        methodOptions = methodOptions.sort((a, b) => (a.key === lastMethod ? -1 : b.key === lastMethod ? 1 : 0));
+      }
 
-      // 显示选择器
-      const selectedOption = await vscode.window.showQuickPick(allOptions, {
-        placeHolder:
-          "Select branch and pull method - Merge section for merge pull, Rebase section for rebase pull",
+      // 第一步：先选择拉取方式（Merge 或 Rebase）
+      const methodPick = await vscode.window.showQuickPick(methodOptions, {
+        placeHolder: `选择拉取方式 (Merge 或 Rebase)${lastMethod ? `，上次使用：${lastMethod === "rebase" ? "Rebase" : "Merge"}` : ""}`,
         canPickMany: false,
         matchOnDescription: true,
-        matchOnDetail: true,
+      });
+      if (!methodPick) return;
+      const isRebase = (methodPick as any).isRebase as boolean;
+
+      // 记住本次选择（使用 Memento）
+      await this._state.update(
+        "guigit:lastPullMethod",
+        isRebase ? "rebase" : "merge"
+      );
+
+      // 第二步：选择目标远程分支，优先展示当前分支的上游分支
+      const items: (vscode.QuickPickItem & { branch?: string })[] = [];
+      if (upstream && remoteBranches.includes(upstream)) {
+        items.push({
+          label: `$(arrow-up) Upstream: ${upstream}`,
+          description: currentBranch
+            ? `当前分支 ${currentBranch} 的上游`
+            : "当前分支的上游",
+          branch: upstream,
+        });
+        items.push({ label: "建议", kind: vscode.QuickPickItemKind.Separator } as any);
+      }
+
+      items.push({ label: "远程分支", kind: vscode.QuickPickItemKind.Separator } as any);
+      items.push(
+        ...remoteBranches.map((branch) => ({
+          label: branch,
+          description: "远程分支",
+          branch,
+        }))
+      );
+
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: `选择要从远程拉取的分支 (${isRebase ? "Rebase" : "Merge"})` ,
+        canPickMany: false,
+        matchOnDescription: true,
       });
 
-      if (!selectedOption || !("branch" in selectedOption)) {
+      if (!selected || !(selected as any).branch) {
         return;
       }
 
-      const { branch, isRebase } = selectedOption as any;
+      const branch = (selected as any).branch as string;
 
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `${
-            isRebase ? "Pulling with rebase" : "Pulling"
-          } from ${branch}...`,
+          title: `${isRebase ? "使用 rebase 拉取" : "正在拉取"}：${branch}...`,
           cancellable: false,
         },
         async () => {
@@ -1974,9 +1988,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage(
-          `Successfully ${
-            isRebase ? "pulled with rebase" : "pulled"
-          } from ${branch}`
+          `${isRebase ? "已使用 rebase 拉取" : "已拉取"}：${branch}`
         );
         this.refresh(true);
       }

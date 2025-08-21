@@ -13,7 +13,8 @@ export function activate(context: vscode.ExtensionContext) {
   // 创建Git历史视图提供者
   const gitHistoryViewProvider = new GitHistoryViewProvider(
     context.extensionUri,
-    gitHistoryProvider
+    gitHistoryProvider,
+    context.workspaceState
   );
 
   // 创建Git blame提供者和装饰器
