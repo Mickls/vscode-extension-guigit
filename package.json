@@ -15,7 +15,9 @@
   "categories": [
     "SCM Providers"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:guigit.viewFileHistory"
+  ],
   "extensionDependencies": [
     "vscode.git"
   ],
@@ -36,6 +38,11 @@
         "command": "guigit.toggleBlame",
         "title": "Toggle Git Blame",
         "icon": "$(eye)"
+      },
+      {
+        "command": "guigit.viewFileHistory",
+        "title": "View File History",
+        "icon": "$(history)"
       },
       {
         "command": "guigit.showCommitDetails",
@@ -67,60 +74,21 @@
           "when": "view == guigit.historyView",
           "group": "navigation"
         }
-      ]
-    },
-    "configuration": {
-      "title": "GUI Git History",
-      "properties": {
-        "guigit.fileViewMode": {
-          "type": "string",
-          "enum": [
-            "list",
-            "tree"
-          ],
-          "default": "list",
-          "description": "Default view mode for changed files (list or tree)"
-        },
-        "guigit.blame.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable Git blame annotations in the editor"
-        },
-        "guigit.blame.showOnlyCurrentLine": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show blame information only for the current line"
-        },
-        "guigit.blame.format": {
-          "type": "string",
-          "default": "${author}, ${time} • ${hash} • ${message}",
-          "description": "Format string for blame annotations. Available variables: ${author}, ${time}, ${hash}, ${message}"
-        },
-        "guigit.autoStashOnPull": {
-          "type": "string",
-          "enum": [
-            "ask",
-            "always",
-            "never"
-          ],
-          "default": "ask",
-          "description": "How to handle uncommitted changes when pulling: 'ask' (always ask), 'always' (auto-stash), 'never' (cancel operation)",
-          "enumDescriptions": [
-            "总是询问如何处理未提交的变更",
-            "自动暂存未提交的变更并继续",
-            "遇到未提交变更时取消操作"
-          ]
-        },
-        "guigit.lastPullMethod": {
-          "type": "string",
-          "enum": [
-            "merge",
-            "rebase"
-          ],
-          "default": "merge",
-          "description": "记住上次使用的 Pull 方式（Merge 或 Rebase）。由扩展自动维护。"
+      ],
+      "explorer/context": [
+        {
+          "command": "guigit.viewFileHistory",
+          "when": "resourceScheme == file",
+          "group": "navigation@9"
         }
-      }
+      ],
+      "editor/context": [
+        {
+          "command": "guigit.viewFileHistory",
+          "when": "editorTextFocus && !isInDiffEditor",
+          "group": "navigation@9"
+        }
+      ]
     }
   },
   "scripts": {

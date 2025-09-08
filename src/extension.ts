@@ -47,6 +47,14 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // 新增：查看文件历史命令（资源管理器/编辑器右键）
+  const viewFileHistoryCommand = vscode.commands.registerCommand(
+    "guigit.viewFileHistory",
+    async (resource?: vscode.Uri) => {
+      await gitHistoryViewProvider.showFileHistoryForUri(resource);
+    }
+  );
+
   // 注册Git blame相关命令
   const toggleBlameCommand = vscode.commands.registerCommand(
     "guigit.toggleBlame",
@@ -164,6 +172,7 @@ export function activate(context: vscode.ExtensionContext) {
     provider,
     showHistoryCommand,
     refreshCommand,
+    viewFileHistoryCommand,
     toggleBlameCommand,
     showCommitDetailsCommand
   );

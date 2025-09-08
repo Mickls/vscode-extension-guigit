@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { GitHistoryProvider } from "../providers/git/gitHistoryProvider";
 import { GitCommit } from "../providers/git/types/gitTypes";
+import * as path from "path";
 
 /**
  * Git历史视图提供者，负责管理Git历史的WebView界面
@@ -16,6 +17,65 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     private readonly _gitHistoryProvider: GitHistoryProvider,
     private readonly _state: vscode.Memento
   ) {}
+
+  /**
+   * 从资源URI显示该文件的历史（供命令调用）
+   */
+  public async showFileHistoryForUri(resource?: vscode.Uri) {
+    try {
+      const uri = resource ?? vscode.window.activeTextEditor?.document.uri;
+      if (!uri || uri.scheme !== "file") {
+        vscode.window.showErrorMessage("请选择一个本地文件来查看历史");
+        return;
+      }
+
+      const fileFsPath = uri.fsPath;
+      const repositories = this._gitHistoryProvider.getAvailableRepositories();
+
+      // 匹配包含该文件的仓库
+      let targetRepo = repositories.find(
+        (r) => fileFsPath === r.path || fileFsPath.startsWith(r.path + path.sep)
+      );
+
+      if (!targetRepo) {
+        const current = this._gitHistoryProvider.getCurrentRepository();
+        if (
+          current &&
+          (fileFsPath === current.path ||
+            fileFsPath.startsWith(current.path + path.sep))
+        ) {
+          targetRepo = current;
+        }
+      }
+
+      if (!targetRepo) {
+        vscode.window.showErrorMessage("无法为所选文件确定Git仓库");
+        return;
+      }
+
+      const currentRepo = this._gitHistoryProvider.getCurrentRepository();
+      if (!currentRepo || currentRepo.path !== targetRepo.path) {
+        await this._gitHistoryProvider.setCurrentRepository(targetRepo);
+      }
+
+      // 转为仓库相对路径以兼容git命令
+      let relativePath = path.relative(targetRepo.path, fileFsPath);
+      if (!relativePath || relativePath.startsWith("..")) {
+        vscode.window.showErrorMessage("所选文件不在当前仓库内");
+        return;
+      }
+      relativePath = relativePath.split(path.sep).join("/");
+
+      await this._showFileHistory(relativePath);
+    } catch (error) {
+      console.error("Error showing file history for uri:", error);
+      vscode.window.showErrorMessage(
+        `Failed to show file history: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+  }
 
   /**
    * 解析WebView视图
