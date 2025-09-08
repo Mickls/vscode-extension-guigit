@@ -805,8 +805,9 @@ body.resizing .resizer {
 
 /* 详情面板内容区域 */
 .commit-details > *:not(.panel-header) {
-  flex: 1;
-  overflow-y: auto;
+  /* 让右侧面板成为唯一滚动容器，避免内部嵌套滚动导致滚动位置丢失 */
+  flex: 0 0 auto;
+  overflow: visible;
   padding: 16px;
 }
 

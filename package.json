@@ -2,7 +2,7 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.0.30",
+  "version": "0.0.32",
   "publisher": "Mickls",
   "icon": "gui-git-history-high-resolution-logo-transparent.png",
   "repository": {
@@ -110,6 +110,15 @@
             "自动暂存未提交的变更并继续",
             "遇到未提交变更时取消操作"
           ]
+        },
+        "guigit.lastPullMethod": {
+          "type": "string",
+          "enum": [
+            "merge",
+            "rebase"
+          ],
+          "default": "merge",
+          "description": "记住上次使用的 Pull 方式（Merge 或 Rebase）。由扩展自动维护。"
         }
       }
     }

@@ -63,7 +63,8 @@ export class GitRemoteOperations {
   ): Promise<boolean> {
     try {
       if (rebase) {
-        await this.git.pull(remote, branch, { "--rebase": "true" });
+        await this.git.fetch(remote, branch);
+        await this.git.rebase([`${remote}/${branch}`]);
       } else {
         await this.git.pull(remote, branch);
       }
@@ -242,7 +243,9 @@ export class GitRemoteOperations {
       const branch = remoteBranch.slice(slashIdx + 1);
 
       if (rebase) {
-        await this.git.pull(remote, branch, { "--rebase": "true" });
+        // 同上：避免 `git pull --rebase` 的多分支问题，改为 fetch + rebase 组合
+        await this.git.fetch(remote, branch);
+        await this.git.rebase([`${remote}/${branch}`]);
       } else {
         await this.git.pull(remote, branch);
       }
