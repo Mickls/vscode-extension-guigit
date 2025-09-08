@@ -112,7 +112,12 @@ export function setState(key, value) {
     state[key] = value;
     
     // 同步到window对象（为了向后兼容）
-    if (key === 'commits' || key === 'selectedCommits') {
+    if ([
+        'commits',
+        'selectedCommits',
+        'searchingForCommit',
+        'pendingJumpCommit'
+    ].includes(key)) {
         window[key] = value;
     }
     
@@ -386,7 +391,7 @@ export function initializeStateManager() {
 // 导出状态对象（只读）
 export const stateReadonly = new Proxy(state, {
     set() {
-        throw new Error('State should be modified through setState() function');
+        throw new Error('Direct state mutation is not allowed. Use setState instead.');
     },
     get(target, prop) {
         return target[prop];

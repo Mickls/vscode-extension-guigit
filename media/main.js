@@ -615,10 +615,22 @@ import { getIcon } from './utils/icons.js';
                         jumpToSpecificCommit(searchHash);
                     });
                 }
-            } else if (loadedCommits >= totalCommits) {
-                // 已经加载完所有提交但仍未找到，清除搜索标记
-                window.searchingForCommit = null;
-                console.log('Commit not found after loading all commits');
+            } else {
+                // 如果没有更多提交可以加载，尝试加载更多
+                const loadedCommits = getState('loadedCommits');
+                const totalCommits = getState('totalCommits');
+                const isLoading = getState('isLoading');
+                if (loadedCommits < totalCommits && !isLoading) {
+                    loadMoreCommitsToFind(window.searchingForCommit);
+                } else {
+                    // 已经加载完所有提交但仍未找到，清除搜索标记并建议切换分支
+                    const missingHash = window.searchingForCommit;
+                    window.searchingForCommit = null;
+                    console.log('Commit not found after loading all commits');
+                    if (missingHash) {
+                        suggestBranchSwitch(missingHash);
+                    }
+                }
             }
         }
 
@@ -1453,30 +1465,12 @@ import { getIcon } from './utils/icons.js';
      * @param {string} commitHash - 提交哈希值
      */
     function showCommitNotFoundMessage(commitHash) {
-        // 移除现有的提示信息
-        const existingMessage = document.querySelector('.commit-not-found-message');
-        if (existingMessage) {
-            existingMessage.remove();
-        }
-
-        // 创建提示信息元素
-        const message = document.createElement('div');
-        message.className = 'commit-not-found-message';
-        message.innerHTML = Templates.messageNotification({
-            type: 'warning',
-            icon: getIcon('warning'),
-            title: `Commit not found: ${commitHash.substring(0, 8)}`,
-            content: 'The commit may be in a different branch or not yet loaded.'
+        // 使用 VS Code 原生信息提示
+        vscode.postMessage({
+            type: 'notify',
+            level: 'info',
+            message: `正在加载更早的提交以定位 ${commitHash.substring(0, 8)}...`
         });
-
-        document.body.appendChild(message);
-
-        // 5秒后自动移除
-        setTimeout(() => {
-            if (message.parentElement) {
-                message.remove();
-            }
-        }, 5000);
     }
 
     /**
@@ -1487,16 +1481,11 @@ import { getIcon } from './utils/icons.js';
         // 设置一个标记，表示正在查找特定提交
         setSearchingForCommit(commitHash);
 
-        // 加载更多提交
-        loadCommits(false);
-
-        // 设置超时，避免无限加载
-        setTimeout(() => {
-            if (getState('searchingForCommit') === commitHash) {
-                setSearchingForCommit(null);
-                console.log('Search timeout for commit:', commitHash);
-            }
-        }, 10000); // 10秒超时
+        // 如果当前未在加载，立即加载更多提交
+        if (!getState('isLoading')) {
+            loadCommits(false);
+        }
+        // 移除之前的10秒超时，改为一直加载直到找到或加载完所有提交
     }
 
     /**
@@ -1535,66 +1524,25 @@ import { getIcon } from './utils/icons.js';
      * @param {string} commitHash - 提交哈希值
      */
     function showCommitNotFoundInAnyBranch(commitHash) {
-        // 移除现有的提示信息
-        const existingMessage = document.querySelector('.commit-not-found-message');
-        if (existingMessage) {
-            existingMessage.remove();
-        }
-
-        // 创建提示信息元素
-        const message = document.createElement('div');
-        message.className = 'commit-not-found-message';
-        message.innerHTML = Templates.messageNotification({
-            type: 'error',
-            icon: getIcon('error'),
-            title: `Commit not found: ${commitHash.substring(0, 8)}`,
-            content: 'This commit does not exist in any branch of the current repository.'
+        vscode.postMessage({
+            type: 'notify',
+            level: 'error',
+            message: `未在当前仓库的任何分支中找到提交 ${commitHash.substring(0, 8)}`
         });
-
-        document.body.appendChild(message);
-
-        // 8秒后自动移除
-        setTimeout(() => {
-            if (message.parentElement) {
-                message.remove();
-            }
-        }, 8000);
     }
 
     /**
-     * 显示分支切换建议
+     * 使用 VS Code 原生提示显示分支切换建议
      * @param {string} commitHash - 提交哈希值
      * @param {Array} commitBranches - 包含该提交的分支列表
      */
     function showBranchSwitchSuggestion(commitHash, commitBranches) {
-        // 移除现有的提示信息
-        const existingMessage = document.querySelector('.commit-not-found-message');
-        if (existingMessage) {
-            existingMessage.remove();
-        }
-
-        // 创建分支选项HTML
-        const branchOptions = Templates.branchOptionsContainer(commitBranches, commitHash);
-
-        // 创建提示信息元素
-        const message = document.createElement('div');
-        message.className = 'commit-not-found-message';
-        message.innerHTML = Templates.messageNotification({
-            type: 'info',
-            icon: getIcon('search'),
-            title: `Commit found in other branch${commitBranches.length > 1 ? 'es' : ''}`,
-            content: `Commit ${commitHash.substring(0, 8)} is available in:`,
-            actions: branchOptions
+        // 将分支建议交给后端，用 VS Code 原生通知展示并带操作按钮
+        vscode.postMessage({
+            type: 'branchSwitchSuggestion',
+            hash: commitHash,
+            branches: commitBranches
         });
-
-        document.body.appendChild(message);
-
-        // 10秒后自动移除
-        setTimeout(() => {
-            if (message.parentElement) {
-                message.remove();
-            }
-        }, 10000);
     }
 
     /**
@@ -1604,11 +1552,7 @@ import { getIcon } from './utils/icons.js';
      * @param {string} commitHash - 提交哈希值
      */
     window.switchToBranchAndJump = function (branchName, commitHash) {
-        // 移除提示消息
-        const message = document.querySelector('.commit-not-found-message');
-        if (message) {
-            message.remove();
-        }
+        // 移除提示消息（不再使用内置DOM提示，这里无需处理）
 
         // 设置要跳转的提交
         setPendingJumpCommit(commitHash);

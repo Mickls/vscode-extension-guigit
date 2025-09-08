@@ -160,6 +160,40 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "showFileHistory":
           await this._showFileHistory(data.file);
           break;
+        case "notify": {
+          const level = data.level as "info" | "warn" | "error";
+          const msg = typeof data.message === "string" ? data.message : "";
+          if (!msg) break;
+          if (level === "error") vscode.window.showErrorMessage(msg);
+          else if (level === "warn") vscode.window.showWarningMessage(msg);
+          else vscode.window.showInformationMessage(msg);
+          break;
+        }
+        case "branchSwitchSuggestion": {
+          const { hash, branches } = data as { hash: string; branches: string[] };
+          if (!hash || !Array.isArray(branches) || branches.length === 0) {
+            break;
+          }
+          const buttons = branches.map((b: string) => ({ title: `切换到 ${b}` }));
+          vscode.window
+            .showInformationMessage(
+              `提交 ${hash.substring(0, 8)} 存在于其他分支，选择一个分支进行跳转`,
+              ...buttons
+            )
+            .then((selection) => {
+              if (!selection) return;
+              const idx = buttons.findIndex((b) => b.title === selection.title);
+              if (idx >= 0) {
+                const targetBranch = branches[idx];
+                this._view?.webview.postMessage({
+                  type: "switchToBranchAndJump",
+                  branchName: targetBranch,
+                  hash,
+                });
+              }
+            });
+          break;
+        }
         case "viewFileOnline":
           await this._viewFileOnline(data.hash, data.file);
           break;
