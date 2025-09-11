@@ -51,31 +51,72 @@ export class ProxyManager {
     const config: ProxyConfig = { enabled: false };
 
     try {
-      // 1. 首先检查 VSCode 的代理设置
+      // 1. 首先检查用户自定义代理配置
+      const customProxy = this.getCustomProxyConfig();
+      if (customProxy.enabled) {
+        return customProxy;
+      }
+
+      // 2. 检查 VSCode 的代理设置
       const vscodeProxy = this.getVSCodeProxyConfig();
       if (vscodeProxy.enabled) {
         return vscodeProxy;
       }
 
-      // 2. 检查环境变量
+      // 3. 检查环境变量
       const envProxy = this.getEnvironmentProxyConfig();
       if (envProxy.enabled) {
         return envProxy;
       }
 
-      // 3. 检查系统代理设置
+      // 4. 检查系统代理设置
       const systemProxy = await this.getSystemProxyConfig();
       if (systemProxy.enabled) {
         return systemProxy;
       }
 
-      // 4. 检查常见代理软件的配置
+      // 5. 检查常见代理软件的配置
       const appProxy = await this.getProxyAppConfig();
       if (appProxy.enabled) {
         return appProxy;
       }
     } catch (error) {
       console.warn("检测代理配置时出错:", error);
+    }
+
+    return config;
+  }
+
+  /**
+   * 获取用户自定义代理配置
+   */
+  private getCustomProxyConfig(): ProxyConfig {
+    const config: ProxyConfig = { enabled: false };
+
+    try {
+      const guigitConfig = vscode.workspace.getConfiguration("guigit.proxy");
+      const enabled = guigitConfig.get<boolean>("enabled", false);
+      
+      if (enabled) {
+        const http = guigitConfig.get<string>("http", "").trim();
+        const https = guigitConfig.get<string>("https", "").trim();
+        const noProxy = guigitConfig.get<string>("noProxy", "").trim();
+
+        if (http || https) {
+          config.http = http || undefined;
+          config.https = https || undefined;
+          config.noProxy = noProxy || undefined;
+          config.enabled = true;
+
+          console.log("检测到用户自定义代理配置:", {
+            http: config.http,
+            https: config.https,
+            noProxy: config.noProxy
+          });
+        }
+      }
+    } catch (error) {
+      console.warn("读取用户自定义代理配置失败:", error);
     }
 
     return config;
@@ -407,6 +448,47 @@ export class ProxyManager {
   public clearCache(): void {
     this.cachedConfig = null;
     this.lastCheckTime = 0;
+  }
+
+  /**
+   * 获取当前代理配置的来源信息
+   */
+  public async getProxyConfigSource(): Promise<string> {
+    try {
+      // 检查用户自定义配置
+      const customProxy = this.getCustomProxyConfig();
+      if (customProxy.enabled) {
+        return "用户自定义配置";
+      }
+
+      // 检查VSCode配置
+      const vscodeProxy = this.getVSCodeProxyConfig();
+      if (vscodeProxy.enabled) {
+        return "VSCode配置";
+      }
+
+      // 检查环境变量
+      const envProxy = this.getEnvironmentProxyConfig();
+      if (envProxy.enabled) {
+        return "环境变量";
+      }
+
+      // 检查系统配置
+      const systemProxy = await this.getSystemProxyConfig();
+      if (systemProxy.enabled) {
+        return "系统配置";
+      }
+
+      // 检查自动检测
+      const appProxy = await this.getProxyAppConfig();
+      if (appProxy.enabled) {
+        return "自动检测代理软件";
+      }
+
+      return "未检测到代理配置";
+    } catch (error) {
+      return "检测失败";
+    }
   }
 
   /**

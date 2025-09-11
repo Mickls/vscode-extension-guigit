@@ -248,6 +248,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "refreshProxy":
           await this._handleRefreshProxy();
           break;
+        case "configureProxy":
+          await this._handleConfigureProxy();
+          break;
         case "currentFilterState":
           await this._initializeViewWithFilter(data.filterState);
           break;
@@ -263,30 +266,150 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * 处理刷新代理配置操作
+   * 处理查看代理状态操作
    */
   private async _handleRefreshProxy() {
     try {
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: "Refreshing proxy configuration...",
-          cancellable: false,
-        },
-        async () => {
-          await this._gitHistoryProvider.refreshProxyConfig();
-        }
-      );
+      let configSource = "";
+      let proxyConfig: any = null;
+      
+      // 获取当前代理配置信息
+      const { ProxyManager } = await import("../services/proxyManager");
+      const proxyManager = ProxyManager.getInstance();
+      
+      // 刷新配置缓存
+      proxyManager.clearCache();
+      
+      configSource = await proxyManager.getProxyConfigSource();
+      proxyConfig = await proxyManager.getProxyConfig();
 
-      vscode.window.showInformationMessage(
-        "Proxy configuration refreshed successfully"
-      );
+      // 构建详细的配置信息
+      let configDetails = `📋 代理配置状态\n\n`;
+      configDetails += `🔍 配置来源: ${configSource}\n`;
+      
+      if (proxyConfig.enabled) {
+        configDetails += `✅ 状态: 已启用\n`;
+        if (proxyConfig.http) {
+          configDetails += `🌐 HTTP代理: ${proxyConfig.http}\n`;
+        }
+        if (proxyConfig.https) {
+          configDetails += `🔒 HTTPS代理: ${proxyConfig.https}\n`;
+        }
+        if (proxyConfig.noProxy) {
+          configDetails += `🚫 排除主机: ${proxyConfig.noProxy}\n`;
+        }
+      } else {
+        configDetails += `❌ 状态: 未启用代理\n`;
+        configDetails += `💡 提示: 可通过 "Configure Proxy" 启用自定义代理`;
+      }
+
+      // 直接显示详细信息
+      vscode.window.showInformationMessage(configDetails);
+
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(
-        `Failed to refresh proxy configuration: ${errorMessage}`
+        `获取代理状态失败: ${errorMessage}`
       );
+    }
+  }
+
+  /**
+   * 处理代理配置操作
+   */
+  private async _handleConfigureProxy() {
+    try {
+      const config = vscode.workspace.getConfiguration("guigit.proxy");
+      const currentEnabled = config.get<boolean>("enabled", false);
+      const currentHttp = config.get<string>("http", "");
+      const currentHttps = config.get<string>("https", "");
+      const currentNoProxy = config.get<string>("noProxy", "");
+
+      // 询问是否启用自定义代理
+      const enabledOptions = [
+        { label: "启用自定义代理", value: true },
+        { label: "禁用自定义代理", value: false }
+      ];
+      
+      const enabledChoice = await vscode.window.showQuickPick(
+        enabledOptions.map(opt => ({
+          label: opt.label,
+          picked: opt.value === currentEnabled
+        })),
+        {
+          placeHolder: "选择代理配置模式",
+          canPickMany: false
+        }
+      );
+
+      if (!enabledChoice) return;
+
+      const enabled = enabledOptions.find(opt => opt.label === enabledChoice.label)?.value || false;
+      
+      await config.update("enabled", enabled, vscode.ConfigurationTarget.Global);
+
+      if (enabled) {
+        // 配置HTTP代理
+        const httpProxy = await vscode.window.showInputBox({
+          prompt: "输入HTTP代理地址",
+          placeHolder: "例如: http://127.0.0.1:7890",
+          value: currentHttp,
+          validateInput: (value) => {
+            if (value && !value.match(/^https?:\/\/.+/)) {
+              return "请输入有效的HTTP代理地址 (以http://或https://开头)";
+            }
+            return null;
+          }
+        });
+
+        if (httpProxy !== undefined) {
+          await config.update("http", httpProxy, vscode.ConfigurationTarget.Global);
+        }
+
+        // 配置HTTPS代理
+        const httpsProxy = await vscode.window.showInputBox({
+          prompt: "输入HTTPS代理地址 (留空则使用HTTP代理)",
+          placeHolder: "例如: http://127.0.0.1:7890",
+          value: currentHttps,
+          validateInput: (value) => {
+            if (value && !value.match(/^https?:\/\/.+/)) {
+              return "请输入有效的HTTPS代理地址 (以http://或https://开头)";
+            }
+            return null;
+          }
+        });
+
+        if (httpsProxy !== undefined) {
+          await config.update("https", httpsProxy, vscode.ConfigurationTarget.Global);
+        }
+
+        // 配置No Proxy
+        const noProxy = await vscode.window.showInputBox({
+          prompt: "输入不使用代理的主机列表 (可选)",
+          placeHolder: "例如: localhost,127.0.0.1,.local",
+          value: currentNoProxy
+        });
+
+        if (noProxy !== undefined) {
+          await config.update("noProxy", noProxy, vscode.ConfigurationTarget.Global);
+        }
+
+        const action = await vscode.window.showInformationMessage(
+          "✅ 代理配置已保存并生效",
+          "查看状态"
+        );
+        
+        if (action === "查看状态") {
+          await this._handleRefreshProxy();
+        }
+      } else {
+        vscode.window.showInformationMessage("❌ 已禁用自定义代理配置，将使用自动检测");
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`配置代理失败: ${errorMessage}`);
     }
   }
 
@@ -1769,9 +1892,13 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         Reset Stash Preference
                     </div>
                     <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="configureProxy">
+                        ${getCodiconHtml("settings-gear", "small")}
+                        Configure Proxy
+                    </div>
                     <div class="menu-item" data-action="refreshProxy">
-                        ${getCodiconHtml("globe", "small")}
-                        Refresh Proxy
+                        ${getCodiconHtml("info", "small")}
+                        View Proxy Status
                     </div>
                 </div>
 

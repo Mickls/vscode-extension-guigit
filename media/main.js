@@ -282,12 +282,20 @@ import { createGitGraph } from './components/git-graph.js';
 
     // 设置菜单项事件监听器
     const resetStashMenuItem = settingsMenu.querySelector('[data-action="resetStash"]');
+    const configureProxyMenuItem = settingsMenu.querySelector('[data-action="configureProxy"]');
     const refreshProxyMenuItem = settingsMenu.querySelector('[data-action="refreshProxy"]');
 
     if (resetStashMenuItem) {
         resetStashMenuItem.addEventListener('click', () => {
             settingsMenu.style.display = 'none';
             vscode.postMessage({ type: 'resetAutoStashPreference' });
+        });
+    }
+
+    if (configureProxyMenuItem) {
+        configureProxyMenuItem.addEventListener('click', () => {
+            settingsMenu.style.display = 'none';
+            vscode.postMessage({ type: 'configureProxy' });
         });
     }
 
