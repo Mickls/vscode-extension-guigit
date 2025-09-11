@@ -419,23 +419,51 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   private async _initializeView() {
     if (!this._view) return;
 
-    // 检查是否有Git仓库
-    const hasGitRepo = await this._checkForGitRepository();
-    if (!hasGitRepo) {
-      // 显示无Git仓库的提示
-      this._view.webview.postMessage({
-        type: "noGitRepository",
-        message: "No Git repository found in the current workspace.",
-      });
-      return;
-    }
+    try {
+      console.log("Initializing Git History view...");
+      
+      // 等待Git扩展完全激活
+      await this._ensureGitExtensionReady();
+      
+      // 检查是否有Git仓库
+      const hasGitRepo = await this._checkForGitRepository();
+      if (!hasGitRepo) {
+        // 显示无Git仓库的提示
+        this._view.webview.postMessage({
+          type: "noGitRepository",
+          message: "No Git repository found in the current workspace.",
+        });
+        return;
+      }
 
-    // 有Git仓库，按顺序初始化以减少并发压力
-    await this._sendRepositories();
-    await this._sendBranches();
-    await this._sendCommitHistory();
-    await this._sendTotalCommitCount(); // 添加发送总提交数
-    this._sendViewMode();
+      console.log("Git repository found, loading data...");
+      
+      // 有Git仓库，按顺序初始化以减少并发压力
+      // 添加小延迟确保每个操作都有时间完成
+      await this._sendRepositories();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await this._sendBranches();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await this._sendCommitHistory();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await this._sendTotalCommitCount();
+      this._sendViewMode();
+      
+      console.log("Git History view initialization completed");
+    } catch (error) {
+      console.error("Error during view initialization:", error);
+      if (this._view) {
+        this._view.webview.postMessage({
+          type: "error",
+          message: `Failed to initialize Git History view: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+        });
+      }
+    }
   }
 
   /**
@@ -484,6 +512,42 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     );
 
     this._sendViewMode();
+  }
+
+  /**
+   * 确保Git扩展已准备就绪
+   */
+  private async _ensureGitExtensionReady(): Promise<void> {
+    const maxWaitTime = 10000; // 最多等待10秒
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        const gitExtension = vscode.extensions.getExtension("vscode.git");
+        if (!gitExtension) {
+          throw new Error("Git extension not found");
+        }
+
+        // 确保Git扩展已激活
+        if (!gitExtension.isActive) {
+          console.log("Activating Git extension...");
+          await gitExtension.activate();
+        }
+
+        const git = gitExtension.exports.getAPI(1);
+        if (git && git.repositories) {
+          console.log("Git extension is ready");
+          return;
+        }
+      } catch (error) {
+        console.log("Git extension not ready yet, waiting...", error);
+      }
+      
+      // 等待500ms后重试
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    throw new Error("Git extension failed to initialize within timeout");
   }
 
   /**
@@ -689,43 +753,66 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    try {
-      const commits = await this._gitHistoryProvider.getCommitHistory(
-        branch,
-        50,
-        skip,
-        authorFilter
-      );
+    // 添加重试机制
+    const maxRetries = 3;
+    let lastError: Error | null = null;
 
-      // 生成 Git Graph 布局
-      // 注意：这里只为当前批次的commits生成图表
-      // 完整的图表将由前端在收到新数据后重新请求
-      let gitGraph = null;
-      if (skip === 0) {
-        // 首次加载时生成图表
-        gitGraph = await this._gitHistoryProvider.generateGitGraph(commits);
-      }
-      // 对于加载更多的情况，我们不在这里生成图表，
-      // 而是让前端在合并数据后重新请求完整的图表
-
-      this._view.webview.postMessage({
-        type: "commitHistory",
-        data: {
-          commits,
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Loading commit history, attempt ${attempt}/${maxRetries}`);
+        
+        const commits = await this._gitHistoryProvider.getCommitHistory(
+          branch,
+          50,
           skip,
-          hasMore: commits.length === 50,
-          gitGraph,
-        },
-      });
-    } catch (error) {
-      console.error("Error getting commit history:", error);
-      this._view.webview.postMessage({
-        type: "error",
-        message: `Failed to load commit history: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      });
+          authorFilter
+        );
+
+        // 生成 Git Graph 布局
+        // 注意：这里只为当前批次的commits生成图表
+        // 完整的图表将由前端在收到新数据后重新请求
+        let gitGraph = null;
+        if (skip === 0) {
+          // 首次加载时生成图表
+          gitGraph = await this._gitHistoryProvider.generateGitGraph(commits);
+        }
+        // 对于加载更多的情况，我们不在这里生成图表，
+        // 而是让前端在合并数据后重新请求完整的图表
+
+        this._view.webview.postMessage({
+          type: "commitHistory",
+          data: {
+            commits,
+            skip,
+            hasMore: commits.length === 50,
+            gitGraph,
+          },
+        });
+        
+        console.log(`Successfully loaded ${commits.length} commits on attempt ${attempt}`);
+        return; // 成功，退出重试循环
+        
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.error(`Error getting commit history (attempt ${attempt}/${maxRetries}):`, error);
+        
+        // 如果不是最后一次尝试，等待一段时间后重试
+        if (attempt < maxRetries) {
+          const delay = attempt * 500; // 递增延迟：500ms, 1000ms
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
+
+    // 所有重试都失败了，发送错误消息
+    console.error("All retry attempts failed, sending error message");
+    this._view.webview.postMessage({
+      type: "error",
+      message: `Failed to load commit history after ${maxRetries} attempts: ${
+        lastError?.message || "Unknown error"
+      }`,
+    });
   }
 
   /**

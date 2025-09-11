@@ -214,38 +214,39 @@ export class GitCommitOperations {
   ): Promise<GitCommit[]> {
     console.time(`getCommitHistory-${skip}-${limit}`);
 
-    // 使用更简化的格式，减少解析复杂度
-    const args = [
-      "log",
-      "--branches", // 显示本地分支
-      "--remotes", // 显示远程分支
-      "--tags", // 显示标签
-      `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
-      "--encoding=UTF-8",
-      `--max-count=${limit}`,
-    ];
+    try {
+      // 使用更简化的格式，减少解析复杂度
+      const args = [
+        "log",
+        "--branches", // 显示本地分支
+        "--remotes", // 显示远程分支
+        "--tags", // 显示标签
+        `--pretty=format:%H|%ai|%s|%an|%ae|%D|%P`,
+        "--encoding=UTF-8",
+        `--max-count=${limit}`,
+      ];
 
-    if (skip > 0) {
-      args.push(`--skip=${skip}`);
-    }
+      if (skip > 0) {
+        args.push(`--skip=${skip}`);
+      }
 
-    if (branch && branch !== "all") {
-      // 如果指定了特定分支，只显示该分支
-      ["--branches", "--remotes", "--tags"].forEach((flag) => {
-        const idx = args.indexOf(flag);
-        if (idx !== -1) args.splice(idx, 1);
-      });
-      args.push(branch);
-    }
+      if (branch && branch !== "all") {
+        // 如果指定了特定分支，只显示该分支
+        ["--branches", "--remotes", "--tags"].forEach((flag) => {
+          const idx = args.indexOf(flag);
+          if (idx !== -1) args.splice(idx, 1);
+        });
+        args.push(branch);
+      }
 
-    // 添加作者筛选
-    if (authorFilter && authorFilter.length > 0) {
-      authorFilter.forEach((author) => {
-        args.push(`--author=${author}`);
-      });
-    }
+      // 添加作者筛选
+      if (authorFilter && authorFilter.length > 0) {
+        authorFilter.forEach((author) => {
+          args.push(`--author=${author}`);
+        });
+      }
 
-    const result = await this.git.raw(args);
+      const result = await this.git.raw(args);
 
     // 解析带图形信息的输出
     const lines = result
@@ -290,12 +291,30 @@ export class GitCommitOperations {
       commits.push(commit);
     }
 
-    // 后处理：建立父子关系
-    this.buildParentChildRelationships(commits);
+      // 后处理：建立父子关系
+      this.buildParentChildRelationships(commits);
 
-    console.timeEnd(`getCommitHistory-${skip}-${limit}`);
-    console.log(`Successfully processed ${commits.length} commits`);
-    return commits;
+      console.timeEnd(`getCommitHistory-${skip}-${limit}`);
+      console.log(`Successfully processed ${commits.length} commits`);
+      return commits;
+    } catch (error) {
+      console.timeEnd(`getCommitHistory-${skip}-${limit}`);
+      console.error(`Error in getCommitHistory:`, error);
+      
+      // 如果是网络相关错误或Git仓库未初始化，抛出更具体的错误
+      if (error instanceof Error) {
+        if (error.message.includes('not a git repository') || 
+            error.message.includes('No such file or directory')) {
+          throw new Error('Git repository not found or not initialized');
+        }
+        if (error.message.includes('bad revision') || 
+            error.message.includes('unknown revision')) {
+          throw new Error(`Invalid branch or revision: ${branch || 'current'}`);
+        }
+      }
+      
+      throw error;
+    }
   }
 
   /**
