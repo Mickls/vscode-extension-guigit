@@ -1232,6 +1232,14 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * 跳转到指定的提交
+   * @param hash 提交哈希
+   */
+  public jumpToCommit(hash: string) {
+    this._jumpToCommitInMainView(hash);
+  }
+
+  /**
    * HTML转义函数
    * @param text 需要转义的文本
    * @returns 转义后的文本

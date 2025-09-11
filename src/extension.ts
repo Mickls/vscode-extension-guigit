@@ -69,30 +69,14 @@ export function activate(context: vscode.ExtensionContext) {
       if (!commitHash) {
         return;
       }
-      const commitDetails = await gitHistoryProvider.getCommitDetails(commitHash);
-      if (!commitDetails) {
-        vscode.window.showErrorMessage("Commit details not found");
-        return;
-      }
 
-      const panel = vscode.window.createWebviewPanel(
-        "guigit.commitDetails",
-        `Commit Details: ${commitDetails.commit.hash.substring(0, 7)}`,
-        vscode.ViewColumn.Active,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-        }
-      );
-
-      panel.webview.html = getCommitDetailsHtml({
-        hash: commitDetails.commit.hash,
-        author: commitDetails.commit.author,
-        email: commitDetails.commit.email,
-        date: new Date(commitDetails.commit.date),
-        message: commitDetails.commit.message,
-        body: commitDetails.commit.body,
-      });
+      // 首先打开Git历史视图
+      await vscode.commands.executeCommand("workbench.view.extension.guigit");
+      
+      // 等待视图加载完成，然后跳转到指定commit
+      setTimeout(() => {
+        gitHistoryViewProvider.jumpToCommit(commitHash);
+      }, 300);
     }
   );
 
