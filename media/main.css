@@ -527,13 +527,21 @@ body {
   display: none;
 }
 
-/* 左侧提交列表区域 */
-.commit-list {
+/* 左侧面板容器 */
+.left-panel {
   width: 80%;
-  min-width: 650px; /* 设置commit-list的最小宽度，确保所有元素都能正常显示 */
-  overflow-y: auto;
+  min-width: 650px;
+  display: flex;
   position: relative;
   transition: width 0.3s ease;
+}
+
+/* 左侧提交列表区域 */
+.commit-list {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
   flex-direction: column;
 }
 
@@ -544,15 +552,19 @@ body {
 }
 
 /* 拖拽时禁用过渡动画 */
+.left-panel.no-transition,
 .commit-list.no-transition {
   transition: none !important;
 }
 
 /* 左侧面板折叠状态 */
-.commit-list.collapsed {
+.left-panel.collapsed {
   width: 40px !important;
   min-width: 40px !important;
   max-width: 40px !important;
+}
+
+.left-panel.collapsed .commit-list {
   overflow: hidden;
   padding: 0;
 }
@@ -839,7 +851,7 @@ body.resizing .resizer {
 }
 
 /* 当左侧面板折叠时，调整分割线位置 */
-.commit-list.collapsed + .resizer {
+.left-panel.collapsed + .resizer {
   display: block;
 }
 
@@ -1810,4 +1822,140 @@ body.resizing .resizer {
   color: var(--vscode-descriptionForeground);
   font-style: italic;
   padding: 20px;
+}
+
+/* ==================== Git Graph 样式 ==================== */
+
+/* 提交列表布局调整 */
+.commit-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Git Graph 容器 - 在左侧面板内 */
+.git-graph-container {
+  min-width: 120px;
+  max-width: 500px;
+  width: auto;
+  flex-shrink: 0;
+  background-color: var(--vscode-sideBar-background);
+  border-right: 1px solid var(--vscode-panel-border);
+  position: relative;
+  overflow: hidden;
+  transition: width 0.3s ease;
+}
+
+/* 提交列表内容区域 */
+.commit-list-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* 当隐藏 Git Graph 时 */
+.git-graph-container[style*="display: none"] {
+  width: 0;
+  border-right: none;
+}
+
+/* Git Graph 画布 */
+.git-graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}
+
+/* Git Graph 切换按钮样式 */
+#toggleGraphBtn {
+  position: relative;
+}
+
+#toggleGraphBtn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 12px;
+  background-color: var(--vscode-panel-border);
+}
+
+/* 隐藏 Git Graph 时的样式 */
+.git-graph-container[style*="display: none"] + .commit-list {
+  flex: 1;
+}
+
+/* Git Graph 节点悬停效果 */
+.git-graph-canvas:hover {
+  cursor: pointer;
+}
+
+/* Git Graph 工具提示 */
+.git-graph-tooltip {
+  position: absolute;
+  background-color: var(--vscode-editorHoverWidget-background);
+  border: 1px solid var(--vscode-editorHoverWidget-border);
+  border-radius: 3px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--vscode-editorHoverWidget-foreground);
+  z-index: 1000;
+  pointer-events: none;
+  max-width: 300px;
+  word-wrap: break-word;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+}
+
+/* Git Graph 加载状态 */
+.git-graph-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+/* Git Graph 错误状态 */
+.git-graph-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--vscode-errorForeground);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  .git-graph-container {
+    max-width: 300px; /* 在中等屏幕上限制最大宽度 */
+  }
+}
+
+@media (max-width: 800px) {
+  .git-graph-container {
+    max-width: 200px;
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 600px) {
+  .git-graph-container {
+    display: none !important;
+  }
+  
+  .commit-list-container {
+    flex-direction: column;
+  }
+  
+  .commit-list {
+    flex: 1 !important;
+  }
 }

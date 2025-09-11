@@ -12,6 +12,7 @@ let leftPanelCollapsed = false;            // 左侧面板是否折叠
 let rightPanelCollapsed = false;           // 右侧面板是否折叠
 
 // DOM元素引用
+let leftPanel = null;
 let commitList = null;
 let commitDetails = null;
 let resizer = null;
@@ -33,6 +34,9 @@ export function initializePanelManager(elements) {
     commitList = elements.commitList;
     commitDetails = elements.commitDetails;
     resizer = elements.resizer;
+    
+    // 获取左侧面板容器
+    leftPanel = commitList.parentElement;
     
     // 初始化拖拽功能
     initializeDragResize();
@@ -68,7 +72,7 @@ function initializeDragResize() {
         document.body.classList.add('resizing');
         
         // 禁用面板的过渡动画以提高拖拽响应性
-        commitList.classList.add('no-transition');
+        leftPanel.classList.add('no-transition');
         commitDetails.classList.add('no-transition');
         
         const containerRect = document.querySelector('.content').getBoundingClientRect();
@@ -99,7 +103,7 @@ function initializeDragResize() {
                 document.body.classList.remove('resizing');
                 
                 // 重新启用面板的过渡动画
-                commitList.classList.remove('no-transition');
+                leftPanel.classList.remove('no-transition');
                 commitDetails.classList.remove('no-transition');
                 
                 // 移除事件监听器
@@ -160,23 +164,23 @@ function initializeWindowEvents() {
  * 根据当前的leftPanelWidth变量更新左右面板的宽度
  */
 export function updatePanelWidths() {
-    if (!commitList || !commitDetails) return;
+    if (!leftPanel || !commitDetails) return;
     
     if (leftPanelCollapsed && rightPanelCollapsed) {
         // 两个面板都折叠时，各占一半（实际上都是40px）
-        commitList.style.width = '50%';
+        leftPanel.style.width = '50%';
         commitDetails.style.width = '50%';
     } else if (leftPanelCollapsed) {
         // 左侧折叠，右侧占据剩余空间（减去40px的左侧最小宽度）
-        commitList.style.width = '40px';
+        leftPanel.style.width = '40px';
         commitDetails.style.width = 'calc(100% - 44px)'; // 减去40px + 4px分割线
     } else if (rightPanelCollapsed) {
         // 右侧折叠，左侧占据剩余空间（减去40px的右侧最小宽度）
-        commitList.style.width = 'calc(100% - 44px)'; // 减去40px + 4px分割线
+        leftPanel.style.width = 'calc(100% - 44px)'; // 减去40px + 4px分割线
         commitDetails.style.width = '40px';
     } else {
         // 两个面板都展开，按比例分配
-        commitList.style.width = leftPanelWidth + '%';
+        leftPanel.style.width = leftPanelWidth + '%';
         commitDetails.style.width = (100 - leftPanelWidth) + '%';
     }
 }
@@ -189,7 +193,7 @@ export function toggleLeftPanel() {
     
     if (leftPanelCollapsed) {
         // 折叠左侧面板
-        commitList.classList.add('collapsed');
+        leftPanel.classList.add('collapsed');
         
         // 如果右侧面板也折叠了，则展开右侧面板
         if (rightPanelCollapsed) {
@@ -198,7 +202,7 @@ export function toggleLeftPanel() {
         }
     } else {
         // 展开左侧面板
-        commitList.classList.remove('collapsed');
+        leftPanel.classList.remove('collapsed');
         resizer.classList.remove('hidden');
     }
     
@@ -219,7 +223,7 @@ export function toggleRightPanel() {
         // 如果左侧面板也折叠了，则展开左侧面板
         if (leftPanelCollapsed) {
             leftPanelCollapsed = false;
-            commitList.classList.remove('collapsed');
+            leftPanel.classList.remove('collapsed');
         }
     } else {
         // 展开右侧面板
@@ -261,8 +265,8 @@ export function resetPanelLayout() {
     rightPanelCollapsed = false;
     leftPanelWidth = 80;
     
-    if (commitList && commitDetails && resizer) {
-        commitList.classList.remove('collapsed');
+    if (leftPanel && commitDetails && resizer) {
+        leftPanel.classList.remove('collapsed');
         commitDetails.classList.remove('collapsed');
         resizer.classList.remove('hidden');
     }
@@ -317,8 +321,8 @@ function restorePanelState() {
     leftPanelCollapsed = layoutState.leftPanelCollapsed;
     rightPanelCollapsed = layoutState.rightPanelCollapsed;
     
-    if (leftPanelCollapsed && commitList) {
-        commitList.classList.add('collapsed');
+    if (leftPanelCollapsed && leftPanel) {
+        leftPanel.classList.add('collapsed');
     }
     if (rightPanelCollapsed && commitDetails) {
         commitDetails.classList.add('collapsed');

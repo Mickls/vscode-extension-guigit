@@ -8,6 +8,8 @@ import { GitRemoteOperations } from "./operations/remoteOperations";
 import { GitCommitOperations } from "./operations/commitOperations";
 import { GitFileOperations } from "./operations/fileOperations";
 import { GitSafetyOperations } from "./operations/safetyOperations";
+import { GitGraphOperations } from "./operations/gitGraphOperations";
+import { GitGraphLayout } from "./types/gitGraphTypes";
 
 
 /**
@@ -62,6 +64,11 @@ export class GitHistoryProvider {
   private get safetyOps(): GitSafetyOperations | null {
     const git = this.git;
     return git ? new GitSafetyOperations(git) : null;
+  }
+
+  private get graphOps(): GitGraphOperations | null {
+    const git = this.git;
+    return git ? new GitGraphOperations(git) : null;
   }
 
   /**
@@ -1612,5 +1619,24 @@ export class GitHistoryProvider {
       throw new Error("Git instance not available");
     }
     return safetyOps.resetAutoStashPreference();
+  }
+
+  /**
+   * 生成 Git Graph 布局
+   * @param commits 提交列表
+   * @returns Git Graph 布局信息
+   */
+  async generateGitGraph(commits: GitCommit[]): Promise<GitGraphLayout | null> {
+    const graphOps = this.graphOps;
+    if (!graphOps) {
+      throw new Error("Git Graph operations not available");
+    }
+
+    try {
+      return await graphOps.generateGraphLayout(commits);
+    } catch (error) {
+      console.error("Error generating git graph:", error);
+      return null;
+    }
   }
 }

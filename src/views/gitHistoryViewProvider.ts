@@ -251,6 +251,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "currentFilterState":
           await this._initializeViewWithFilter(data.filterState);
           break;
+        case "generateGitGraph":
+          await this._sendGitGraphData(data.commits);
+          break;
         // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
@@ -498,7 +501,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     // 检查 Git 是否已初始化
     const hasGitRepo = await this._checkForGitRepository();
     if (!hasGitRepo) {
-      // Git 未初始化时，发送空的分支列表而不是错误信息
+      // Git 未初始化时，发送空的分支列表，但不影响加载状态
       this._view.webview.postMessage({
         type: "branches",
         data: [],
@@ -524,6 +527,25 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * 发送Git图表数据到WebView
+   * @param commits 提交记录数组
+   */
+  private async _sendGitGraphData(commits: any[]) {
+    if (!this._view) return;
+
+    try {
+      const gitGraph = await this._gitHistoryProvider.generateGitGraph(commits);
+      
+      this._view.webview.postMessage({
+        type: "gitGraphData",
+        data: gitGraph,
+      });
+    } catch (error) {
+      console.error("Error generating git graph:", error);
+    }
+  }
+
+  /**
    * 发送提交历史到WebView
    * @param branch 分支名称
    * @param skip 跳过的提交数量
@@ -539,15 +561,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     // 检查 Git 是否已初始化
     const hasGitRepo = await this._checkForGitRepository();
     if (!hasGitRepo) {
-      // Git 未初始化时，发送空的提交历史而不是错误信息
-      this._view.webview.postMessage({
-        type: "commitHistory",
-        data: {
-          commits: [],
-          skip: 0,
-          hasMore: false,
-        },
-      });
+      // Git 未初始化时，不要发送任何消息，让前端保持加载状态
+      // 直到有真正的Git仓库数据
       return;
     }
 
@@ -558,12 +573,25 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         skip,
         authorFilter
       );
+
+      // 生成 Git Graph 布局
+      // 注意：这里只为当前批次的commits生成图表
+      // 完整的图表将由前端在收到新数据后重新请求
+      let gitGraph = null;
+      if (skip === 0) {
+        // 首次加载时生成图表
+        gitGraph = await this._gitHistoryProvider.generateGitGraph(commits);
+      }
+      // 对于加载更多的情况，我们不在这里生成图表，
+      // 而是让前端在合并数据后重新请求完整的图表
+
       this._view.webview.postMessage({
         type: "commitHistory",
         data: {
           commits,
           skip,
           hasMore: commits.length === 50,
+          gitGraph,
         },
       });
     } catch (error) {
@@ -592,15 +620,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     // 检查 Git 是否已初始化
     const hasGitRepo = await this._checkForGitRepository();
     if (!hasGitRepo) {
-      // Git 未初始化时，发送空的搜索结果而不是错误信息
-      this._view.webview.postMessage({
-        type: "searchResults",
-        data: {
-          commits: [],
-          searchTerm,
-          branch,
-        },
-      });
+      // Git 未初始化时，不要发送任何消息，让前端保持加载状态
       return;
     }
 
@@ -644,11 +664,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     // 检查 Git 是否已初始化
     const hasGitRepo = await this._checkForGitRepository();
     if (!hasGitRepo) {
-      // Git 未初始化时，发送0作为提交总数
-      this._view.webview.postMessage({
-        type: "totalCommitCount",
-        data: 0,
-      });
+      // Git 未初始化时，不要发送任何消息，让前端保持加载状态
       return;
     }
 
@@ -1548,6 +1564,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         resetStash: "settings-gear",
         jumpToHead: "target",
         refresh: "refresh",
+        toggleGraph: "git-branch",
         globe: "globe",
         collapseLeft: "chevron-left",
         collapseRight: "chevron-right",
@@ -1596,6 +1613,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     const headerControls = [
       { id: "jumpToHeadBtn", action: "jumpToHead", title: "Jump to HEAD" },
       { id: "refreshBtn", action: "refresh", title: "Refresh" },
+      { id: "toggleGraphBtn", action: "toggleGraph", title: "Toggle Git Graph" },
     ];
 
     // 上下文菜单项配置
@@ -1685,20 +1703,27 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                     </div>
                     
                     <div class="content">
-                        <div class="commit-list" id="commitList">
-                            <div class="panel-header">
-                                <div class="commit-list-headers">
-                                    <div class="header-hash">Hash</div>
-                                    <div class="header-message">Message</div>
-                                    <div class="header-refs">Tags</div>
-                                    <div class="header-author">Author</div>
-                                    <div class="header-date">Date</div>
-                                </div>
-                                <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">
-                                    ${getCodiconHtml("collapseLeft", "medium")}
-                                </button>
+                        <div class="left-panel">
+                            <div class="git-graph-container" id="gitGraphContainer" style="display: block;">
+                                <!-- Git Graph 将在这里渲染 -->
                             </div>
-                            <div class="loading">Loading commits...</div>
+                            <div class="commit-list" id="commitList">
+                                <div class="panel-header">
+                                    <div class="commit-list-headers">
+                                        <div class="header-hash">Hash</div>
+                                        <div class="header-message">Message</div>
+                                        <div class="header-refs">Tags</div>
+                                        <div class="header-author">Author</div>
+                                        <div class="header-date">Date</div>
+                                    </div>
+                                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">
+                                        ${getCodiconHtml("collapseLeft", "medium")}
+                                    </button>
+                                </div>
+                                <div class="commit-list-content" id="commitListContent">
+                                    <div class="loading">Loading commits...</div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="resizer" id="resizer"></div>

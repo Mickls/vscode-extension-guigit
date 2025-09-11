@@ -22,6 +22,8 @@ import { initializeContextMenu, showContextMenu as showContextMenuComponent } fr
 import { handleContextMenuAction as handleContextMenuActionComponent } from './features/commit-operations.js';
 // 导入提交比较功能
 import { initializeCompareFeature, showCompareResult as showCompareResultComponent } from './features/commit-compare.js';
+// 导入Git图表渲染器
+import { GitGraphRenderer } from './components/git-graph.js';
 // 导入状态管理模块
 import {
     addAuthorFilter,
@@ -51,6 +53,8 @@ import {
 import { Templates } from './utils/templates.js';
 // 导入图标系统
 import { getIcon } from './utils/icons.js';
+// 导入 Git Graph 组件
+import { createGitGraph } from './components/git-graph.js';
 
 (function () {
     'use strict';
@@ -72,6 +76,7 @@ import { getIcon } from './utils/icons.js';
     const refreshBtn = document.getElementById('refreshBtn');             // 刷新按钮
     const jumpToHeadBtn = document.getElementById('jumpToHeadBtn');       // 跳转到HEAD按钮
     const commitList = document.getElementById('commitList');             // 提交列表容器
+    const commitListContent = document.getElementById('commitListContent'); // 提交列表内容区域
     const commitDetails = document.getElementById('commitDetails');       // 提交详情面板
     const contextMenu = document.getElementById('contextMenu');           // 右键上下文菜单
     const comparePanel = document.getElementById('comparePanel');         // 比较面板
@@ -91,24 +96,64 @@ import { getIcon } from './utils/icons.js';
     const resizer = document.getElementById('resizer');                   // 分割线
     // 折叠按钮现在在panel-manager.js中管理
 
+    // Git Graph 相关变量
+    let gitGraphRenderer = null;                                          // Git Graph 渲染器
+    let showGitGraph = true;                                              // 是否显示 Git Graph
+
     // 事件监听器设置
     // 添加滚动监听器以实现无限滚动加载
-    commitList.addEventListener('scroll', () => {
-        const hasMore = getState('hasMore');
+    // 注意：滚动事件应该绑定到实际滚动的元素上
+    let currentScrollHandler = null;
+    
+    function setupScrollListener() {
+        const commitListContent = document.getElementById('commitListContent');
         
-        // 如果正在加载，或者没有更多提交，则不继续加载
-        if (getState('isLoading') || !hasMore) {
-            return;
+        // 移除之前的监听器
+        if (currentScrollHandler && commitListContent) {
+            commitListContent.removeEventListener('scroll', currentScrollHandler);
         }
+        
+        if (commitListContent) {
+            currentScrollHandler = () => {
+                const hasMore = getState('hasMore');
+                const isLoading = getState('isLoading');
+                
+                // 如果正在加载，或者没有更多提交，则不继续加载
+                if (isLoading || !hasMore) {
+                    return;
+                }
 
-        const scrollTop = commitList.scrollTop;
-        const scrollHeight = commitList.scrollHeight;
-        const clientHeight = commitList.clientHeight;
+                const scrollTop = commitListContent.scrollTop;
+                const scrollHeight = commitListContent.scrollHeight;
+                const clientHeight = commitListContent.clientHeight;
 
-        // 当滚动到距离底部50px时开始加载更多提交
-        if (scrollTop + clientHeight >= scrollHeight - 50) {
-            loadCommits(false);
+                // 当滚动到距离底部50px时开始加载更多提交
+                if (scrollTop + clientHeight >= scrollHeight - 50) {
+                    loadCommits(false);
+                }
+            };
+            commitListContent.addEventListener('scroll', currentScrollHandler);
         }
+    }
+    
+    // 使用更可靠的方法来确保DOM准备就绪
+    function waitForElement(selector, callback, maxAttempts = 50) {
+        let attempts = 0;
+        const checkElement = () => {
+            const element = document.getElementById(selector);
+            if (element) {
+                callback();
+            } else if (attempts < maxAttempts) {
+                attempts++;
+                setTimeout(checkElement, 100);
+            }
+        };
+        checkElement();
+    }
+    
+    // 等待commitListContent元素准备就绪
+    waitForElement('commitListContent', () => {
+        setupScrollListener();
     });
 
     // 仓库选择变更事件
@@ -149,6 +194,14 @@ import { getIcon } from './utils/icons.js';
     jumpToHeadBtn.addEventListener('click', () => {
         vscode.postMessage({ type: 'jumpToHead' });
     });
+
+    // Git Graph 切换按钮点击事件
+    const toggleGraphBtn = document.getElementById('toggleGraphBtn');
+    if (toggleGraphBtn) {
+        toggleGraphBtn.addEventListener('click', () => {
+            toggleGitGraph();
+        });
+    }
 
     // Git操作按钮事件监听器
     pullBtn.addEventListener('click', (event) => {
@@ -326,15 +379,6 @@ import { getIcon } from './utils/icons.js';
                 updateBranches(message.data);      // 更新分支列表
                 break;
             case 'commitHistory':
-                console.log('Received commitHistory message:', {
-                    dataType: typeof message.data,
-                    hasCommits: !!message.data?.commits,
-                    commitsLength: message.data?.commits?.length,
-                    firstCommit: message.data?.commits?.[0] ? {
-                        hash: message.data.commits[0].hash?.substring(0, 7),
-                        message: message.data.commits[0].message
-                    } : null
-                });
                 updateCommitHistory(message.data); // 更新提交历史记录
                 break;
             case 'totalCommitCount':
@@ -342,6 +386,9 @@ import { getIcon } from './utils/icons.js';
                 break;
             case 'commitDetails':
                 updateCommitDetails(message.data); // 更新提交详情信息
+                break;
+            case 'gitGraphData':
+                handleGitGraphData(message.data); // 处理Git图表数据更新
                 break;
             case 'compareResult':
                 showCompareResultComponent(message.data, comparePanel, compareContent);   // 显示提交比较结果
@@ -415,11 +462,19 @@ import { getIcon } from './utils/icons.js';
                     </div>
                     <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
                 </div>
-                <div class="loading">Loading commits...</div>
+                <div class="commit-list-content" id="commitListContent">
+                    <div class="loading">Loading commits...</div>
+                </div>
             `;
             // 绑定作者筛选点击事件
             bindAuthorFilterEvent();
             rebindCollapseButtons();
+            // DOM结构重新创建后，需要重新设置滚动监听器
+            setTimeout(() => {
+                setupScrollListener();
+            }, 0);
+            // 重新绑定Git图表同步
+            rebindScrollSync();
         } else {
             // 即使不是reset，也要更新UI显示loading状态
             renderCommitList();
@@ -476,7 +531,7 @@ import { getIcon } from './utils/icons.js';
      * @param {Object} repository - 切换到的仓库
      */
     function handleRepositorySwitched(repository) {
-        console.log(`Switched to repository: ${repository.name} (${repository.path})`);
+
         
         // 更新选择器状态
         const options = Array.from(repositorySelect.options);
@@ -534,6 +589,7 @@ import { getIcon } from './utils/icons.js';
      * @param {boolean} data.hasMore - 是否还有更多提交可加载
      */
     function updateCommitHistory(data) {
+        // 只有在真正收到提交数据时才设置加载完成
         setLoading(false);
 
         // 更新hasMore状态
@@ -544,6 +600,14 @@ import { getIcon } from './utils/icons.js';
             const previousCurrentCommit = getState('currentCommit'); // 保存之前选中的提交
             setState('commits', data.commits);
             updateSelectedCommits([]);
+
+            // 更新 Git Graph
+            if (data.gitGraph) {
+                setState('gitGraphData', data.gitGraph);
+                if (showGitGraph) {
+                    updateGitGraphWithLayout(data.gitGraph);
+                }
+            }
 
             // 检查之前选中的提交是否仍然存在于新的提交列表中
             if (previousCurrentCommit && data.commits.some(commit => commit.hash === previousCurrentCommit)) {
@@ -593,8 +657,14 @@ import { getIcon } from './utils/icons.js';
         } else {
             // 加载更多提交记录
             const currentCommits = getState('commits');
-            setState('commits', currentCommits.concat(data.commits));
+            const allCommits = currentCommits.concat(data.commits);
+            setState('commits', allCommits);
             appendCommitList(data.commits);
+            
+            // 重新生成Git图表以包含所有commit
+            if (showGitGraph) {
+                requestGitGraphUpdate(allCommits);
+            }
         }
 
         setState('loadedCommits', getState('commits').length);
@@ -626,7 +696,7 @@ import { getIcon } from './utils/icons.js';
                     // 已经加载完所有提交但仍未找到，清除搜索标记并建议切换分支
                     const missingHash = window.searchingForCommit;
                     window.searchingForCommit = null;
-                    console.log('Commit not found after loading all commits');
+
                     if (missingHash) {
                         suggestBranchSwitch(missingHash);
                     }
@@ -688,9 +758,14 @@ import { getIcon } from './utils/icons.js';
                         </div>
                         <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
                     </div>
+                    <div class="commit-list-content" id="commitListContent"></div>
                 `;
                 // 绑定作者筛选点击事件
                 bindAuthorFilterEvent();
+                // DOM结构重新创建后，需要重新设置滚动监听器
+                setTimeout(() => {
+                    setupScrollListener();
+                }, 0);
             }
             rebindCollapseButtons();
             renderCommitList();
@@ -705,7 +780,13 @@ import { getIcon } from './utils/icons.js';
      * @param {Array} newCommits - 新的提交列表
      */
     function updateCommitListIncrementally(newCommits) {
-        const existingCommits = commitList.querySelectorAll('.commit-item');
+        const commitListContent = commitList.querySelector('.commit-list-content');
+        if (!commitListContent) {
+            renderCommitList();
+            return;
+        }
+        
+        const existingCommits = commitListContent.querySelectorAll('.commit-item');
         const existingHashes = Array.from(existingCommits).map(el => el.dataset.hash);
         const newHashes = newCommits.map(commit => commit.hash);
         
@@ -732,11 +813,11 @@ import { getIcon } from './utils/icons.js';
                     commitElement.classList.add('entering');
                     
                     // 找到正确的插入位置
-                    const nextElement = commitList.querySelector(`[data-hash="${newHashes[index + 1]}"]`);
+                    const nextElement = commitListContent.querySelector(`[data-hash="${newHashes[index + 1]}"]`);
                     if (nextElement) {
-                        commitList.insertBefore(commitElement, nextElement);
+                        commitListContent.insertBefore(commitElement, nextElement);
                     } else {
-                        commitList.appendChild(commitElement);
+                        commitListContent.appendChild(commitElement);
                     }
                     
                     // 触发进入动画
@@ -773,7 +854,8 @@ import { getIcon } from './utils/icons.js';
         const isLoading = getState('isLoading');
 
         if (commits.length === 0) {
-            // 如果没有提交，根据加载状态显示不同信息
+            // 如果没有提交，只有在不是加载状态时才显示 "No commits found"
+            // 在加载状态时显示 "Loading commits..."
             const existingHeaders = commitList.querySelectorAll('.panel-header');
             const messageText = isLoading ? 'Loading commits...' : 'No commits found';
             
@@ -784,22 +866,32 @@ import { getIcon } from './utils/icons.js';
                             <div class="header-hash">Hash</div>
                             <div class="header-message">Message</div>
                             <div class="header-refs">Tags</div>
-                            <div class="header-author">Author</div>
+                            <div class="header-author clickable" id="headerAuthor">Author</div>
                             <div class="header-date">Date</div>
                         </div>
                         <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
                     </div>
-                    <div class="loading">${messageText}</div>
+                    <div class="commit-list-content">
+                        <div class="loading">${messageText}</div>
+                    </div>
                 `;
                 rebindCollapseButtons();
+                bindAuthorFilterEvent();
             } else {
                 // 如果按钮已存在，只添加或更新消息
-                let existingMessage = commitList.querySelector('.loading');
+                let contentArea = commitList.querySelector('.commit-list-content');
+                if (!contentArea) {
+                    contentArea = document.createElement('div');
+                    contentArea.className = 'commit-list-content';
+                    commitList.appendChild(contentArea);
+                }
+                
+                let existingMessage = contentArea.querySelector('.loading');
                 if (!existingMessage) {
                     const messageDiv = document.createElement('div');
                     messageDiv.className = 'loading';
                     messageDiv.textContent = messageText;
-                    commitList.appendChild(messageDiv);
+                    contentArea.appendChild(messageDiv);
                 } else {
                     existingMessage.textContent = messageText;
                 }
@@ -807,39 +899,38 @@ import { getIcon } from './utils/icons.js';
             return;
         }
 
-        // 保留 panel-header，清空其他内容
-        const panelHeader = commitList.querySelector('.panel-header');
-        commitList.innerHTML = '';
-        
-        // 重新添加 panel-header
-        if (panelHeader) {
-            commitList.appendChild(panelHeader);
-        } else {
-            // 如果没有 panel-header，创建一个
-            commitList.innerHTML = `
-                <div class="panel-header">
-                    <div class="commit-list-headers">
-                        <div class="header-hash">Hash</div>
-                        <div class="header-message">Message</div>
-                        <div class="header-refs">Tags</div>
-                        <div class="header-author clickable" id="headerAuthor">Author</div>
-                        <div class="header-date">Date</div>
-                    </div>
-                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
-                </div>
-            `;
-            // 绑定作者筛选点击事件
-            bindAuthorFilterEvent();
-            rebindCollapseButtons();
+        // 确保提交列表内容区域存在
+        let commitListContent = commitList.querySelector('.commit-list-content');
+        if (!commitListContent) {
+            commitListContent = document.createElement('div');
+            commitListContent.className = 'commit-list-content';
+            commitListContent.id = 'commitListContent';
+            commitList.appendChild(commitListContent);
         }
 
+        // 清空提交列表内容区域
+        commitListContent.innerHTML = '';
+        
         // 渲染所有提交
         commits.forEach((commit, index) => {
             const commitElement = createCommitElement(commit, index);
-            commitList.appendChild(commitElement);
+            commitListContent.appendChild(commitElement);
         });
 
         updateMultiSelectInfo();
+        
+        // 更新git图表
+        if (window.gitGraphRenderer) {
+            updateGitGraph();
+        }
+        
+        // 重新绑定滚动同步
+        rebindScrollSync();
+        
+        // 确保滚动监听器也重新设置
+        setTimeout(() => {
+            setupScrollListener();
+        }, 0);
     }
 
     /**
@@ -853,9 +944,18 @@ import { getIcon } from './utils/icons.js';
         const commits = getState('commits');
         const hasMore = getState('hasMore');
 
+        // 确保提交列表内容区域存在
+        let commitListContent = commitList.querySelector('.commit-list-content');
+        if (!commitListContent) {
+            commitListContent = document.createElement('div');
+            commitListContent.className = 'commit-list-content';
+            commitListContent.id = 'commitListContent';
+            commitList.appendChild(commitListContent);
+        }
+
         newCommits.forEach((commit, index) => {
             const commitElement = createCommitElement(commit, commits.length - newCommits.length + index);
-            commitList.appendChild(commitElement);
+            commitListContent.appendChild(commitElement);
         });
 
         // 重新检查是否需要显示加载指示器
@@ -874,12 +974,15 @@ import { getIcon } from './utils/icons.js';
      * 在提交列表底部显示"正在加载更多提交..."的提示
      */
     function showLoadingIndicator() {
-        let indicator = commitList.querySelector('.loading-indicator');
+        const commitListContent = commitList.querySelector('.commit-list-content');
+        if (!commitListContent) return;
+        
+        let indicator = commitListContent.querySelector('.loading-indicator');
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.className = 'loading-indicator';
             indicator.innerHTML = Templates.loadingIndicator('Loading more commits...');
-            commitList.appendChild(indicator);
+            commitListContent.appendChild(indicator);
         }
     }
 
@@ -888,7 +991,10 @@ import { getIcon } from './utils/icons.js';
      * 移除加载提示元素
      */
     function hideLoadingIndicator() {
-        const indicator = commitList.querySelector('.loading-indicator');
+        const commitListContent = commitList.querySelector('.commit-list-content');
+        if (!commitListContent) return;
+        
+        const indicator = commitListContent.querySelector('.loading-indicator');
         if (indicator) {
             indicator.remove();
         }
@@ -905,6 +1011,14 @@ import { getIcon } from './utils/icons.js';
         div.className = 'commit-item';
         div.dataset.hash = commit.hash;
         div.dataset.index = index;
+
+        // 添加 Git Graph 相关的数据属性
+        if (commit.column !== undefined) {
+            div.dataset.column = commit.column;
+        }
+        if (commit.colorIndex !== undefined) {
+            div.dataset.colorIndex = commit.colorIndex;
+        }
 
         const refs = commit.refs ? parseRefs(commit.refs) : [];
         
@@ -1105,7 +1219,7 @@ import { getIcon } from './utils/icons.js';
      */
     function ensureCommitSelectionUI(hash) {
         const selectedCommits = getState('selectedCommits');
-        console.log(`Ensuring UI state for commit ${hash.substring(0, 8)}, selectedCommits: ${selectedCommits.length}`);
+
 
         // 清除所有选择状态
         document.querySelectorAll('.commit-item').forEach(item => {
@@ -1117,14 +1231,14 @@ import { getIcon } from './utils/icons.js';
         if (currentElement) {
             if (selectedCommits.length === 1) {
                 currentElement.classList.add('selected');
-                console.log(`Applied 'selected' class to commit ${hash.substring(0, 8)}`);
+
             } else if (selectedCommits.length > 1) {
                 // 多选模式下，为所有选中的提交添加样式
                 selectedCommits.forEach(commit => {
                     const element = document.querySelector(`[data-hash="${commit.hash}"]`);
                     if (element) {
                         element.classList.add('multi-selected');
-                        console.log(`Applied 'multi-selected' class to commit ${commit.hash.substring(0, 8)}`);
+
                     }
                 });
             }
@@ -1140,13 +1254,16 @@ import { getIcon } from './utils/icons.js';
      */
     function safeUpdateCurrentCommit(hash, commit) {
         const currentCommit = getState('currentCommit');
-        console.log(`Updating current commit from ${currentCommit ? currentCommit.substring(0, 8) : 'none'} to ${hash.substring(0, 8)}`);
+
 
         setCurrentCommit(hash);
         updateSelectedCommits(commit ? [commit] : []);
 
         // 立即更新UI状态
         ensureCommitSelectionUI(hash);
+
+        // 同步 Git Graph 选中状态
+        syncGitGraphSelection();
 
         // 更新多选信息
         updateMultiSelectInfo();
@@ -1179,7 +1296,7 @@ import { getIcon } from './utils/icons.js';
         const currentCommit = getState('currentCommit');
         if (commit.hash !== currentCommit) {
             // 如果不是当前选中的提交，只缓存数据，不更新UI
-            console.log(`Skipping UI update for ${commit.hash.substring(0, 8)} (current: ${currentCommit ? currentCommit.substring(0, 8) : 'none'})`);
+
             return;
         }
 
@@ -1264,7 +1381,7 @@ import { getIcon } from './utils/icons.js';
         // 添加事件监听器
         addFileEventListeners(commit.hash);
 
-        console.log('Updated commit details for:', commit.hash.substring(0, 8), commit.message);
+
     }
 
     /**
@@ -1443,7 +1560,7 @@ import { getIcon } from './utils/icons.js';
      * @param {string} commitHash - 提交哈希值
      */
     function handleCommitNotFound(commitHash) {
-        console.log('Commit not found in current view:', commitHash);
+
 
         // 显示提示信息
         showCommitNotFoundMessage(commitHash);
@@ -1573,9 +1690,37 @@ import { getIcon } from './utils/icons.js';
 
     // ==================== 初始化 ====================
 
+    // 设置初始加载状态
+    setLoading(true);
+    
+    // 显示初始加载界面
+    commitList.innerHTML = `
+        <div class="panel-header">
+            <div class="commit-list-headers">
+                <div class="header-hash">Hash</div>
+                <div class="header-message">Message</div>
+                <div class="header-refs">Tags</div>
+                <div class="header-author clickable" id="headerAuthor">Author</div>
+                <div class="header-date">Date</div>
+            </div>
+            <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
+        </div>
+        <div class="commit-list-content" id="commitListContent">
+            <div class="loading">Loading commits...</div>
+        </div>
+    `;
+    rebindCollapseButtons();
+    bindAuthorFilterEvent();
+    
     // 请求数据
     vscode.postMessage({ type: 'getBranches' });
-    loadCommits(true);
+    // 请求提交历史数据
+    vscode.postMessage({
+        type: 'getCommitHistory',
+        branch: getState('currentBranch') || undefined,
+        skip: 0,
+        authorFilter: getState('authorFilter')
+    });
 
     /**
      * 定期检查并修复选中状态
@@ -1589,7 +1734,7 @@ import { getIcon } from './utils/icons.js';
         if (currentCommit && selectedCommits.length > 0) {
             const currentElement = document.querySelector(`[data-hash="${currentCommit}"]`);
             if (currentElement && !currentElement.classList.contains('selected') && !currentElement.classList.contains('multi-selected')) {
-                console.log(`Fixing lost selection state for commit ${currentCommit.substring(0, 8)}`);
+
                 ensureCommitSelectionUI(currentCommit);
             }
         }
@@ -2044,6 +2189,178 @@ import { getIcon } from './utils/icons.js';
         
         // 更新多选信息显示
         updateMultiSelectInfo();
+    }
+
+    // ==================== Git Graph 功能 ====================
+
+    /**
+     * 初始化 Git Graph
+     */
+    function initializeGitGraph() {
+        const graphContainer = document.querySelector('.git-graph-container');
+        const commitListContent = document.getElementById('commitListContent');
+        
+        if (!graphContainer || !commitListContent) return;
+
+        gitGraphRenderer = createGitGraph(graphContainer, commitListContent, {
+            onNodeClick: (node, event) => {
+                // 处理节点点击事件
+                if (event.ctrlKey || event.metaKey) {
+                    // Ctrl/Cmd + 点击：多选模式
+                    const commits = getState('commits');
+                    const commit = commits.find(c => c.hash === node.hash);
+                    if (commit) {
+                        const element = document.querySelector(`[data-hash="${node.hash}"]`);
+                        toggleCommitSelection(node.hash, element);
+                    }
+                } else {
+                    // 普通点击：单选模式
+                    const commits = getState('commits');
+                    const commit = commits.find(c => c.hash === node.hash);
+                    if (commit) {
+                        const element = document.querySelector(`[data-hash="${node.hash}"]`);
+                        selectSingleCommit(node.hash, element);
+                    }
+                }
+            },
+            onNodeHover: (node) => {
+                // 处理节点悬停事件
+                preloadCommitDetails(node.hash);
+            }
+        });
+    }
+
+    /**
+     * 更新 Git Graph
+     * @param {Object} graphLayout - Git Graph 布局数据
+     */
+    function updateGitGraphWithLayout(graphLayout) {
+        if (!window.gitGraphRenderer || !graphLayout) return;
+
+        window.gitGraphRenderer.setLayout(graphLayout);
+        
+        // 同步选中状态
+        const currentCommit = getState('currentCommit');
+        if (currentCommit) {
+            window.gitGraphRenderer.setSelectedNode(currentCommit);
+        }
+    }
+
+    /**
+     * 切换 Git Graph 显示
+     */
+    window.toggleGitGraph = function() {
+        showGitGraph = !showGitGraph;
+        const graphContainer = document.getElementById('gitGraphContainer');
+        const toggleButton = document.getElementById('toggleGraphBtn');
+        
+        if (graphContainer) {
+            graphContainer.style.display = showGitGraph ? 'block' : 'none';
+        }
+        
+        if (toggleButton) {
+            toggleButton.title = showGitGraph ? 'Hide Git Graph' : 'Show Git Graph';
+        }
+
+        // 调整提交列表的布局
+        adjustCommitListLayout();
+    };
+
+    /**
+     * 调整提交列表布局
+     */
+    function adjustCommitListLayout() {
+        const commitListContainer = document.querySelector('.commit-list');
+        if (!commitListContainer) return;
+
+        if (showGitGraph) {
+            commitListContainer.classList.add('with-graph');
+        } else {
+            commitListContainer.classList.remove('with-graph');
+        }
+    }
+
+    /**
+     * 初始化Git图表
+     */
+    function initializeGitGraph() {
+        const graphContainer = document.getElementById('gitGraphContainer');
+        if (!graphContainer) return;
+
+        // 初始化渲染器
+        window.gitGraphRenderer = new GitGraphRenderer(graphContainer);
+        
+        // 绑定滚动同步
+        const commitListContent = document.getElementById('commitListContent');
+        if (commitListContent && window.gitGraphRenderer) {
+            window.gitGraphRenderer.bindScrollSync(commitListContent);
+        }
+    }
+
+    /**
+     * 更新Git图表
+     */
+    function updateGitGraph() {
+        if (!window.gitGraphRenderer) return;
+        
+        const commits = getState('commits');
+        const gitGraphData = getState('gitGraphData');
+        
+        if (commits && gitGraphData) {
+            window.gitGraphRenderer.updateGraph(gitGraphData, commits);
+        }
+    }
+
+    /**
+     * 重新绑定滚动同步
+     */
+    function rebindScrollSync() {
+        if (!window.gitGraphRenderer) return;
+        
+        const commitListContent = document.getElementById('commitListContent');
+        if (commitListContent) {
+            window.gitGraphRenderer.bindScrollSync(commitListContent);
+        }
+    }
+
+    /**
+     * 请求更新Git图表
+     */
+    function requestGitGraphUpdate(commits) {
+        // 向后端请求基于所有commits的Git图表数据
+        vscode.postMessage({
+            type: 'generateGitGraph',
+            commits: commits
+        });
+    }
+
+    /**
+     * 处理Git图表数据更新
+     */
+    function handleGitGraphData(gitGraphData) {
+        // 更新存储的Git图表数据
+        setState('gitGraphData', gitGraphData);
+        
+        // 更新Git图表显示
+        if (showGitGraph && window.gitGraphRenderer) {
+            updateGitGraphWithLayout(gitGraphData);
+        }
+    }
+
+
+
+    // 延迟初始化 Git Graph，确保 DOM 完全加载
+    setTimeout(() => {
+        initializeGitGraph();
+        adjustCommitListLayout();
+    }, 100);
+
+    // 监听提交选择变化，同步 Git Graph
+    function syncGitGraphSelection() {
+        const currentCommit = getState('currentCommit');
+        if (window.gitGraphRenderer && currentCommit) {
+            window.gitGraphRenderer.setSelectedNode(currentCommit);
+        }
     }
 
 })(); // 立即执行函数表达式结束
