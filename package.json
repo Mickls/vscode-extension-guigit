@@ -2,7 +2,7 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.0.36",
+  "version": "0.0.37",
   "publisher": "Mickls",
   "icon": "gui-git-history-high-resolution-logo-transparent.png",
   "repository": {
@@ -45,6 +45,22 @@
           "type": "string",
           "default": "",
           "description": "No proxy for these hosts (comma-separated)"
+        },
+        "guigit.autoStashOnPull": {
+          "type": "string",
+          "enum": ["ask", "always", "never"],
+          "default": "ask",
+          "description": "Automatically stash uncommitted changes when pulling",
+          "enumDescriptions": [
+            "Ask each time what to do with uncommitted changes",
+            "Always automatically stash uncommitted changes",
+            "Never stash, cancel operation if there are uncommitted changes"
+          ]
+        },
+        "guigit.blame.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Git blame annotations in the editor"
         }
       }
     },
