@@ -10,13 +10,10 @@
     "url": "https://github.com/Mickls/vscode-extension-guigit.git"
   },
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.75.0"
   },
   "categories": [
     "SCM Providers"
-  ],
-  "activationEvents": [
-    "onCommand:guigit.viewFileHistory"
   ],
   "extensionDependencies": [
     "vscode.git"
@@ -48,7 +45,11 @@
         },
         "guigit.autoStashOnPull": {
           "type": "string",
-          "enum": ["ask", "always", "never"],
+          "enum": [
+            "ask",
+            "always",
+            "never"
+          ],
           "default": "ask",
           "description": "Automatically stash uncommitted changes when pulling",
           "enumDescriptions": [
