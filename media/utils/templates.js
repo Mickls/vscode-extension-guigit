@@ -59,6 +59,9 @@ export const Templates = {
      * @returns {string} HTML字符串
      */
     gitHistoryView(styleUri, scriptUri) {
+        // 导入i18n函数（在浏览器环境中使用全局i18n对象）
+        const i18n = typeof window !== 'undefined' ? window.i18n : { t: (key) => key };
+        
         return `<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -72,20 +75,20 @@ export const Templates = {
                     <div class="header">
                         <div class="header-left">
                             <select id="branchSelect" class="branch-select">
-                                <option value="">All branches</option>
+                                <option value="">${i18n.t('allBranches')}</option>
                             </select>
                         </div>
                         <div class="header-right">
                             <div class="git-operations">
-                                ${this.gitOperationButton('pullBtn', 'pull', 'Pull', 'Pull (Ctrl+Click for advanced options)')}
-                                ${this.gitOperationButton('pushBtn', 'push', 'Push', 'Push (Ctrl+Click for advanced options)')}
-                                ${this.gitOperationButton('fetchBtn', 'fetch', 'Fetch', 'Fetch')}
-                                ${this.gitOperationButton('cloneBtn', 'clone', 'Clone', 'Clone')}
-                                ${this.gitOperationButton('checkoutBtn', 'checkout', 'Checkout', 'Checkout')}
+                                ${this.gitOperationButton('pullBtn', 'pull', i18n.t('gitOperations.pull'), i18n.t('pullTooltip'))}
+                                ${this.gitOperationButton('pushBtn', 'push', i18n.t('gitOperations.push'), i18n.t('pushTooltip'))}
+                                ${this.gitOperationButton('fetchBtn', 'fetch', i18n.t('gitOperations.fetch'), i18n.t('fetchTooltip'))}
+                                ${this.gitOperationButton('cloneBtn', 'clone', i18n.t('gitOperations.clone'), i18n.t('cloneTooltip'))}
+                                ${this.gitOperationButton('checkoutBtn', 'checkout', i18n.t('gitOperations.checkout'), i18n.t('checkoutTooltip'))}
                             </div>
                             <div class="header-controls">
-                                ${this.headerControlButton('jumpToHeadBtn', 'jumpToHead', 'Jump to HEAD')}
-                                ${this.headerControlButton('refreshBtn', 'refresh', 'Refresh')}
+                                ${this.headerControlButton('jumpToHeadBtn', 'jumpToHead', i18n.t('jumpToHeadTooltip'))}
+                                ${this.headerControlButton('refreshBtn', 'refresh', i18n.t('refreshTooltip'))}
                             </div>
                         </div>
                     </div>
@@ -94,30 +97,30 @@ export const Templates = {
                         <div class="commit-list" id="commitList">
                             <div class="panel-header">
                                 <div class="commit-list-headers">
-                                    <div class="header-hash">Hash</div>
-                                    <div class="header-message">Message</div>
-                                    <div class="header-refs">Tags</div>
-                                    <div class="header-author">Author</div>
-                                    <div class="header-date">Date</div>
+                                    <div class="header-hash">${i18n.t('headers.hash')}</div>
+                                    <div class="header-message">${i18n.t('headers.message')}</div>
+                                    <div class="header-refs">${i18n.t('headers.tags')}</div>
+                                    <div class="header-author">${i18n.t('headers.author')}</div>
+                                    <div class="header-date">${i18n.t('headers.date')}</div>
                                 </div>
-                                ${this.panelCollapseButton('left', 'leftCollapseBtn', 'Collapse panel')}
+                                ${this.panelCollapseButton('left', 'leftCollapseBtn', i18n.t('collapseTooltip'))}
                             </div>
-                            <div class="loading">Loading commits...</div>
+                            <div class="loading">${i18n.t('loading')}</div>
                         </div>
                         
                         <div class="resizer" id="resizer"></div>
                         
                         <div class="commit-details" id="commitDetails">
                             <div class="panel-header">
-                                ${this.panelCollapseButton('right', 'rightCollapseBtn', 'Collapse panel')}
+                                ${this.panelCollapseButton('right', 'rightCollapseBtn', i18n.t('collapseTooltip'))}
                             </div>
-                            <div class="placeholder">Select a commit to view details</div>
+                            <div class="placeholder">${i18n.t('selectCommit')}</div>
                         </div>
                     </div>
                     
                     <div class="compare-panel" id="comparePanel" style="display: none;">
                         <div class="compare-header">
-                            <h3>Compare Commits</h3>
+                            <h3>${i18n.t('headers.compareCommits')}</h3>
                             <button id="closeCompare">×</button>
                         </div>
                         <div class="compare-content" id="compareContent"></div>
@@ -136,22 +139,25 @@ export const Templates = {
      * @returns {string} HTML字符串
      */
     contextMenu() {
+        // 导入i18n函数（在浏览器环境中使用全局i18n对象）
+        const i18n = typeof window !== 'undefined' ? window.i18n : { t: (key) => key };
+        
         return `<div id="contextMenu" class="context-menu" style="display: none;">
-            <div class="menu-item" data-action="copyHash">Copy Hash</div>
-            <div class="menu-item" data-action="cherryPick">Cherry Pick</div>
-            <div class="menu-item" data-action="revert">Revert</div>
+            <div class="menu-item" data-action="copyHash">${i18n.t('contextMenu.copyHash')}</div>
+            <div class="menu-item" data-action="cherryPick">${i18n.t('contextMenu.cherryPick')}</div>
+            <div class="menu-item" data-action="revert">${i18n.t('contextMenu.revert')}</div>
             <div class="menu-separator"></div>
-            <div class="menu-item" data-action="editCommitMessage" id="editCommitMessageMenuItem">Edit Commit Message</div>
+            <div class="menu-item" data-action="editCommitMessage" id="editCommitMessageMenuItem">${i18n.t('contextMenu.editCommitMessage')}</div>
             <div class="menu-separator"></div>
-            <div class="menu-item" data-action="compare" id="compareMenuItem">Compare Selected</div>
-            <div class="menu-item" data-action="squash" id="squashMenuItem">Squash Commits</div>
+            <div class="menu-item" data-action="compare" id="compareMenuItem">${i18n.t('contextMenu.compareSelected')}</div>
+            <div class="menu-item" data-action="squash" id="squashMenuItem">${i18n.t('contextMenu.squashCommits')}</div>
             <div class="menu-separator"></div>
-            <div class="menu-item" data-action="createBranch">Create Branch from Here</div>
-            <div class="menu-item" data-action="pushToCommit">Push All Commits to Here</div>
+            <div class="menu-item" data-action="createBranch">${i18n.t('contextMenu.createBranch')}</div>
+            <div class="menu-item" data-action="pushToCommit">${i18n.t('contextMenu.pushToCommit')}</div>
             <div class="menu-separator"></div>
-            <div class="menu-item" data-action="resetSoft">Reset (Soft)</div>
-            <div class="menu-item" data-action="resetMixed">Reset (Mixed)</div>
-            <div class="menu-item" data-action="resetHard">Reset (Hard)</div>
+            <div class="menu-item" data-action="resetSoft">${i18n.t('contextMenu.resetSoft')}</div>
+            <div class="menu-item" data-action="resetMixed">${i18n.t('contextMenu.resetMixed')}</div>
+            <div class="menu-item" data-action="resetHard">${i18n.t('contextMenu.resetHard')}</div>
         </div>`;
     },
 

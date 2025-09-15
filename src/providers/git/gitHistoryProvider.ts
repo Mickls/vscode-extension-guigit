@@ -8,6 +8,7 @@ import { GitRemoteOperations } from "./operations/remoteOperations";
 import { GitCommitOperations } from "./operations/commitOperations";
 import { GitFileOperations } from "./operations/fileOperations";
 import { GitSafetyOperations } from "./operations/safetyOperations";
+import { i18n } from "../../utils/i18n";
 import { GitGraphOperations } from "./operations/gitGraphOperations";
 import { GitGraphLayout } from "./types/gitGraphTypes";
 
@@ -164,7 +165,7 @@ export class GitHistoryProvider {
   public async refreshProxyConfig(): Promise<void> {
     const git = await this.repoManager.refreshProxyConfig();
     if (git) {
-      vscode.window.showInformationMessage("代理配置已刷新");
+      vscode.window.showInformationMessage(i18n.t("success.proxyStatusRefreshed"));
     }
   }
 
@@ -840,7 +841,7 @@ export class GitHistoryProvider {
           squashCommitHash = squashCommitHash.trim();
         }
       } else {
-        vscode.window.showWarningMessage("没有任何提交被成功处理");
+        vscode.window.showWarningMessage(i18n.t("warnings.noCommitsProcessed"));
         await this.git!.checkout(branchName);
         await this.git!.deleteLocalBranch(tempBranchName, true);
         return false;

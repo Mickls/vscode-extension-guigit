@@ -1,0 +1,86 @@
+{
+  "messages": {
+    "loading": "Loading commits...",
+    "noGitRepository": "No Git repository found in the current workspace.",
+    "selectCommit": "Select a commit to view details",
+    "placeholderCommitMessage": "Search commit messages or hashes...",
+    "allBranches": "All branches",
+    "pullTooltip": "Pull (Ctrl+Click for advanced options)",
+    "pushTooltip": "Push (Ctrl+Click for advanced options)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Clone",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "Settings",
+    "jumpToHeadTooltip": "Jump to HEAD",
+    "refreshTooltip": "Refresh",
+    "toggleGraphTooltip": "Toggle Git Graph",
+    "collapseTooltip": "Collapse panel",
+    "settingsMenu": {
+      "resetStash": "Reset Stash Preference",
+      "configureProxy": "Configure Proxy",
+      "refreshProxy": "View Proxy Status",
+      "changeLanguage": "Change Language"
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Clone",
+      "checkout": "Checkout"
+    },
+    "errors": {
+      "noWorkspace": "No workspace folder found",
+      "noLocalFile": "Please select a local file to view history",
+      "repositoryNotFound": "Could not determine Git repository for selected file",
+      "fileNotInRepo": "Selected file is not in current repository",
+      "noRemoteRepo": "No remote repository found",
+      "proxyConfigFailed": "Failed to configure proxy",
+      "proxyStatusFailed": "Failed to get proxy status",
+      "commitDetailsFailed": "Failed to load commit details",
+      "headCommitFailed": "Failed to get HEAD commit"
+    },
+    "success": {
+      "proxyConfigured": "Proxy configuration saved and applied",
+      "proxyDisabled": "Custom proxy configuration disabled, using auto-detection",
+      "proxyStatusRefreshed": "Proxy configuration refreshed",
+      "revertCompleted": "Revert completed successfully",
+      "resetCompleted": "Reset completed successfully",
+      "squashCompleted": "Squash completed successfully",
+      "pullSuccessful": "Successfully pulled from remote",
+      "pushSuccessful": "Successfully pushed to remote",
+      "commitMessageEdited": "Commit message successfully edited",
+      "autoStashCompleted": "Uncommitted changes automatically stashed"
+    },
+    "warnings": {
+      "cherryPickConfirm": "Are you sure you want to cherry-pick commit {0}?",
+      "revertConfirm": "Are you sure you want to revert commit {0}?",
+      "resetConfirm": "Are you sure you want to reset to commit {0} ({1})?",
+      "squashConfirm": "Are you sure you want to squash these commits?",
+      "atLeastTwoCommits": "Please select at least 2 commits to squash",
+      "consecutiveCommits": "Selected commits are not consecutive and cannot be squashed",
+      "noCommitsProcessed": "No commits were successfully processed",
+      "uncommittedChangesDetected": "Uncommitted changes detected, operation cancelled. Please commit or manually stash changes first."
+    },
+    "headers": {
+      "hash": "Hash",
+      "message": "Message",
+      "tags": "Tags",
+      "author": "Author",
+      "date": "Date",
+      "compareCommits": "Compare Commits"
+    },
+    "contextMenu": {
+      "copyHash": "Copy Hash",
+      "cherryPick": "Cherry Pick",
+      "revert": "Revert",
+      "editCommitMessage": "Edit Commit Message",
+      "compareSelected": "Compare Selected",
+      "squashCommits": "Squash Commits",
+      "createBranch": "Create Branch from Here",
+      "pushToCommit": "Push All Commits to Here",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)"
+    }
+  }
+}

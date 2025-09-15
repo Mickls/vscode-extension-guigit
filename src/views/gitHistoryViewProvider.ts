@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { GitHistoryProvider } from "../providers/git/gitHistoryProvider";
 import { GitCommit } from "../providers/git/types/gitTypes";
+import { LanguageService } from "../services/languageService";
+import { i18n } from "../utils/i18n";
 import * as path from "path";
 
 /**
@@ -12,11 +14,21 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   private _refreshTimeout?: NodeJS.Timeout;
   private _contentProviders: Map<string, vscode.Disposable> = new Map();
 
+  private _languageChangeListener: vscode.Disposable | undefined;
+
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _gitHistoryProvider: GitHistoryProvider,
     private readonly _state: vscode.Memento
-  ) {}
+  ) {
+    // 确保语言服务在实例化时初始化
+    const languageService = LanguageService.getInstance();
+    
+    // 监听语言变化
+    this._languageChangeListener = languageService.onLanguageChange(() => {
+      this.refreshViewWithNewLanguage();
+    });
+  }
 
   /**
    * 从资源URI显示该文件的历史（供命令调用）
@@ -25,7 +37,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     try {
       const uri = resource ?? vscode.window.activeTextEditor?.document.uri;
       if (!uri || uri.scheme !== "file") {
-        vscode.window.showErrorMessage("请选择一个本地文件来查看历史");
+        vscode.window.showErrorMessage(i18n.t("errors.noLocalFile"));
         return;
       }
 
@@ -49,7 +61,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       }
 
       if (!targetRepo) {
-        vscode.window.showErrorMessage("无法为所选文件确定Git仓库");
+        vscode.window.showErrorMessage(i18n.t("errors.repositoryNotFound"));
         return;
       }
 
@@ -61,7 +73,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       // 转为仓库相对路径以兼容git命令
       let relativePath = path.relative(targetRepo.path, fileFsPath);
       if (!relativePath || relativePath.startsWith("..")) {
-        vscode.window.showErrorMessage("所选文件不在当前仓库内");
+        vscode.window.showErrorMessage(i18n.t("errors.fileNotInRepo"));
         return;
       }
       relativePath = relativePath.split(path.sep).join("/");
@@ -95,6 +107,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [this._extensionUri],
     };
 
+    // 确保语言服务已初始化
+    LanguageService.getInstance();
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
     // 处理来自webview的消息
@@ -257,6 +271,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "generateGitGraph":
           await this._sendGitGraphData(data.commits);
           break;
+        case "changeLanguage":
+          await this._handleChangeLanguage();
+          break;
         // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
@@ -310,7 +327,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(
-        `获取代理状态失败: ${errorMessage}`
+        `${i18n.t("errors.proxyStatusFailed")}: ${errorMessage}`
       );
     }
   }
@@ -409,7 +426,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`配置代理失败: ${errorMessage}`);
+      vscode.window.showErrorMessage(`${i18n.t("errors.proxyConfigFailed")}: ${errorMessage}`);
     }
   }
 
@@ -1810,53 +1827,56 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       {
         id: "pullBtn",
         action: "pull",
-        title: "Pull (Ctrl+Click for advanced options)",
+        title: i18n.t("pullTooltip"),
       },
       {
         id: "pushBtn",
         action: "push",
-        title: "Push (Ctrl+Click for advanced options)",
+        title: i18n.t("pushTooltip"),
       },
-      { id: "fetchBtn", action: "fetch", title: "Fetch" },
-      { id: "cloneBtn", action: "clone", title: "Clone" },
-      { id: "checkoutBtn", action: "checkout", title: "Checkout" },
+      { id: "fetchBtn", action: "fetch", title: i18n.t("fetchTooltip") },
+      { id: "cloneBtn", action: "clone", title: i18n.t("cloneTooltip") },
+      { id: "checkoutBtn", action: "checkout", title: i18n.t("checkoutTooltip") },
       {
         id: "settingsBtn",
         action: "settings",
-        title: "Settings",
+        title: i18n.t("settingsTooltip"),
       },
     ];
 
     // 头部控制按钮配置
     const headerControls = [
-      { id: "jumpToHeadBtn", action: "jumpToHead", title: "Jump to HEAD" },
-      { id: "refreshBtn", action: "refresh", title: "Refresh" },
-      { id: "toggleGraphBtn", action: "toggleGraph", title: "Toggle Git Graph" },
+      { id: "jumpToHeadBtn", action: "jumpToHead", title: i18n.t("jumpToHeadTooltip") },
+      { id: "refreshBtn", action: "refresh", title: i18n.t("refreshTooltip") },
+      { id: "toggleGraphBtn", action: "toggleGraph", title: i18n.t("toggleGraphTooltip") },
     ];
 
     // 上下文菜单项配置
     const contextMenuItems = [
-      { action: "copyHash", label: "Copy Hash" },
-      { action: "cherryPick", label: "Cherry Pick" },
-      { action: "revert", label: "Revert" },
+      { action: "copyHash", label: i18n.t("contextMenu.copyHash") },
+      { action: "cherryPick", label: i18n.t("contextMenu.cherryPick") },
+      { action: "revert", label: i18n.t("contextMenu.revert") },
       { separator: true },
       {
         action: "editCommitMessage",
-        label: "Edit Commit Message",
+        label: i18n.t("contextMenu.editCommitMessage"),
         id: "editCommitMessageMenuItem",
       },
       { separator: true },
-      { action: "compare", label: "Compare Selected", id: "compareMenuItem" },
-      { action: "squash", label: "Squash Commits", id: "squashMenuItem" },
+      { action: "compare", label: i18n.t("contextMenu.compareSelected"), id: "compareMenuItem" },
+      { action: "squash", label: i18n.t("contextMenu.squashCommits"), id: "squashMenuItem" },
       { separator: true },
-      { action: "createBranch", label: "Create Branch from Here" },
-      { action: "pushToCommit", label: "Push All Commits to Here" },
+      { action: "createBranch", label: i18n.t("contextMenu.createBranch") },
+      { action: "pushToCommit", label: i18n.t("contextMenu.pushToCommit") },
       { separator: true },
-      { action: "resetSoft", label: "Reset (Soft)" },
-      { action: "resetMixed", label: "Reset (Mixed)" },
-      { action: "resetHard", label: "Reset (Hard)" },
+      { action: "resetSoft", label: i18n.t("contextMenu.resetSoft") },
+      { action: "resetMixed", label: i18n.t("contextMenu.resetMixed") },
+      { action: "resetHard", label: i18n.t("contextMenu.resetHard") },
     ];
 
+    // 获取当前语言的所有翻译
+    const currentTranslations = JSON.stringify(i18n.getTranslations());
+    
     return `<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -1864,6 +1884,37 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <link href="${styleUri}" rel="stylesheet">
                 <title>Git History</title>
+                <script>
+                    // i18n support for frontend
+                    window.i18n = {
+                        translations: ${currentTranslations},
+                        t: function(key, ...args) {
+                            const keys = key.split('.');
+                            let value = this.translations;
+                            
+                            for (const k of keys) {
+                                if (value && typeof value === 'object' && k in value) {
+                                    value = value[k];
+                                } else {
+                                    return key;
+                                }
+                            }
+                            
+                            if (typeof value !== 'string') {
+                                return key;
+                            }
+                            
+                            if (args.length > 0) {
+                                return value.replace(/\{(\d+)\}/g, (match, index) => {
+                                    const idx = parseInt(index, 10);
+                                    return args[idx] !== undefined ? String(args[idx]) : match;
+                                });
+                            }
+                            
+                            return value;
+                        }
+                    };
+                </script>
             </head>
             <body>
                 <div class="container">
@@ -1873,10 +1924,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             <!-- 仓库选项将通过JavaScript动态填充 -->
                         </select>
                             <select id="branchSelect" class="branch-select">
-                                <option value="">All branches</option>
+                                <option value="">${i18n.t("allBranches")}</option>
                             </select>
                             <div class="search-container">
-                                <input type="text" id="commitSearchInput" class="commit-search-input" placeholder="搜索提交信息或哈希..." />
+                                <input type="text" id="commitSearchInput" class="commit-search-input" placeholder="${i18n.t("placeholderCommitMessage")}" />
                                 <button id="clearSearchBtn" class="clear-search-btn" title="清除搜索" style="display: none;">
                                     ${getCodiconHtml("close", "small")}
                                 </button>
@@ -1928,18 +1979,18 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             <div class="commit-list" id="commitList">
                                 <div class="panel-header">
                                     <div class="commit-list-headers">
-                                        <div class="header-hash">Hash</div>
-                                        <div class="header-message">Message</div>
-                                        <div class="header-refs">Tags</div>
-                                        <div class="header-author">Author</div>
-                                        <div class="header-date">Date</div>
+                                        <div class="header-hash">${i18n.t("headers.hash")}</div>
+                                        <div class="header-message">${i18n.t("headers.message")}</div>
+                                        <div class="header-refs">${i18n.t("headers.tags")}</div>
+                                        <div class="header-author">${i18n.t("headers.author")}</div>
+                                        <div class="header-date">${i18n.t("headers.date")}</div>
                                     </div>
-                                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">
+                                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="${i18n.t("collapseTooltip")}">
                                         ${getCodiconHtml("collapseLeft", "medium")}
                                     </button>
                                 </div>
                                 <div class="commit-list-content" id="commitListContent">
-                                    <div class="loading">Loading commits...</div>
+                                    <div class="loading">${i18n.t("loading")}</div>
                                 </div>
                             </div>
                         </div>
@@ -1948,17 +1999,17 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         
                         <div class="commit-details" id="commitDetails">
                             <div class="panel-header">
-                                <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">
+                                <button class="panel-collapse-btn" id="rightCollapseBtn" title="${i18n.t("collapseTooltip")}">
                                     ${getCodiconHtml("collapseRight", "medium")}
                                 </button>
                             </div>
-                            <div class="placeholder">Select a commit to view details</div>
+                            <div class="placeholder">${i18n.t("selectCommit")}</div>
                         </div>
                     </div>
                     
                     <div class="compare-panel" id="comparePanel" style="display: none;">
                         <div class="compare-header">
-                            <h3>Compare Commits</h3>
+                            <h3>${i18n.t("headers.compareCommits")}</h3>
                             <button id="closeCompare">×</button>
                         </div>
                         <div class="compare-content" id="compareContent"></div>
@@ -1984,16 +2035,21 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                 <div id="settingsMenu" class="settings-menu" style="display: none;">
                     <div class="menu-item" data-action="resetStash">
                         ${getCodiconHtml("refresh", "small")}
-                        Reset Stash Preference
+                        ${i18n.t("settingsMenu.resetStash")}
                     </div>
                     <div class="menu-separator"></div>
                     <div class="menu-item" data-action="configureProxy">
                         ${getCodiconHtml("settings-gear", "small")}
-                        Configure Proxy
+                        ${i18n.t("settingsMenu.configureProxy")}
                     </div>
                     <div class="menu-item" data-action="refreshProxy">
                         ${getCodiconHtml("info", "small")}
-                        View Proxy Status
+                        ${i18n.t("settingsMenu.refreshProxy")}
+                    </div>
+                    <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="changeLanguage">
+                        ${getCodiconHtml("globe", "small")}
+                        ${i18n.t("settingsMenu.changeLanguage")}
                     </div>
                 </div>
 
@@ -2785,8 +2841,40 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * 处理语言切换操作
+   */
+  private async _handleChangeLanguage() {
+    try {
+      const languageService = LanguageService.getInstance();
+      await languageService.showLanguageSelector();
+      
+      // 刷新视图以应用新的语言设置
+      this.refresh(true);
+      
+    } catch (error) {
+      console.error("Error handling language change:", error);
+      vscode.window.showErrorMessage(
+        `Failed to change language: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  }
+
+  /**
    * 释放资源
    */
+  /**
+   * 使用新语言刷新视图
+   */
+  private refreshViewWithNewLanguage() {
+    if (this._view) {
+      // 重新生成HTML内容
+      this._view.webview.html = this._getHtmlForWebview(this._view.webview);
+      
+      // 重新初始化视图数据
+      this._initializeView();
+    }
+  }
+
   public dispose() {
     for (const disposable of this._contentProviders.values()) {
       disposable.dispose();
@@ -2795,6 +2883,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
     if (this._refreshTimeout) {
       clearTimeout(this._refreshTimeout);
+    }
+    
+    // 清理语言变化监听器
+    if (this._languageChangeListener) {
+      this._languageChangeListener.dispose();
     }
   }
 }

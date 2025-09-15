@@ -284,6 +284,7 @@ import { createGitGraph } from './components/git-graph.js';
     const resetStashMenuItem = settingsMenu.querySelector('[data-action="resetStash"]');
     const configureProxyMenuItem = settingsMenu.querySelector('[data-action="configureProxy"]');
     const refreshProxyMenuItem = settingsMenu.querySelector('[data-action="refreshProxy"]');
+    const changeLanguageMenuItem = settingsMenu.querySelector('[data-action="changeLanguage"]');
 
     if (resetStashMenuItem) {
         resetStashMenuItem.addEventListener('click', () => {
@@ -303,6 +304,13 @@ import { createGitGraph } from './components/git-graph.js';
         refreshProxyMenuItem.addEventListener('click', () => {
             settingsMenu.style.display = 'none';
             vscode.postMessage({ type: 'refreshProxy' });
+        });
+    }
+
+    if (changeLanguageMenuItem) {
+        changeLanguageMenuItem.addEventListener('click', () => {
+            settingsMenu.style.display = 'none';
+            vscode.postMessage({ type: 'changeLanguage' });
         });
     }
 

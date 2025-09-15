@@ -1,0 +1,86 @@
+{
+  "messages": {
+    "loading": "正在加载提交记录...",
+    "noGitRepository": "当前工作区中未找到Git仓库。",
+    "selectCommit": "选择一个提交以查看详情",
+    "placeholderCommitMessage": "搜索提交信息或哈希...",
+    "allBranches": "所有分支",
+    "pullTooltip": "拉取 (Ctrl+点击获取高级选项)",
+    "pushTooltip": "推送 (Ctrl+点击获取高级选项)",
+    "fetchTooltip": "抓取",
+    "cloneTooltip": "克隆",
+    "checkoutTooltip": "签出",
+    "settingsTooltip": "设置",
+    "jumpToHeadTooltip": "跳转到HEAD",
+    "refreshTooltip": "刷新",
+    "toggleGraphTooltip": "切换Git图表",
+    "collapseTooltip": "折叠面板",
+    "settingsMenu": {
+      "resetStash": "重置暂存偏好",
+      "configureProxy": "配置代理",
+      "refreshProxy": "查看代理状态",
+      "changeLanguage": "切换语言"
+    },
+    "gitOperations": {
+      "pull": "拉取",
+      "push": "推送",
+      "fetch": "抓取",
+      "clone": "克隆",
+      "checkout": "签出"
+    },
+    "errors": {
+      "noWorkspace": "未找到工作区文件夹",
+      "noLocalFile": "请选择一个本地文件来查看历史",
+      "repositoryNotFound": "无法为所选文件确定Git仓库",
+      "fileNotInRepo": "所选文件不在当前仓库内",
+      "noRemoteRepo": "未找到远程仓库",
+      "proxyConfigFailed": "配置代理失败",
+      "proxyStatusFailed": "获取代理状态失败",
+      "commitDetailsFailed": "加载提交详情失败",
+      "headCommitFailed": "获取HEAD提交失败"
+    },
+    "success": {
+      "proxyConfigured": "✅ 代理配置已保存并生效",
+      "proxyDisabled": "❌ 已禁用自定义代理配置，将使用自动检测",
+      "proxyStatusRefreshed": "代理配置已刷新",
+      "revertCompleted": "Revert操作成功完成",
+      "resetCompleted": "Reset操作成功完成",
+      "squashCompleted": "Squash操作成功完成",
+      "pullSuccessful": "从远程成功拉取",
+      "pushSuccessful": "成功推送到远程",
+      "commitMessageEdited": "提交消息已成功修改",
+      "autoStashCompleted": "已自动暂存未提交的变更"
+    },
+    "warnings": {
+      "cherryPickConfirm": "确定要cherry-pick提交 {0} 吗？",
+      "revertConfirm": "确定要revert提交 {0} 吗？",
+      "resetConfirm": "确定要reset到提交 {0} ({1}) 吗？",
+      "squashConfirm": "确定要压缩这些提交吗？",
+      "atLeastTwoCommits": "请至少选择2个提交进行压缩",
+      "consecutiveCommits": "所选提交不是连续的，无法进行压缩",
+      "noCommitsProcessed": "没有任何提交被成功处理",
+      "uncommittedChangesDetected": "检测到未提交的变更，操作已取消。请先提交或手动暂存变更。"
+    },
+    "headers": {
+      "hash": "哈希",
+      "message": "消息",
+      "tags": "标签",
+      "author": "作者",
+      "date": "日期",
+      "compareCommits": "比较提交"
+    },
+    "contextMenu": {
+      "copyHash": "复制哈希",
+      "cherryPick": "优选（Cherry Pick）",
+      "revert": "恢复（Revert）",
+      "editCommitMessage": "编辑提交消息",
+      "compareSelected": "比较选中的提交",
+      "squashCommits": "压缩提交",
+      "createBranch": "从此处创建分支",
+      "pushToCommit": "推送所有提交至此",
+      "resetSoft": "重置 (Soft)",
+      "resetMixed": "重置 (Mixed)",
+      "resetHard": "重置 (Hard)"
+    }
+  }
+}

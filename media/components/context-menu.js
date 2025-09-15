@@ -48,12 +48,15 @@ export function showContextMenu(event, hash, selectedCommits, contextMenu, handl
     const compareMenuItem = contextMenu.querySelector('#compareMenuItem');
     const canCompare = selectedCommits.length === 2;
 
+    // 导入i18n函数（在浏览器环境中使用全局i18n对象）
+    const i18n = typeof window !== 'undefined' ? window.i18n : { t: (key) => key };
+    
     if (canCompare) {
         compareMenuItem.classList.remove('disabled');
-        compareMenuItem.textContent = 'Compare Selected (2)';
+        compareMenuItem.textContent = i18n.t('contextMenu.compareSelected') + ' (2)';
     } else {
         compareMenuItem.classList.add('disabled');
-        compareMenuItem.textContent = `Compare Selected (${selectedCommits.length}/2)`;
+        compareMenuItem.textContent = i18n.t('contextMenu.compareSelected') + ` (${selectedCommits.length}/2)`;
     }
 
     // 更新squash菜单项状态
@@ -62,10 +65,10 @@ export function showContextMenu(event, hash, selectedCommits, contextMenu, handl
 
     if (canSquash) {
         squashMenuItem.classList.remove('disabled');
-        squashMenuItem.textContent = `Squash ${selectedCommits.length} Commits`;
+        squashMenuItem.textContent = i18n.t('contextMenu.squashCommits').replace('{0}', selectedCommits.length);
     } else {
         squashMenuItem.classList.add('disabled');
-        squashMenuItem.textContent = 'Squash Commits';
+        squashMenuItem.textContent = i18n.t('contextMenu.squashCommits');
     }
 
     // 更新Edit Commit Message菜单项状态 - 使用预计算的值

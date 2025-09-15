@@ -2,6 +2,7 @@ import { SimpleGit } from "simple-git";
 import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
+import { i18n } from "../../../utils/i18n";
 
 /**
  * Git安全操作管理器
@@ -137,13 +138,11 @@ export class GitSafetyOperations {
     if (autoStashPreference === "always") {
       // 用户设置了总是自动暂存
       await this.stashUncommittedChanges();
-      vscode.window.showInformationMessage("已自动暂存未提交的变更");
+      vscode.window.showInformationMessage(i18n.t("success.autoStashCompleted"));
       return { shouldContinue: true, stashed: true };
     } else if (autoStashPreference === "never") {
       // 用户设置了从不自动暂存，直接取消操作
-      vscode.window.showWarningMessage(
-        "检测到未提交的变更，操作已取消。请先提交或手动暂存变更。"
-      );
+      vscode.window.showWarningMessage(i18n.t("warnings.uncommittedChangesDetected"));
       return { shouldContinue: false, stashed: false };
     } else {
       // 询问用户如何处理未提交的变更
@@ -187,7 +186,7 @@ export class GitSafetyOperations {
         }
 
         await this.stashUncommittedChanges();
-        vscode.window.showInformationMessage("已自动暂存未提交的变更");
+        vscode.window.showInformationMessage(i18n.t("success.autoStashCompleted"));
         return { shouldContinue: true, stashed: true };
       }
     }
