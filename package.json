@@ -2,7 +2,7 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.0.38",
+  "version": "0.0.39",
   "publisher": "Mickls",
   "icon": "gui-git-history-high-resolution-logo-transparent.png",
   "repository": {
@@ -19,6 +19,11 @@
     "vscode.git"
   ],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onCommand:guigit.showHistory",
+    "onView:guigit.historyView",
+    "onStartupFinished"
+  ],
   "contributes": {
     "configuration": {
       "title": "GUI Git History",
@@ -65,7 +70,11 @@
         },
         "guigit.language": {
           "type": "string",
-          "enum": ["auto", "en", "zh"],
+          "enum": [
+            "auto",
+            "en",
+            "zh"
+          ],
           "default": "auto",
           "description": "Language preference for GUI Git History extension"
         }
