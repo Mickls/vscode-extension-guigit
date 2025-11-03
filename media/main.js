@@ -22,8 +22,6 @@ import { initializeContextMenu, showContextMenu as showContextMenuComponent } fr
 import { handleContextMenuAction as handleContextMenuActionComponent } from './features/commit-operations.js';
 // 导入提交比较功能
 import { initializeCompareFeature, showCompareResult as showCompareResultComponent } from './features/commit-compare.js';
-// 导入Git图表渲染器
-import { GitGraphRenderer } from './components/git-graph.js';
 // 导入状态管理模块
 import {
     addAuthorFilter,
@@ -55,6 +53,7 @@ import { Templates } from './utils/templates.js';
 import { getIcon } from './utils/icons.js';
 // 导入 Git Graph 组件
 import { createGitGraph } from './components/git-graph.js';
+import { translate } from './utils/i18n-utils.js';
 
 (function () {
     'use strict';
@@ -98,6 +97,7 @@ import { createGitGraph } from './components/git-graph.js';
 
     // Git Graph 相关变量
     let gitGraphRenderer = null;                                          // Git Graph 渲染器
+    let pendingGitGraphLayout = null;                                     // 待应用的Git Graph布局
     let showGitGraph = true;                                              // 是否显示 Git Graph
 
     // 事件监听器设置
@@ -134,6 +134,32 @@ import { createGitGraph } from './components/git-graph.js';
             };
             commitListContent.addEventListener('scroll', currentScrollHandler);
         }
+    }
+    
+    /**
+     * 构建提交列表标题的HTML
+     * @returns {string} 提交列表标题HTML
+     */
+    function getCommitListHeaderHtml() {
+        const hashLabel = escapeHtml(translate('headers.hash', 'Hash'));
+        const messageLabel = escapeHtml(translate('headers.message', 'Message'));
+        const tagsLabel = escapeHtml(translate('headers.tags', 'Tags'));
+        const authorLabel = escapeHtml(translate('headers.author', 'Author'));
+        const dateLabel = escapeHtml(translate('headers.date', 'Date'));
+        const collapseTooltip = translate('collapseTooltip', 'Collapse panel');
+        
+        return `
+            <div class="panel-header">
+                <div class="commit-list-headers">
+                    <div class="header-hash">${hashLabel}</div>
+                    <div class="header-message">${messageLabel}</div>
+                    <div class="header-refs">${tagsLabel}</div>
+                    <div class="header-author clickable" id="headerAuthor">${authorLabel}</div>
+                    <div class="header-date">${dateLabel}</div>
+                </div>
+                <button class="panel-collapse-btn" id="leftCollapseBtn" title="${escapeHtml(collapseTooltip)}">${getIcon('collapseLeft', { size: 'medium' })}</button>
+            </div>
+        `;
     }
     
     // 使用更可靠的方法来确保DOM准备就绪
@@ -467,19 +493,11 @@ import { createGitGraph } from './components/git-graph.js';
             setState('loadedCommits', 0);
             setState('commits', []);
             // 保留折叠按钮和headers，只更新内容
+            const loadingText = escapeHtml(translate('loading', 'Loading commits...'));
             commitList.innerHTML = `
-                <div class="panel-header">
-                    <div class="commit-list-headers">
-                        <div class="header-hash">Hash</div>
-                        <div class="header-message">Message</div>
-                        <div class="header-refs">Tags</div>
-                        <div class="header-author clickable" id="headerAuthor">Author</div>
-                        <div class="header-date">Date</div>
-                    </div>
-                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
-                </div>
+                ${getCommitListHeaderHtml()}
                 <div class="commit-list-content" id="commitListContent">
-                    <div class="loading">Loading commits...</div>
+                    <div class="loading">${loadingText}</div>
                 </div>
             `;
             // 绑定作者筛选点击事件
@@ -536,7 +554,7 @@ import { createGitGraph } from './components/git-graph.js';
         if (repositories.length === 0) {
             const option = document.createElement('option');
             option.value = '';
-            option.textContent = 'No repositories found';
+            option.textContent = translate('noRepositoriesFound', 'No repositories found');
             option.disabled = true;
             repositorySelect.appendChild(option);
         }
@@ -620,6 +638,7 @@ import { createGitGraph } from './components/git-graph.js';
             // 更新 Git Graph
             if (data.gitGraph) {
                 setState('gitGraphData', data.gitGraph);
+                pendingGitGraphLayout = data.gitGraph;
                 if (showGitGraph) {
                     updateGitGraphWithLayout(data.gitGraph);
                 }
@@ -635,11 +654,13 @@ import { createGitGraph } from './components/git-graph.js';
                 // 只有当之前选中的提交不存在时才重置
                 setCurrentCommit(null);
                 // 平滑更新右侧详情面板，避免闪烁
+                const selectCommitText = escapeHtml(translate('selectCommit', 'Select a commit to view details'));
+                const collapseTooltip = escapeHtml(translate('collapseTooltip', 'Collapse panel'));
                 updateCommitDetailsPanel(`
                     <div class="panel-header">
-                        <button class="panel-collapse-btn" id="rightCollapseBtn" title="Collapse panel">${getIcon('collapseRight', { size: 'medium' })}</button>
+                        <button class="panel-collapse-btn" id="rightCollapseBtn" title="${collapseTooltip}">${getIcon('collapseRight', { size: 'medium' })}</button>
                     </div>
-                    <div class="placeholder">Select a commit to view details</div>
+                    <div class="placeholder">${selectCommitText}</div>
                 `);
             }
 
@@ -764,16 +785,7 @@ import { createGitGraph } from './components/git-graph.js';
             } else {
                 // 如果没有panel-header，创建一个包含headers的
                 commitList.innerHTML = `
-                    <div class="panel-header">
-                        <div class="commit-list-headers">
-                            <div class="header-hash">Hash</div>
-                            <div class="header-message">Message</div>
-                            <div class="header-refs">Tags</div>
-                            <div class="header-author clickable" id="headerAuthor">Author</div>
-                            <div class="header-date">Date</div>
-                        </div>
-                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
-                    </div>
+                    ${getCommitListHeaderHtml()}
                     <div class="commit-list-content" id="commitListContent"></div>
                 `;
                 // 绑定作者筛选点击事件
@@ -873,22 +885,15 @@ import { createGitGraph } from './components/git-graph.js';
             // 如果没有提交，只有在不是加载状态时才显示 "No commits found"
             // 在加载状态时显示 "Loading commits..."
             const existingHeaders = commitList.querySelectorAll('.panel-header');
-            const messageText = isLoading ? 'Loading commits...' : 'No commits found';
+            const loadingText = translate('loading', 'Loading commits...');
+            const emptyText = translate('noCommitsFound', 'No commits found');
+            const messageText = isLoading ? loadingText : emptyText;
             
             if (existingHeaders.length === 0) {
                 commitList.innerHTML = `
-                    <div class="panel-header">
-                        <div class="commit-list-headers">
-                            <div class="header-hash">Hash</div>
-                            <div class="header-message">Message</div>
-                            <div class="header-refs">Tags</div>
-                            <div class="header-author clickable" id="headerAuthor">Author</div>
-                            <div class="header-date">Date</div>
-                        </div>
-                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
-                    </div>
+                    ${getCommitListHeaderHtml()}
                     <div class="commit-list-content">
-                        <div class="loading">${messageText}</div>
+                        <div class="loading">${escapeHtml(messageText)}</div>
                     </div>
                 `;
                 rebindCollapseButtons();
@@ -997,7 +1002,8 @@ import { createGitGraph } from './components/git-graph.js';
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.className = 'loading-indicator';
-            indicator.innerHTML = Templates.loadingIndicator('Loading more commits...');
+            const loadingMoreText = translate('loadingMoreCommits', 'Loading more commits...');
+            indicator.innerHTML = Templates.loadingIndicator(loadingMoreText);
             commitListContent.appendChild(indicator);
         }
     }
@@ -1174,15 +1180,16 @@ import { createGitGraph } from './components/git-graph.js';
         }
 
         // 检查是否已有相同请求正在进行
+        const loadingDetailsText = translate('loadingCommitDetails', 'Loading commit details...');
         if (hasPendingRequest(hash)) {
             // 如果已有请求在进行，只显示loading状态
-            commitDetails.innerHTML = Templates.loadingPanel('Loading commit details...');
+            commitDetails.innerHTML = Templates.loadingPanel(loadingDetailsText);
             rebindCollapseButtons();
             return;
         }
 
         // 清除详情区域，显示加载状态
-        commitDetails.innerHTML = Templates.loadingPanel('Loading commit details...');
+        commitDetails.innerHTML = Templates.loadingPanel(loadingDetailsText);
         rebindCollapseButtons();
 
         // 标记请求正在进行
@@ -1710,19 +1717,11 @@ import { createGitGraph } from './components/git-graph.js';
     setLoading(true);
     
     // 显示初始加载界面
+    const initialLoadingText = escapeHtml(translate('loading', 'Loading commits...'));
     commitList.innerHTML = `
-        <div class="panel-header">
-            <div class="commit-list-headers">
-                <div class="header-hash">Hash</div>
-                <div class="header-message">Message</div>
-                <div class="header-refs">Tags</div>
-                <div class="header-author clickable" id="headerAuthor">Author</div>
-                <div class="header-date">Date</div>
-            </div>
-            <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
-        </div>
+        ${getCommitListHeaderHtml()}
         <div class="commit-list-content" id="commitListContent">
-            <div class="loading">Loading commits...</div>
+            <div class="loading">${initialLoadingText}</div>
         </div>
     `;
     rebindCollapseButtons();
@@ -1876,19 +1875,28 @@ import { createGitGraph } from './components/git-graph.js';
         dropdown.className = 'author-filter-dropdown';
 
         const currentFilter = getState('authorFilter');
-        const filterDisplay = currentFilter.length > 0 ?
-            `Current Filter: ${currentFilter.join(', ')}` : 'No Filter';
+        const filterDisplay = currentFilter.length > 0
+            ? translate('authorFilterCurrent', 'Current Filter: {0}', currentFilter.join(', '))
+            : translate('authorFilterNone', 'No Filter');
+        const filterPlaceholder = translate(
+            'authorFilterPlaceholder',
+            'Enter author names (separate multiple authors with |)...'
+        );
+        const meLabel = translate('authorFilterMe', 'Me');
+        const clearLabel = translate('authorFilterClear', 'Clear filter');
 
         dropdown.innerHTML = `
             <div class="dropdown-content">
-                <div class="dropdown-header">${filterDisplay}</div>
-                <input type="text" placeholder="Enter author names (separate multiple authors with |)..." class="filter-input">
+                <div class="dropdown-header">${escapeHtml(filterDisplay)}</div>
+                <input type="text" placeholder="${escapeHtml(filterPlaceholder)}" class="filter-input">
                 <div class="filter-options">
                     <div class="filter-option me-option">
                         <span class="filter-option-icon"></span>
-                        <span>me</span>
+                        <span>${escapeHtml(meLabel)}</span>
                     </div>
-                    ${currentFilter.length > 0 ? '<div class="filter-option clear-option"><span class="filter-option-icon"></span><span>清除筛选</span></div>' : ''}
+                    ${currentFilter.length > 0
+                        ? `<div class="filter-option clear-option"><span class="filter-option-icon"></span><span>${escapeHtml(clearLabel)}</span></div>`
+                        : ''}
                 </div>
             </div>
         `;
@@ -1919,7 +1927,8 @@ import { createGitGraph } from './components/git-graph.js';
             const headerAuthor = document.getElementById('headerAuthor');
             if (headerAuthor) {
                 const originalContent = headerAuthor.innerHTML;
-                headerAuthor.innerHTML = Templates.filterLoadingState('Loading...');
+                const loadingText = translate('loadingGeneric', 'Loading...');
+                headerAuthor.innerHTML = Templates.filterLoadingState(loadingText);
                 headerAuthor.classList.add('loading');
                 
                 // 设置超时恢复，防止请求失败时界面卡住
@@ -2013,16 +2022,17 @@ import { createGitGraph } from './components/git-graph.js';
             }
 
             if (authorFilter.length === 0) {
-                headerAuthor.innerHTML = 'Author';
+                headerAuthor.textContent = translate('headers.author', 'Author');
                 headerAuthor.classList.remove('filtered');
                 // 重新绑定下拉框事件
                 headerAuthor._clickHandler = showAuthorFilterDropdown;
                 headerAuthor.addEventListener('click', headerAuthor._clickHandler);
             } else {
                 const authorNames = authorFilter.map(author => escapeHtml(author)).join('|');
+                const prefixLabel = escapeHtml(translate('authorFilterPrefix', 'Author: '));
                 headerAuthor.innerHTML = `
                     <span class="filter-display">
-                        <span class="filter-prefix">AUTHOR: </span>
+                        <span class="filter-prefix">${prefixLabel}</span>
                         <span class="filter-authors">${authorNames}</span>
                         <span class="filter-clear">×</span>
                     </span>
@@ -2176,18 +2186,10 @@ import { createGitGraph } from './components/git-graph.js';
             
             const commitList = document.getElementById('commitList');
             if (commitList) {
+                const noResultsText = translate('noCommitsFoundForSearch', 'No commits found for "{0}"', searchTerm);
                 commitList.innerHTML = `
-                    <div class="panel-header">
-                        <div class="commit-list-headers">
-                            <div class="header-hash">Hash</div>
-                            <div class="header-message">Message</div>
-                            <div class="header-refs">Tags</div>
-                            <div class="header-author clickable" id="headerAuthor">Author</div>
-                            <div class="header-date">Date</div>
-                        </div>
-                        <button class="panel-collapse-btn" id="leftCollapseBtn" title="Collapse panel">${getIcon('collapseLeft', { size: 'medium' })}</button>
-                    </div>
-                    <div class="no-results">No commits found for "${escapeHtml(searchTerm)}"</div>
+                    ${getCommitListHeaderHtml()}
+                    <div class="no-results">${escapeHtml(noResultsText)}</div>
                 `;
                 // 绑定作者筛选点击事件
                 bindAuthorFilterEvent();
@@ -2213,10 +2215,12 @@ import { createGitGraph } from './components/git-graph.js';
      * 初始化 Git Graph
      */
     function initializeGitGraph() {
-        const graphContainer = document.querySelector('.git-graph-container');
+        const graphContainer = document.getElementById('gitGraphContainer');
         const commitListContent = document.getElementById('commitListContent');
         
-        if (!graphContainer || !commitListContent) return;
+        if (!graphContainer || !commitListContent) {
+            return;
+        }
 
         gitGraphRenderer = createGitGraph(graphContainer, commitListContent, {
             onNodeClick: (node, event) => {
@@ -2244,6 +2248,17 @@ import { createGitGraph } from './components/git-graph.js';
                 preloadCommitDetails(node.hash);
             }
         });
+
+        // 将渲染器暴露给后续逻辑
+        window.gitGraphRenderer = gitGraphRenderer;
+        window.gitGraphRenderer.bindScrollSync(commitListContent);
+
+        // 如果在渲染器就绪前已经收到图表数据，立即应用
+        const storedLayout = pendingGitGraphLayout || getState('gitGraphData');
+        if (storedLayout) {
+            updateGitGraphWithLayout(storedLayout);
+            pendingGitGraphLayout = null;
+        }
     }
 
     /**
@@ -2253,7 +2268,12 @@ import { createGitGraph } from './components/git-graph.js';
     function updateGitGraphWithLayout(graphLayout) {
         if (!window.gitGraphRenderer || !graphLayout) return;
 
-        window.gitGraphRenderer.setLayout(graphLayout);
+        const commits = getState('commits');
+        if (commits && commits.length > 0 && typeof window.gitGraphRenderer.updateGraph === 'function') {
+            window.gitGraphRenderer.updateGraph(graphLayout, commits);
+        } else {
+            window.gitGraphRenderer.setLayout(graphLayout);
+        }
         
         // 同步选中状态
         const currentCommit = getState('currentCommit');
@@ -2293,23 +2313,6 @@ import { createGitGraph } from './components/git-graph.js';
             commitListContainer.classList.add('with-graph');
         } else {
             commitListContainer.classList.remove('with-graph');
-        }
-    }
-
-    /**
-     * 初始化Git图表
-     */
-    function initializeGitGraph() {
-        const graphContainer = document.getElementById('gitGraphContainer');
-        if (!graphContainer) return;
-
-        // 初始化渲染器
-        window.gitGraphRenderer = new GitGraphRenderer(graphContainer);
-        
-        // 绑定滚动同步
-        const commitListContent = document.getElementById('commitListContent');
-        if (commitListContent && window.gitGraphRenderer) {
-            window.gitGraphRenderer.bindScrollSync(commitListContent);
         }
     }
 
@@ -2356,10 +2359,12 @@ import { createGitGraph } from './components/git-graph.js';
     function handleGitGraphData(gitGraphData) {
         // 更新存储的Git图表数据
         setState('gitGraphData', gitGraphData);
+        pendingGitGraphLayout = gitGraphData;
         
         // 更新Git图表显示
         if (showGitGraph && window.gitGraphRenderer) {
             updateGitGraphWithLayout(gitGraphData);
+            pendingGitGraphLayout = null;
         }
     }
 

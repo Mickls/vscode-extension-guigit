@@ -1874,6 +1874,15 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       { action: "resetHard", label: i18n.t("contextMenu.resetHard") },
     ];
 
+    // 获取带有默认值的翻译
+    const translateWithFallback = (key: string, fallback: string) => {
+      const value = i18n.t(key);
+      if (!value || value === key) {
+        return fallback;
+      }
+      return value;
+    };
+
     // 获取当前语言的所有翻译
     const currentTranslations = JSON.stringify(i18n.getTranslations());
     
@@ -1979,18 +1988,18 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             <div class="commit-list" id="commitList">
                                 <div class="panel-header">
                                     <div class="commit-list-headers">
-                                        <div class="header-hash">${i18n.t("headers.hash")}</div>
-                                        <div class="header-message">${i18n.t("headers.message")}</div>
-                                        <div class="header-refs">${i18n.t("headers.tags")}</div>
-                                        <div class="header-author">${i18n.t("headers.author")}</div>
-                                        <div class="header-date">${i18n.t("headers.date")}</div>
+                                        <div class="header-hash">${translateWithFallback("headers.hash", "Hash")}</div>
+                                        <div class="header-message">${translateWithFallback("headers.message", "Message")}</div>
+                                        <div class="header-refs">${translateWithFallback("headers.tags", "Tags")}</div>
+                                        <div class="header-author">${translateWithFallback("headers.author", "Author")}</div>
+                                        <div class="header-date">${translateWithFallback("headers.date", "Date")}</div>
                                     </div>
-                                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="${i18n.t("collapseTooltip")}">
+                                    <button class="panel-collapse-btn" id="leftCollapseBtn" title="${translateWithFallback("collapseTooltip", "Collapse panel")}">
                                         ${getCodiconHtml("collapseLeft", "medium")}
                                     </button>
                                 </div>
                                 <div class="commit-list-content" id="commitListContent">
-                                    <div class="loading">${i18n.t("loading")}</div>
+                                    <div class="loading">${translateWithFallback("loading", "Loading commits...")}</div>
                                 </div>
                             </div>
                         </div>
@@ -1999,11 +2008,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         
                         <div class="commit-details" id="commitDetails">
                             <div class="panel-header">
-                                <button class="panel-collapse-btn" id="rightCollapseBtn" title="${i18n.t("collapseTooltip")}">
+                                <button class="panel-collapse-btn" id="rightCollapseBtn" title="${translateWithFallback("collapseTooltip", "Collapse panel")}">
                                     ${getCodiconHtml("collapseRight", "medium")}
                                 </button>
                             </div>
-                            <div class="placeholder">${i18n.t("selectCommit")}</div>
+                            <div class="placeholder">${translateWithFallback("selectCommit", "Select a commit to view details")}</div>
                         </div>
                     </div>
                     

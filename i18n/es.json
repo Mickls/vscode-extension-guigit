@@ -1,0 +1,100 @@
+{
+  "messages": {
+    "loading": "Cargando commits...",
+    "loadingMoreCommits": "Cargando más commits...",
+    "loadingCommitDetails": "Cargando detalles del commit...",
+    "loadingGeneric": "Cargando...",
+    "noGitRepository": "No se encontró un repositorio Git en el área de trabajo actual.",
+    "selectCommit": "Selecciona un commit para ver los detalles",
+    "placeholderCommitMessage": "Buscar mensajes o hashes de commits...",
+    "noCommitsFound": "No se encontraron commits",
+    "noCommitsFoundForSearch": "No se encontraron commits para \"{0}\"",
+    "allBranches": "Todas las ramas",
+    "pullTooltip": "Pull (Ctrl+clic para opciones avanzadas)",
+    "pushTooltip": "Push (Ctrl+clic para opciones avanzadas)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Clonar",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "Configuración",
+    "jumpToHeadTooltip": "Ir a HEAD",
+    "refreshTooltip": "Actualizar",
+    "toggleGraphTooltip": "Mostrar/Ocultar gráfico Git",
+    "collapseTooltip": "Contraer panel",
+    "settingsMenu": {
+      "resetStash": "Restablecer preferencia de stash",
+      "configureProxy": "Configurar proxy",
+      "refreshProxy": "Ver estado del proxy",
+      "changeLanguage": "Cambiar idioma"
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Clonar",
+      "checkout": "Checkout"
+    },
+    "errors": {
+      "noWorkspace": "No se encontró ninguna carpeta de área de trabajo",
+      "noLocalFile": "Selecciona un archivo local para ver su historial",
+      "repositoryNotFound": "No se pudo determinar el repositorio Git del archivo seleccionado",
+      "fileNotInRepo": "El archivo seleccionado no está en el repositorio actual",
+      "noRemoteRepo": "No se encontró un repositorio remoto",
+      "proxyConfigFailed": "Error al configurar el proxy",
+      "proxyStatusFailed": "Error al obtener el estado del proxy",
+      "commitDetailsFailed": "Error al cargar los detalles del commit",
+      "headCommitFailed": "Error al obtener el commit HEAD"
+    },
+    "success": {
+      "proxyConfigured": "Configuración de proxy guardada y aplicada",
+      "proxyDisabled": "Proxy personalizado deshabilitado; se usará la detección automática",
+      "proxyStatusRefreshed": "Estado del proxy actualizado",
+      "revertCompleted": "Revert completado con éxito",
+      "resetCompleted": "Reset completado con éxito",
+      "squashCompleted": "Squash completado con éxito",
+      "pullSuccessful": "Pull desde el remoto completado correctamente",
+      "pushSuccessful": "Push al remoto completado correctamente",
+      "commitMessageEdited": "Mensaje del commit editado con éxito",
+      "autoStashCompleted": "Los cambios sin confirmar se guardaron automáticamente en el stash"
+    },
+    "warnings": {
+      "cherryPickConfirm": "¿Seguro que quieres hacer cherry-pick del commit {0}?",
+      "revertConfirm": "¿Seguro que quieres revertir el commit {0}?",
+      "resetConfirm": "¿Seguro que quieres resetear al commit {0} ({1})?",
+      "squashConfirm": "¿Seguro que quieres squash de estos commits?",
+      "atLeastTwoCommits": "Selecciona al menos 2 commits para hacer squash",
+      "consecutiveCommits": "Los commits seleccionados no son consecutivos y no se pueden comprimir",
+      "noCommitsProcessed": "Ningún commit se procesó correctamente",
+      "uncommittedChangesDetected": "Se detectaron cambios sin confirmar; la operación se canceló. Confirma o guarda los cambios primero."
+    },
+    "headers": {
+      "hash": "Hash",
+      "message": "Mensaje",
+      "tags": "Etiquetas",
+      "author": "Autor",
+      "date": "Fecha",
+      "compareCommits": "Comparar commits"
+    },
+    "authorFilterPrefix": "Autor: ",
+    "authorFilterCurrent": "Filtro actual: {0}",
+    "authorFilterNone": "Sin filtro",
+    "authorFilterPlaceholder": "Ingresa nombres de autor (separa varios autores con |)...",
+    "authorFilterMe": "Mis commits",
+    "authorFilterClear": "Borrar filtro",
+    "noRepositoriesFound": "No se encontraron repositorios",
+    "noFilesChanged": "No hay archivos modificados",
+    "collapseAllFolders": "Contraer todas las carpetas",
+    "contextMenu": {
+      "copyHash": "Copiar hash",
+      "cherryPick": "Cherry-pick",
+      "revert": "Revertir",
+      "editCommitMessage": "Editar mensaje del commit",
+      "compareSelected": "Comparar commits seleccionados",
+      "squashCommits": "Squash de commits",
+      "createBranch": "Crear rama desde aquí",
+      "pushToCommit": "Push de todos los commits hasta aquí",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)"
+    }
+  }
+}

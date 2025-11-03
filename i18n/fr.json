@@ -1,0 +1,100 @@
+{
+  "messages": {
+    "loading": "Chargement des commits...",
+    "loadingMoreCommits": "Chargement d'autres commits...",
+    "loadingCommitDetails": "Chargement des détails du commit...",
+    "loadingGeneric": "Chargement...",
+    "noGitRepository": "Aucun dépôt Git trouvé dans l'espace de travail actuel.",
+    "selectCommit": "Sélectionnez un commit pour afficher les détails",
+    "placeholderCommitMessage": "Rechercher des messages ou des hashes de commit...",
+    "noCommitsFound": "Aucun commit trouvé",
+    "noCommitsFoundForSearch": "Aucun commit trouvé pour \"{0}\"",
+    "allBranches": "Toutes les branches",
+    "pullTooltip": "Pull (Ctrl+clic pour les options avancées)",
+    "pushTooltip": "Push (Ctrl+clic pour les options avancées)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Cloner",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "Paramètres",
+    "jumpToHeadTooltip": "Aller au HEAD",
+    "refreshTooltip": "Actualiser",
+    "toggleGraphTooltip": "Afficher/Masquer le graphique Git",
+    "collapseTooltip": "Réduire le panneau",
+    "settingsMenu": {
+      "resetStash": "Réinitialiser la préférence de stash",
+      "configureProxy": "Configurer le proxy",
+      "refreshProxy": "Afficher l'état du proxy",
+      "changeLanguage": "Changer de langue"
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Cloner",
+      "checkout": "Checkout"
+    },
+    "errors": {
+      "noWorkspace": "Aucun dossier d'espace de travail trouvé",
+      "noLocalFile": "Veuillez sélectionner un fichier local pour afficher l'historique",
+      "repositoryNotFound": "Impossible de déterminer le dépôt Git du fichier sélectionné",
+      "fileNotInRepo": "Le fichier sélectionné n'appartient pas au dépôt actuel",
+      "noRemoteRepo": "Aucun dépôt distant trouvé",
+      "proxyConfigFailed": "Échec de la configuration du proxy",
+      "proxyStatusFailed": "Échec de la récupération de l'état du proxy",
+      "commitDetailsFailed": "Échec du chargement des détails du commit",
+      "headCommitFailed": "Échec de l'obtention du commit HEAD"
+    },
+    "success": {
+      "proxyConfigured": "Configuration du proxy enregistrée et appliquée",
+      "proxyDisabled": "Proxy personnalisé désactivé ; détection automatique utilisée",
+      "proxyStatusRefreshed": "État du proxy actualisé",
+      "revertCompleted": "Revert effectué avec succès",
+      "resetCompleted": "Reset effectué avec succès",
+      "squashCompleted": "Squash effectué avec succès",
+      "pullSuccessful": "Pull depuis le dépôt distant réussi",
+      "pushSuccessful": "Push vers le dépôt distant réussi",
+      "commitMessageEdited": "Message du commit modifié avec succès",
+      "autoStashCompleted": "Les modifications non commises ont été automatiquement sauvegardées"
+    },
+    "warnings": {
+      "cherryPickConfirm": "Voulez-vous vraiment cherry-pick le commit {0} ?",
+      "revertConfirm": "Voulez-vous vraiment revert le commit {0} ?",
+      "resetConfirm": "Voulez-vous vraiment réinitialiser au commit {0} ({1}) ?",
+      "squashConfirm": "Voulez-vous vraiment compresser ces commits ?",
+      "atLeastTwoCommits": "Sélectionnez au moins 2 commits à compresser",
+      "consecutiveCommits": "Les commits sélectionnés ne sont pas consécutifs et ne peuvent pas être compressés",
+      "noCommitsProcessed": "Aucun commit n'a été traité avec succès",
+      "uncommittedChangesDetected": "Des modifications non commises ont été détectées ; l'opération a été annulée. Veuillez les valider ou les sauvegarder."
+    },
+    "headers": {
+      "hash": "Hash",
+      "message": "Message",
+      "tags": "Tags",
+      "author": "Auteur",
+      "date": "Date",
+      "compareCommits": "Comparer les commits"
+    },
+    "authorFilterPrefix": "Auteur : ",
+    "authorFilterCurrent": "Filtre actuel : {0}",
+    "authorFilterNone": "Aucun filtre",
+    "authorFilterPlaceholder": "Saisissez des noms d'auteur (séparez plusieurs auteurs avec |)...",
+    "authorFilterMe": "Mes commits",
+    "authorFilterClear": "Effacer le filtre",
+    "noRepositoriesFound": "Aucun dépôt trouvé",
+    "noFilesChanged": "Aucun fichier modifié",
+    "collapseAllFolders": "Replier tous les dossiers",
+    "contextMenu": {
+      "copyHash": "Copier le hash",
+      "cherryPick": "Cherry-pick",
+      "revert": "Revert",
+      "editCommitMessage": "Modifier le message du commit",
+      "compareSelected": "Comparer les commits sélectionnés",
+      "squashCommits": "Compresser les commits",
+      "createBranch": "Créer une branche à partir d'ici",
+      "pushToCommit": "Pousser tous les commits jusqu'ici",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)"
+    }
+  }
+}

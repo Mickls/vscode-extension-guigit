@@ -6,6 +6,7 @@
 import { getIcon, createIconButton } from './icons.js';
 import { formatDate } from './date-utils.js';
 import { getRefClass } from './git-utils.js';
+import { translate } from './i18n-utils.js';
 
 /**
  * HTML模板对象
@@ -19,9 +20,10 @@ export const Templates = {
      * @param {string} title - 按钮标题
      * @returns {string} HTML字符串
      */
-    panelCollapseButton(direction = 'left', id = '', title = 'Collapse panel') {
+    panelCollapseButton(direction = 'left', id = '', title) {
         const iconName = direction === 'left' ? 'collapseLeft' : 'collapseRight';
-        return `<button class="panel-collapse-btn" ${id ? `id="${id}"` : ''} title="${title}">${getIcon(iconName, { size: 'medium' })}</button>`;
+        const tooltip = title || translate('collapseTooltip', 'Collapse panel');
+        return `<button class="panel-collapse-btn" ${id ? `id="${id}"` : ''} title="${escapeHtml(tooltip)}">${getIcon(iconName, { size: 'medium' })}</button>`;
     },
 
     /**
@@ -174,7 +176,7 @@ export const Templates = {
      */
     commitDetailsHeader(hash, message, author, email, date, refsHtml = '', body = '') {
         return `<div class="panel-header">
-            ${this.panelCollapseButton('right', 'rightCollapseBtn', 'Collapse panel')}
+            ${this.panelCollapseButton('right', 'rightCollapseBtn')}
         </div>
         <div class="details-header">
             <div class="details-hash">${hash}</div>
@@ -202,7 +204,7 @@ export const Templates = {
                     ${fileCount > 10 && fileViewMode === 'tree' ? this.collapseAllButton() : ''}
                 </div>
             </div>
-            ${fileCount > 0 ? filesHtml : '<div class="no-files">No files changed</div>'}
+            ${fileCount > 0 ? filesHtml : `<div class="no-files">${escapeHtml(translate('noFilesChanged', 'No files changed'))}</div>`}
         </div>`;
     },
 
@@ -211,11 +213,12 @@ export const Templates = {
      * @param {string} message - 加载消息
      * @returns {string} HTML字符串
      */
-    loadingPanel(message = 'Loading commit details...') {
+    loadingPanel(message) {
+        const text = message || translate('loadingCommitDetails', 'Loading commit details...');
         return `<div class="panel-header">
-            ${this.panelCollapseButton('right', 'rightCollapseBtn', 'Collapse panel')}
+            ${this.panelCollapseButton('right', 'rightCollapseBtn')}
         </div>
-        <div class="loading">${message}</div>`;
+        <div class="loading">${escapeHtml(text)}</div>`;
     },
 
     /**
@@ -223,11 +226,12 @@ export const Templates = {
      * @param {string} message - 错误消息
      * @returns {string} HTML字符串
      */
-    errorPanel(message = 'Failed to load commit details') {
+    errorPanel(message) {
+        const text = message || translate('errors.commitDetailsFailed', 'Failed to load commit details');
         return `<div class="panel-header">
-            ${this.panelCollapseButton('right', 'rightCollapseBtn', 'Collapse panel')}
+            ${this.panelCollapseButton('right', 'rightCollapseBtn')}
         </div>
-        <div class="placeholder">${message}</div>`;
+        <div class="placeholder">${escapeHtml(text)}</div>`;
     },
 
     /**
@@ -235,7 +239,8 @@ export const Templates = {
      * @returns {string} HTML字符串
      */
     collapseAllButton() {
-        return `<button class="collapse-all-btn" onclick="collapseAllFolders()" title="Collapse All Folders">
+        const title = translate('collapseAllFolders', 'Collapse All Folders');
+        return `<button class="collapse-all-btn" onclick="collapseAllFolders()" title="${escapeHtml(title)}">
             ${getIcon('collapseAll')}
         </button>`;
     },
@@ -541,8 +546,9 @@ export const Templates = {
      * @param {string} message - 加载消息
      * @returns {string} 加载指示器HTML
      */
-    loadingIndicator(message = 'Loading more commits...') {
-        return `<div class="loading">${escapeHtml(message)}</div>`;
+    loadingIndicator(message) {
+        const text = message || translate('loadingMoreCommits', 'Loading more commits...');
+        return `<div class="loading">${escapeHtml(text)}</div>`;
     },
 
     /**
@@ -558,8 +564,9 @@ export const Templates = {
      * @param {string} message - 加载消息
      * @returns {string} 筛选加载状态HTML
      */
-    filterLoadingState(message = 'Loading...') {
-        return `<span class="filter-loading">${escapeHtml(message)}</span>`;
+    filterLoadingState(message) {
+        const text = message || translate('loadingGeneric', 'Loading...');
+        return `<span class="filter-loading">${escapeHtml(text)}</span>`;
     },
 
     /**

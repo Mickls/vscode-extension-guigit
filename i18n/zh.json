@@ -1,9 +1,14 @@
 {
   "messages": {
     "loading": "正在加载提交记录...",
+    "loadingMoreCommits": "正在加载更多提交...",
+    "loadingCommitDetails": "正在加载提交详情...",
+    "loadingGeneric": "加载中...",
     "noGitRepository": "当前工作区中未找到Git仓库。",
     "selectCommit": "选择一个提交以查看详情",
     "placeholderCommitMessage": "搜索提交信息或哈希...",
+    "noCommitsFound": "未找到提交记录",
+    "noCommitsFoundForSearch": "未找到与 \"{0}\" 匹配的提交",
     "allBranches": "所有分支",
     "pullTooltip": "拉取 (Ctrl+点击获取高级选项)",
     "pushTooltip": "推送 (Ctrl+点击获取高级选项)",
@@ -40,8 +45,8 @@
       "headCommitFailed": "获取HEAD提交失败"
     },
     "success": {
-      "proxyConfigured": "✅ 代理配置已保存并生效",
-      "proxyDisabled": "❌ 已禁用自定义代理配置，将使用自动检测",
+      "proxyConfigured": "代理配置已保存并生效",
+      "proxyDisabled": "已禁用自定义代理配置，将使用自动检测",
       "proxyStatusRefreshed": "代理配置已刷新",
       "revertCompleted": "Revert操作成功完成",
       "resetCompleted": "Reset操作成功完成",
@@ -69,6 +74,15 @@
       "date": "日期",
       "compareCommits": "比较提交"
     },
+    "authorFilterPrefix": "作者：",
+    "authorFilterCurrent": "当前筛选：{0}",
+    "authorFilterNone": "暂无筛选",
+    "authorFilterPlaceholder": "输入作者名（多个作者用 | 分隔）...",
+    "authorFilterMe": "我的提交",
+    "authorFilterClear": "清除筛选",
+    "noRepositoriesFound": "未找到仓库",
+    "noFilesChanged": "没有文件发生变化",
+    "collapseAllFolders": "折叠所有文件夹",
     "contextMenu": {
       "copyHash": "复制哈希",
       "cherryPick": "优选（Cherry Pick）",

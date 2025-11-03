@@ -1,0 +1,100 @@
+{
+  "messages": {
+    "loading": "Загрузка коммитов...",
+    "loadingMoreCommits": "Загрузка дополнительных коммитов...",
+    "loadingCommitDetails": "Загрузка деталей коммита...",
+    "loadingGeneric": "Загрузка...",
+    "noGitRepository": "В текущем рабочем пространстве не найден Git-репозиторий.",
+    "selectCommit": "Выберите коммит, чтобы увидеть подробности",
+    "placeholderCommitMessage": "Поиск сообщений или хэшей коммитов...",
+    "noCommitsFound": "Коммиты не найдены",
+    "noCommitsFoundForSearch": "Коммиты для \"{0}\" не найдены",
+    "allBranches": "Все ветки",
+    "pullTooltip": "Pull (Ctrl+клик для дополнительных опций)",
+    "pushTooltip": "Push (Ctrl+клик для дополнительных опций)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Clone",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "Настройки",
+    "jumpToHeadTooltip": "Перейти к HEAD",
+    "refreshTooltip": "Обновить",
+    "toggleGraphTooltip": "Показать/скрыть граф Git",
+    "collapseTooltip": "Свернуть панель",
+    "settingsMenu": {
+      "resetStash": "Сбросить настройку stash",
+      "configureProxy": "Настроить прокси",
+      "refreshProxy": "Показать состояние прокси",
+      "changeLanguage": "Изменить язык"
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Clone",
+      "checkout": "Checkout"
+    },
+    "errors": {
+      "noWorkspace": "Папка рабочей области не найдена",
+      "noLocalFile": "Выберите локальный файл, чтобы просмотреть историю",
+      "repositoryNotFound": "Не удалось определить репозиторий Git для выбранного файла",
+      "fileNotInRepo": "Выбранный файл не принадлежит текущему репозиторию",
+      "noRemoteRepo": "Удалённый репозиторий не найден",
+      "proxyConfigFailed": "Не удалось настроить прокси",
+      "proxyStatusFailed": "Не удалось получить состояние прокси",
+      "commitDetailsFailed": "Не удалось загрузить детали коммита",
+      "headCommitFailed": "Не удалось получить HEAD-коммит"
+    },
+    "success": {
+      "proxyConfigured": "Настройка прокси сохранена и применена",
+      "proxyDisabled": "Пользовательский прокси отключён; используется автодетект",
+      "proxyStatusRefreshed": "Состояние прокси обновлено",
+      "revertCompleted": "Revert успешно завершён",
+      "resetCompleted": "Reset успешно завершён",
+      "squashCompleted": "Squash успешно завершён",
+      "pullSuccessful": "Pull из удалённого репозитория выполнен успешно",
+      "pushSuccessful": "Push в удалённый репозиторий выполнен успешно",
+      "commitMessageEdited": "Сообщение коммита успешно изменено",
+      "autoStashCompleted": "Некоммитированные изменения автоматически отправлены в stash"
+    },
+    "warnings": {
+      "cherryPickConfirm": "Вы уверены, что хотите сделать cherry-pick коммита {0}?",
+      "revertConfirm": "Вы уверены, что хотите откатить коммит {0}?",
+      "resetConfirm": "Вы уверены, что хотите сделать reset к коммиту {0} ({1})?",
+      "squashConfirm": "Вы уверены, что хотите объединить эти коммиты?",
+      "atLeastTwoCommits": "Выберите минимум 2 коммита для объединения",
+      "consecutiveCommits": "Выбранные коммиты не последовательны и не могут быть объединены",
+      "noCommitsProcessed": "Ни один коммит не был обработан",
+      "uncommittedChangesDetected": "Обнаружены некоммитированные изменения; операция отменена. Зафиксируйте или сохраните изменения вручную."
+    },
+    "headers": {
+      "hash": "Хэш",
+      "message": "Сообщение",
+      "tags": "Теги",
+      "author": "Автор",
+      "date": "Дата",
+      "compareCommits": "Сравнение коммитов"
+    },
+    "authorFilterPrefix": "Автор: ",
+    "authorFilterCurrent": "Текущий фильтр: {0}",
+    "authorFilterNone": "Фильтр отсутствует",
+    "authorFilterPlaceholder": "Введите имена авторов (несколько через |)...",
+    "authorFilterMe": "Мои коммиты",
+    "authorFilterClear": "Очистить фильтр",
+    "noRepositoriesFound": "Репозитории не найдены",
+    "noFilesChanged": "Изменённых файлов нет",
+    "collapseAllFolders": "Свернуть все папки",
+    "contextMenu": {
+      "copyHash": "Копировать хэш",
+      "cherryPick": "Cherry-pick",
+      "revert": "Revert",
+      "editCommitMessage": "Изменить сообщение коммита",
+      "compareSelected": "Сравнить выбранные коммиты",
+      "squashCommits": "Объединить коммиты",
+      "createBranch": "Создать ветку отсюда",
+      "pushToCommit": "Отправить все коммиты до этого",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)"
+    }
+  }
+}

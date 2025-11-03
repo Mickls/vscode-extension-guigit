@@ -1,9 +1,14 @@
 {
   "messages": {
     "loading": "Loading commits...",
+    "loadingMoreCommits": "Loading more commits...",
+    "loadingCommitDetails": "Loading commit details...",
+    "loadingGeneric": "Loading...",
     "noGitRepository": "No Git repository found in the current workspace.",
     "selectCommit": "Select a commit to view details",
     "placeholderCommitMessage": "Search commit messages or hashes...",
+    "noCommitsFound": "No commits found",
+    "noCommitsFoundForSearch": "No commits found for \"{0}\"",
     "allBranches": "All branches",
     "pullTooltip": "Pull (Ctrl+Click for advanced options)",
     "pushTooltip": "Push (Ctrl+Click for advanced options)",
@@ -69,6 +74,15 @@
       "date": "Date",
       "compareCommits": "Compare Commits"
     },
+    "authorFilterPrefix": "Author: ",
+    "authorFilterCurrent": "Current Filter: {0}",
+    "authorFilterNone": "No filter",
+    "authorFilterPlaceholder": "Enter author names (separate multiple authors with |)...",
+    "authorFilterMe": "Me",
+    "authorFilterClear": "Clear filter",
+    "noRepositoriesFound": "No repositories found",
+    "noFilesChanged": "No files changed",
+    "collapseAllFolders": "Collapse All Folders",
     "contextMenu": {
       "copyHash": "Copy Hash",
       "cherryPick": "Cherry Pick",

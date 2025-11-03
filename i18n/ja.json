@@ -1,0 +1,100 @@
+{
+  "messages": {
+    "loading": "コミットを読み込み中...",
+    "loadingMoreCommits": "さらにコミットを読み込み中...",
+    "loadingCommitDetails": "コミットの詳細を読み込み中...",
+    "loadingGeneric": "読み込み中...",
+    "noGitRepository": "現在のワークスペースに Git リポジトリが見つかりません。",
+    "selectCommit": "コミットを選択して詳細を表示してください",
+    "placeholderCommitMessage": "コミットメッセージまたはハッシュを検索...",
+    "noCommitsFound": "コミットが見つかりませんでした",
+    "noCommitsFoundForSearch": "\"{0}\" に一致するコミットは見つかりませんでした",
+    "allBranches": "すべてのブランチ",
+    "pullTooltip": "Pull (Ctrl+クリックで詳細オプション)",
+    "pushTooltip": "Push (Ctrl+クリックで詳細オプション)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Clone",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "設定",
+    "jumpToHeadTooltip": "HEAD へ移動",
+    "refreshTooltip": "更新",
+    "toggleGraphTooltip": "Git グラフの表示/非表示",
+    "collapseTooltip": "パネルを折りたたむ",
+    "settingsMenu": {
+      "resetStash": "スタッシュ設定をリセット",
+      "configureProxy": "プロキシを設定",
+      "refreshProxy": "プロキシ状態を表示",
+      "changeLanguage": "言語を変更"
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Clone",
+      "checkout": "Checkout"
+    },
+    "errors": {
+      "noWorkspace": "ワークスペースフォルダーが見つかりません",
+      "noLocalFile": "履歴を表示するローカル ファイルを選択してください",
+      "repositoryNotFound": "選択したファイルの Git リポジトリを特定できませんでした",
+      "fileNotInRepo": "選択したファイルは現在のリポジトリにありません",
+      "noRemoteRepo": "リモート リポジトリが見つかりません",
+      "proxyConfigFailed": "プロキシの設定に失敗しました",
+      "proxyStatusFailed": "プロキシ状況の取得に失敗しました",
+      "commitDetailsFailed": "コミットの詳細を読み込めませんでした",
+      "headCommitFailed": "HEAD コミットを取得できませんでした"
+    },
+    "success": {
+      "proxyConfigured": "プロキシ設定を保存し適用しました",
+      "proxyDisabled": "カスタム プロキシを無効化しました（自動検出を使用）",
+      "proxyStatusRefreshed": "プロキシ状態を更新しました",
+      "revertCompleted": "Revert が正常に完了しました",
+      "resetCompleted": "Reset が正常に完了しました",
+      "squashCompleted": "Squash が正常に完了しました",
+      "pullSuccessful": "リモートからの Pull が成功しました",
+      "pushSuccessful": "リモートへの Push が成功しました",
+      "commitMessageEdited": "コミットメッセージを編集しました",
+      "autoStashCompleted": "未コミットの変更を自動的にスタッシュしました"
+    },
+    "warnings": {
+      "cherryPickConfirm": "コミット {0} を cherry-pick しますか？",
+      "revertConfirm": "コミット {0} を revert しますか？",
+      "resetConfirm": "コミット {0} ({1}) へ reset しますか？",
+      "squashConfirm": "これらのコミットを squash しますか？",
+      "atLeastTwoCommits": "Squash するには少なくとも 2 つのコミットを選択してください",
+      "consecutiveCommits": "選択したコミットは連続していないため squash できません",
+      "noCommitsProcessed": "コミットは処理されませんでした",
+      "uncommittedChangesDetected": "未コミットの変更が検出されたため操作を中止しました。コミットするか手動でスタッシュしてください。"
+    },
+    "headers": {
+      "hash": "ハッシュ",
+      "message": "メッセージ",
+      "tags": "タグ",
+      "author": "作者",
+      "date": "日付",
+      "compareCommits": "コミットを比較"
+    },
+    "authorFilterPrefix": "作者: ",
+    "authorFilterCurrent": "現在のフィルター: {0}",
+    "authorFilterNone": "フィルターなし",
+    "authorFilterPlaceholder": "作者名を入力（複数は | で区切る）...",
+    "authorFilterMe": "自分のコミット",
+    "authorFilterClear": "フィルターをクリア",
+    "noRepositoriesFound": "リポジトリが見つかりません",
+    "noFilesChanged": "変更されたファイルはありません",
+    "collapseAllFolders": "すべてのフォルダーを折りたたむ",
+    "contextMenu": {
+      "copyHash": "ハッシュをコピー",
+      "cherryPick": "Cherry-pick",
+      "revert": "Revert",
+      "editCommitMessage": "コミットメッセージを編集",
+      "compareSelected": "選択したコミットを比較",
+      "squashCommits": "コミットを squash",
+      "createBranch": "ここからブランチを作成",
+      "pushToCommit": "ここまでのコミットを push",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)"
+    }
+  }
+}

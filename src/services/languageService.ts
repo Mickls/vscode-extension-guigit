@@ -4,6 +4,15 @@ import { i18n } from '../utils/i18n';
 export class LanguageService {
     private static instance: LanguageService;
     private configSection = 'guigit';
+    private readonly supportedLanguages = [
+        { label: 'English', value: 'en' },
+        { label: '中文', value: 'zh' },
+        { label: 'Español', value: 'es' },
+        { label: 'Français', value: 'fr' },
+        { label: 'Deutsch', value: 'de' },
+        { label: '日本語', value: 'ja' },
+        { label: 'Русский', value: 'ru' }
+    ];
     
     private constructor() {
         this.initializeLanguage();
@@ -23,13 +32,8 @@ export class LanguageService {
         const config = vscode.workspace.getConfiguration(this.configSection);
         const language = config.get<string>('language', 'auto');
         
-        if (language === 'auto') {
-            // 自动检测系统语言
-            const systemLanguage = vscode.env.language;
-            this.setLanguage(systemLanguage.startsWith('zh') ? 'zh' : 'en');
-        } else {
-            this.setLanguage(language);
-        }
+        const initialLanguage = this.resolveInitialLanguage(language);
+        i18n.setLocale(initialLanguage);
         
         // 监听配置变化
         vscode.workspace.onDidChangeConfiguration((event) => {
@@ -37,7 +41,8 @@ export class LanguageService {
                 const newLanguage = vscode.workspace.getConfiguration(this.configSection).get<string>('language', 'auto');
                 if (newLanguage === 'auto') {
                     const systemLanguage = vscode.env.language;
-                    this.setLanguage(systemLanguage.startsWith('zh') ? 'zh' : 'en');
+                    const resolved = this.resolveLanguage(systemLanguage);
+                    this.setLanguage(resolved);
                 } else {
                     this.setLanguage(newLanguage);
                 }
@@ -48,18 +53,57 @@ export class LanguageService {
         });
     }
     
-    public setLanguage(language: string) {
-        const supportedLanguages = ['en', 'zh'];
-        if (supportedLanguages.includes(language)) {
-            i18n.setLocale(language);
-            
-            // 保存到配置
-            const config = vscode.workspace.getConfiguration(this.configSection);
-            config.update('language', language, vscode.ConfigurationTarget.Global);
-            
-            // 触发语言变化事件
-            this._onLanguageChange.fire();
+    private resolveLanguage(locale: string | undefined | null): string {
+        if (!locale) {
+            return 'en';
         }
+
+        const normalized = locale.toLowerCase();
+        const exactMatch = this.supportedLanguages.find(lang => lang.value === normalized);
+        if (exactMatch) {
+            return exactMatch.value;
+        }
+
+        const base = normalized.split('-')[0];
+        const baseMatch = this.supportedLanguages.find(lang => lang.value === base);
+        return baseMatch ? baseMatch.value : 'en';
+    }
+
+    private resolveInitialLanguage(configValue: string): string {
+        if (configValue === 'auto') {
+            // 自动检测系统语言
+            const systemLanguage = vscode.env.language;
+            return this.resolveLanguage(systemLanguage);
+        }
+
+        const explicitLanguage = this.resolveLanguage(configValue);
+        const availableLanguages = this.supportedLanguages.map(lang => lang.value);
+        return availableLanguages.includes(explicitLanguage) ? explicitLanguage : 'en';
+    }
+    
+    public setLanguage(language: string) {
+        const availableLanguages = this.supportedLanguages.map(lang => lang.value);
+        const targetLanguage = this.resolveLanguage(language);
+
+        if (!availableLanguages.includes(targetLanguage)) {
+            return;
+        }
+
+        const currentLocale = i18n.getCurrentLocale();
+        const config = vscode.workspace.getConfiguration(this.configSection);
+        const configuredLanguage = config.get<string>('language', 'auto');
+
+        if (currentLocale === targetLanguage && configuredLanguage === targetLanguage) {
+            return;
+        }
+
+        i18n.setLocale(targetLanguage);
+
+        if (configuredLanguage !== targetLanguage) {
+            config.update('language', targetLanguage, vscode.ConfigurationTarget.Global);
+        }
+        
+        this._onLanguageChange.fire();
     }
     
     public getCurrentLanguage(): string {
@@ -67,10 +111,7 @@ export class LanguageService {
     }
     
     public getSupportedLanguages(): { label: string; value: string }[] {
-        return [
-            { label: 'English', value: 'en' },
-            { label: '中文', value: 'zh' }
-        ];
+        return this.supportedLanguages.slice();
     }
     
     public async showLanguageSelector() {
@@ -79,12 +120,14 @@ export class LanguageService {
         
         const items = languages.map(lang => ({
             label: lang.label,
-            description: lang.value === currentLanguage ? '✓' : ''
+            description: lang.value,
+            picked: lang.value === currentLanguage
         }));
         
         const selection = await vscode.window.showQuickPick(items, {
             placeHolder: 'Select language',
-            title: 'GUI Git History Language'
+            title: 'GUI Git History Language',
+            matchOnDescription: true
         });
         
         if (selection) {
