@@ -95,6 +95,11 @@
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
       "resetHard": "Reset (Hard)"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "ブランチ「{0}」をプッシュしました。Pull Request を作成しますか？（{1} 秒後に自動的に閉じます）",
+      "openPullRequestAction": "Pull Request を開く",
+      "dismissAction": "今はしない"
     }
   }
 }

@@ -95,6 +95,11 @@
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
       "resetHard": "Reset (Hard)"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "Ветка \"{0}\" отправлена. Создать Pull Request? (Закроется через {1} с)",
+      "openPullRequestAction": "Открыть Pull Request",
+      "dismissAction": "Не сейчас"
     }
   }
 }

@@ -95,6 +95,11 @@
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
       "resetHard": "Reset (Hard)"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "La rama \"{0}\" se ha enviado. ¿Quieres crear un Pull Request? (Se cierra en {1}s)",
+      "openPullRequestAction": "Abrir Pull Request",
+      "dismissAction": "Omitir"
     }
   }
 }

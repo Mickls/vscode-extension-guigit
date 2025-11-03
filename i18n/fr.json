@@ -95,6 +95,11 @@
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
       "resetHard": "Reset (Hard)"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "La branche \"{0}\" vient d'être poussée. Ouvrir une Pull Request ? (Fermeture automatique dans {1}s)",
+      "openPullRequestAction": "Ouvrir la Pull Request",
+      "dismissAction": "Ignorer"
     }
   }
 }

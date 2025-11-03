@@ -95,6 +95,11 @@
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
       "resetHard": "Reset (Hard)"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "Branch \"{0}\" wurde gepusht. Einen Pull Request erstellen? (Schließt in {1}s)",
+      "openPullRequestAction": "Pull Request öffnen",
+      "dismissAction": "Später"
     }
   }
 }

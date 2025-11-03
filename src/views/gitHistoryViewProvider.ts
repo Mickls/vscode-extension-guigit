@@ -1235,6 +1235,108 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * 在推送到非主分支后提醒创建 Pull Request
+   */
+  private async _promptForPullRequestCreation() {
+    try {
+      const branchName = (await this._gitHistoryProvider.getCurrentBranchName())?.trim();
+      if (!branchName) {
+        return;
+      }
+
+      const normalizedBranch = branchName.toLowerCase();
+      if (normalizedBranch === "main" || normalizedBranch === "master") {
+        return;
+      }
+
+      const remoteUrl = await this._gitHistoryProvider.getRemoteUrl();
+      if (!remoteUrl) {
+        return;
+      }
+
+      const pullRequestUrl = this._buildPullRequestUrl(remoteUrl, branchName);
+      if (!pullRequestUrl) {
+        return;
+      }
+
+      const countdownSeconds = 5;
+      const message = i18n.t(
+        "postPush.createPullRequestPrompt",
+        branchName,
+        countdownSeconds
+      );
+      const openAction = i18n.t("postPush.openPullRequestAction");
+      const dismissAction = i18n.t("postPush.dismissAction");
+
+      const selection = await this._showTimedInformationMessage(
+        message,
+        countdownSeconds * 1000,
+        openAction,
+        dismissAction
+      );
+
+      if (selection === openAction) {
+        await vscode.env.openExternal(vscode.Uri.parse(pullRequestUrl));
+      }
+    } catch (error) {
+      console.warn("Failed to prompt for pull request creation:", error);
+    }
+  }
+
+  /**
+   * 构建远程仓库的创建 Pull Request URL
+   */
+  private _buildPullRequestUrl(remoteUrl: string, branchName: string): string | null {
+    const trimmedRemote = remoteUrl.trim();
+    const encodedBranch = encodeURIComponent(branchName);
+
+    if (trimmedRemote.includes("github.com")) {
+      const match = trimmedRemote.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+      if (match) {
+        return `https://github.com/${match[1]}/compare/${encodedBranch}?expand=1`;
+      }
+    } else if (trimmedRemote.includes("gitlab.com")) {
+      const match = trimmedRemote.match(/gitlab\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+      if (match) {
+        return `https://gitlab.com/${match[1]}/-/merge_requests/new?merge_request%5Bsource_branch%5D=${encodedBranch}`;
+      }
+    } else if (trimmedRemote.includes("bitbucket.org")) {
+      const match = trimmedRemote.match(/bitbucket\.org[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+      if (match) {
+        return `https://bitbucket.org/${match[1]}/pull-requests/new?source=${encodedBranch}`;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 显示带超时自动关闭的提示消息
+   */
+  private async _showTimedInformationMessage<T extends string>(
+    message: string,
+    timeoutMs: number,
+    ...actions: T[]
+  ): Promise<T | undefined> {
+    let dismissed = false;
+
+    const timer = setTimeout(() => {
+      if (!dismissed) {
+        dismissed = true;
+        void vscode.commands.executeCommand("workbench.action.closeMessages");
+      }
+    }, timeoutMs);
+
+    try {
+      const selection = await vscode.window.showInformationMessage(message, ...actions);
+      dismissed = true;
+      return selection as T | undefined;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * 跳转到主视图中的指定提交
    * @param hash 提交哈希
    */
@@ -2112,6 +2214,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage("Successfully pushed to remote");
+        void this._promptForPullRequestCreation();
         this.refresh(true);
       }
     } catch (error) {
@@ -2583,6 +2686,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             isForce ? "force pushed" : "pushed"
           } to ${targetBranch}${isNewBranch ? " (new branch created)" : ""}`
         );
+        void this._promptForPullRequestCreation();
         this.refresh(true);
       }
     } catch (error) {
@@ -2737,6 +2841,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(
           `Successfully pushed commits to ${targetBranch}`
         );
+        void this._promptForPullRequestCreation();
         this.refresh(true);
       }
     } catch (error) {

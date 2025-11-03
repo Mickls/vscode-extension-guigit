@@ -95,6 +95,11 @@
       "resetSoft": "重置 (Soft)",
       "resetMixed": "重置 (Mixed)",
       "resetHard": "重置 (Hard)"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "分支 \"{0}\" 已推送。是否前往创建 Pull Request？（{1} 秒后自动关闭）",
+      "openPullRequestAction": "打开 Pull Request 页面",
+      "dismissAction": "暂不提醒"
     }
   }
 }
