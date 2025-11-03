@@ -20,6 +20,7 @@ export class GitHistoryProvider {
   // 管理器实例
   private repoManager: GitRepositoryManager;
   private cacheManager: GitCacheManager;
+  private initializationPromise: Promise<void> | null = null;
   
   // 自动修剪 fetch 节流控制
   private lastAutoPruneFetchTime: number = 0;
@@ -32,9 +33,38 @@ export class GitHistoryProvider {
     this.cacheManager = new GitCacheManager();
     
     // 异步初始化
-    this.initializeGit().catch((error) => {
-      console.error("Git初始化失败:", error);
-    });
+    this.queueGitInitialization();
+  }
+
+  private queueGitInitialization() {
+    this.initializationPromise = this.initializeGit()
+      .catch((error) => {
+        console.error("Git初始化失败:", error);
+        this.initializationPromise = null;
+        throw error;
+      });
+  }
+
+  private async ensureGitInitialized(): Promise<boolean> {
+    if (this.git) {
+      return true;
+    }
+
+    if (!this.initializationPromise) {
+      this.queueGitInitialization();
+    }
+
+    if (!this.initializationPromise) {
+      return false;
+    }
+
+    try {
+      await this.initializationPromise;
+    } catch (error) {
+      return false;
+    }
+
+    return !!this.git;
   }
 
   /** 获取当前 Git 实例（向后兼容的 getter） */
@@ -79,6 +109,11 @@ export class GitHistoryProvider {
     name: string;
     email: string;
   } | null> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return null;
+    }
+
     const git = this.git;
     if (!git) {
       return null;
@@ -112,6 +147,11 @@ export class GitHistoryProvider {
    * 获取最新提交的哈希值
    */
   private async getLatestCommitHash(): Promise<string | null> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return null;
+    }
+
     const git = this.git;
     if (!git) {
       return null;
@@ -177,7 +217,8 @@ export class GitHistoryProvider {
     errorMessage: string,
     defaultValue: T
   ): Promise<T> {
-    if (!this.git) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
       console.error("Git instance not available");
       return defaultValue;
     }
@@ -225,8 +266,10 @@ export class GitHistoryProvider {
    * 获取所有分支信息
    */
   async getBranches(): Promise<GitBranch[]> {
-    if (!this.branchOps) {
-      throw new Error("Branch operations not available");
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.branchOps) {
+      console.warn("Git未初始化，返回空的分支列表");
+      return [];
     }
     return this.branchOps.getBranches();
   }
@@ -240,9 +283,15 @@ export class GitHistoryProvider {
     limit: number = 50,
     authorFilter?: string[]
   ): Promise<GitCommit[]> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return [];
+    }
+
     const commitOps = this.commitOps;
     if (!commitOps) {
-      throw new Error("Git not initialized");
+      console.warn("Git未初始化，返回空的搜索结果");
+      return [];
     }
     return commitOps.searchCommits(searchTerm, branch, limit, authorFilter);
   }
@@ -253,9 +302,15 @@ export class GitHistoryProvider {
     skip: number = 0,
     authorFilter?: string[]
   ): Promise<GitCommit[]> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return [];
+    }
+
     const commitOps = this.commitOps;
     if (!commitOps) {
-      throw new Error("Git not initialized");
+      console.warn("Git未初始化，返回空的提交历史");
+      return [];
     }
     return commitOps.getCommitHistory(branch, limit, skip, authorFilter);
   }
@@ -269,9 +324,15 @@ export class GitHistoryProvider {
     branch?: string,
     authorFilter?: string[]
   ): Promise<number> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return 0;
+    }
+
     const commitOps = this.commitOps;
     if (!commitOps) {
-      throw new Error("Git instance not available");
+      console.warn("Git实例不可用，返回0作为提交总数");
+      return 0;
     }
     return commitOps.getTotalCommitCount(branch, authorFilter);
   }
@@ -282,9 +343,10 @@ export class GitHistoryProvider {
   async getCommitDetails(
     hash: string
   ): Promise<{ commit: GitCommit; files: GitFileChange[] } | null> {
-    const commitOps = this.commitOps;
-    if (!commitOps) {
-      throw new Error("Git not initialized");
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
+      console.warn("Git未初始化，无法获取提交详情");
+      return null;
     }
     
     // 性能优化：检查缓存
@@ -342,9 +404,15 @@ export class GitHistoryProvider {
    * 获取提交信息
    */
   private async getCommitInfo(hash: string): Promise<any> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
+      throw new Error("Git instance not available");
+    }
+    const git = this.git;
+
     // 优先使用明确范围的 log 获取指定哈希的提交，避免仅使用 { from: hash } 导致返回非目标提交
     try {
-      const log = await this.git!.log({ from: hash, to: hash, maxCount: 1 });
+      const log = await git.log({ from: hash, to: hash, maxCount: 1 });
       if (log.all.length > 0 && (log.all[0].hash === hash || log.all[0].hash.startsWith(hash))) {
         return log.all[0];
       }
@@ -354,7 +422,7 @@ export class GitHistoryProvider {
 
     // 使用 show 作为可靠的后备方案
     console.log("Trying to get commit info with show command...");
-    const showOutput = await this.git!.show([
+    const showOutput = await git.show([
       "--format=fuller",
       "--no-patch",
       "--encoding=UTF-8",
@@ -459,7 +527,8 @@ export class GitHistoryProvider {
    * 获取提交的文件变更
    */
   private async getCommitFileChanges(hash: string): Promise<GitFileChange[]> {
-    if (!this.fileOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.fileOps) {
       throw new Error("Git not initialized");
     }
     return this.fileOps.getCommitFileChanges(hash);
@@ -473,7 +542,8 @@ export class GitHistoryProvider {
    * @returns 是否成功合并
    */
   async squashCommits(commits: GitCommit[]): Promise<boolean> {
-    if (!this.git || commits.length < 2) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git || commits.length < 2) {
       return false;
     }
 
@@ -552,6 +622,12 @@ export class GitHistoryProvider {
       return true;
     }
 
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
+      console.warn("Git未初始化，无法判断提交是否连续");
+      return false;
+    }
+
     try {
       for (let i = 0; i < sortedHashes.length - 1; i++) {
         const currentHash = sortedHashes[i];
@@ -588,6 +664,12 @@ export class GitHistoryProvider {
     commits: GitCommit[],
     message: string
   ): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
+      console.warn("Git未初始化，无法执行连续提交 squash");
+      return false;
+    }
+
     try {
       const oldestHash = commits[0].hash;
 
@@ -615,6 +697,12 @@ export class GitHistoryProvider {
     commits: GitCommit[],
     message: string
   ): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
+      console.warn("Git未初始化，无法执行非连续提交 squash");
+      return false;
+    }
+
     try {
       // 对于非连续提交，我们不能简单地合并，因为这会丢失中间的提交
       // 正确的做法是告知用户这种操作的风险，并提供替代方案
@@ -663,6 +751,12 @@ export class GitHistoryProvider {
     commits: GitCommit[],
     message: string
   ): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
+      console.warn("Git未初始化，无法执行安全的非连续提交 squash");
+      return false;
+    }
+
     try {
       // 获取当前工作目录状态
       const status = await this.git!.status();
@@ -976,7 +1070,8 @@ export class GitHistoryProvider {
    * @returns 文件内容
    */
   async getFileDiff(hash: string, filePath: string): Promise<string> {
-    if (!this.fileOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.fileOps) {
       throw new Error("Git not initialized");
     }
 
@@ -989,7 +1084,8 @@ export class GitHistoryProvider {
    * @returns 是否成功挑选
    */
   async cherryPickCommit(hash: string): Promise<boolean> {
-    if (!this.git) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
       return false;
     }
 
@@ -1016,7 +1112,8 @@ export class GitHistoryProvider {
    * @returns 是否成功回滚
    */
   async revertCommit(hash: string): Promise<boolean> {
-    if (!this.git) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
       return false;
     }
 
@@ -1047,7 +1144,8 @@ export class GitHistoryProvider {
     hash: string,
     mode: "soft" | "mixed" | "hard" = "mixed"
   ): Promise<boolean> {
-    if (!this.git) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
       return false;
     }
 
@@ -1075,7 +1173,8 @@ export class GitHistoryProvider {
    * @returns 文件变化列表
    */
   async compareCommits(hash1: string, hash2: string): Promise<GitFileChange[]> {
-    if (!this.fileOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.fileOps) {
       throw new Error("Git not initialized");
     }
     return this.fileOps.compareCommits(hash1, hash2);
@@ -1086,7 +1185,8 @@ export class GitHistoryProvider {
    * @returns HEAD提交信息
    */
   async getHeadCommit(): Promise<GitCommit | null> {
-    if (!this.git) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.git) {
       return null;
     }
 
@@ -1121,7 +1221,8 @@ export class GitHistoryProvider {
    * @returns 是否为初始提交
    */
   async isInitialCommit(hash: string): Promise<boolean> {
-    if (!this.fileOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.fileOps) {
       throw new Error("Git not initialized");
     }
     return this.fileOps.isInitialCommit(hash);
@@ -1134,7 +1235,8 @@ export class GitHistoryProvider {
    * @returns 文件内容
    */
   async getFileContent(hash: string, filePath: string): Promise<string | null> {
-    if (!this.fileOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.fileOps) {
       throw new Error("Git not initialized");
     }
     return this.fileOps.getFileContent(hash, filePath);
@@ -1146,7 +1248,8 @@ export class GitHistoryProvider {
    * @returns 文件的提交历史
    */
   async getFileHistory(filePath: string): Promise<GitCommit[]> {
-    if (!this.fileOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.fileOps) {
       throw new Error("Git not initialized");
     }
     return this.fileOps.getFileHistory(filePath);
@@ -1157,7 +1260,8 @@ export class GitHistoryProvider {
    * @returns 远程仓库URL
    */
   async getRemoteUrl(): Promise<string | null> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       return null;
     }
     return this.remoteOps.getRemoteUrl();
@@ -1173,7 +1277,8 @@ export class GitHistoryProvider {
     hash: string,
     filePath: string
   ): Promise<string | null> {
-    if (!this.fileOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.fileOps) {
       throw new Error("Git not initialized");
     }
     return this.fileOps.getFileDiffContent(hash, filePath);
@@ -1184,7 +1289,8 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async pullFromRemote(): Promise<boolean> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
     
@@ -1204,7 +1310,8 @@ export class GitHistoryProvider {
    * @returns 远程分支列表
    */
   async getAllRemoteBranches(): Promise<string[]> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
 
@@ -1225,7 +1332,8 @@ export class GitHistoryProvider {
     remoteBranch: string,
     force: boolean = false
   ): Promise<boolean> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
 
@@ -1242,7 +1350,8 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async fetchFromRemote(prune: boolean = false): Promise<boolean> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
 
@@ -1263,7 +1372,8 @@ export class GitHistoryProvider {
     repoUrl: string,
     targetPath: string
   ): Promise<string | null> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
 
@@ -1280,7 +1390,8 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async createAndCheckoutBranch(branchName: string): Promise<boolean> {
-    if (!this.branchOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.branchOps) {
       throw new Error("Branch operations not available");
     }
 
@@ -1301,7 +1412,8 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async checkoutBranch(branchName: string): Promise<boolean> {
-    if (!this.branchOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.branchOps) {
       throw new Error("Branch operations not available");
     }
 
@@ -1321,7 +1433,8 @@ export class GitHistoryProvider {
    * @returns 当前分支名称
    */
   async getCurrentBranchName(): Promise<string | null> {
-    if (!this.branchOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.branchOps) {
       throw new Error("Branch operations not available");
     }
 
@@ -1338,7 +1451,8 @@ export class GitHistoryProvider {
    * @returns 上游分支名称
    */
   async getUpstreamBranch(branchName?: string): Promise<string | null> {
-    if (!this.branchOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.branchOps) {
       throw new Error("Branch operations not available");
     }
 
@@ -1359,7 +1473,8 @@ export class GitHistoryProvider {
     hash: string,
     branchName: string
   ): Promise<boolean> {
-    if (!this.branchOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.branchOps) {
       throw new Error("Branch operations not available");
     }
 
@@ -1386,7 +1501,8 @@ export class GitHistoryProvider {
     branch: string,
     rebase: boolean = false
   ): Promise<boolean> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
 
@@ -1406,7 +1522,8 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async pushToRemote(): Promise<boolean> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
 
@@ -1425,7 +1542,8 @@ export class GitHistoryProvider {
    * @returns 是否存在
    */
   async branchExists(branchName: string): Promise<boolean> {
-    if (!this.branchOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.branchOps) {
       throw new Error("Branch operations not available");
     }
 
@@ -1446,7 +1564,8 @@ export class GitHistoryProvider {
     hash: string,
     remoteBranch: string
   ): Promise<boolean> {
-    if (!this.remoteOps) {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
       throw new Error("Remote operations not available");
     }
 
@@ -1464,6 +1583,11 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async amendCommitMessage(hash: string, newMessage: string): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      throw new Error("Git instance not available");
+    }
+
     const commitOps = this.commitOps;
     if (!commitOps) {
       throw new Error("Git instance not available");
@@ -1477,6 +1601,11 @@ export class GitHistoryProvider {
    * @returns 当前用户的姓名和邮箱
    */
   async getCurrentUser(): Promise<{ name: string; email: string } | null> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return null;
+    }
+
     const commitOps = this.commitOps;
     if (!commitOps) {
       throw new Error("Git instance not available");
@@ -1489,6 +1618,11 @@ export class GitHistoryProvider {
    * @returns 是否有未提交的变更
    */
   async hasUncommittedChanges(): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return false;
+    }
+
     const safetyOps = this.safetyOps;
     if (!safetyOps) {
       throw new Error("Git instance not available");
@@ -1505,6 +1639,11 @@ export class GitHistoryProvider {
     unstaged: string[];
     untracked: string[];
   }> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return { staged: [], unstaged: [], untracked: [] };
+    }
+
     const safetyOps = this.safetyOps;
     if (!safetyOps) {
       throw new Error("Git instance not available");
@@ -1517,6 +1656,11 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async stashUncommittedChanges(): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return false;
+    }
+
     const safetyOps = this.safetyOps;
     if (!safetyOps) {
       throw new Error("Git instance not available");
@@ -1529,6 +1673,11 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async popStash(): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return false;
+    }
+
     const safetyOps = this.safetyOps;
     if (!safetyOps) {
       throw new Error("Git instance not available");
@@ -1548,6 +1697,11 @@ export class GitHistoryProvider {
     branch?: string,
     rebase: boolean = false
   ): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return false;
+    }
+
     const safetyOps = this.safetyOps;
     if (!safetyOps) {
       throw new Error("Git instance not available");
@@ -1615,6 +1769,11 @@ export class GitHistoryProvider {
    * @returns 是否成功
    */
   async resetAutoStashPreference(): Promise<boolean> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return false;
+    }
+
     const safetyOps = this.safetyOps;
     if (!safetyOps) {
       throw new Error("Git instance not available");
@@ -1628,6 +1787,11 @@ export class GitHistoryProvider {
    * @returns Git Graph 布局信息
    */
   async generateGitGraph(commits: GitCommit[]): Promise<GitGraphLayout | null> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady) {
+      return null;
+    }
+
     const graphOps = this.graphOps;
     if (!graphOps) {
       throw new Error("Git Graph operations not available");

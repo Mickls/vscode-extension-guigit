@@ -9,6 +9,7 @@ import { GitRepository } from "../types/gitTypes";
 export class GitRepositoryManager {
   private git: SimpleGit | null = null;
   private workspaceRoot: string | null = null;
+  private workspaceRoots: string[] = [];
   private availableRepositories: GitRepository[] = [];
   private currentRepository: GitRepository | null = null;
   private proxyManager: ProxyManager;
@@ -22,18 +23,23 @@ export class GitRepositoryManager {
    */
   public async initialize(): Promise<SimpleGit | null> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders && workspaceFolders.length > 0) {
-      this.workspaceRoot = workspaceFolders[0].uri.fsPath;
-
-      // 发现所有Git仓库
-      await this.discoverRepositories();
-
-      // 设置默认仓库
-      if (this.availableRepositories.length > 0) {
-        const git = await this.setCurrentRepository(this.availableRepositories[0]);
-        return git;
-      }
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      this.workspaceRoots = [];
+      return null;
     }
+
+    this.workspaceRoots = workspaceFolders.map((folder) => folder.uri.fsPath);
+    this.workspaceRoot = this.workspaceRoots[0];
+
+    // 发现所有Git仓库
+    await this.discoverRepositories();
+
+    // 设置默认仓库
+    if (this.availableRepositories.length > 0) {
+      const git = await this.setCurrentRepository(this.availableRepositories[0]);
+      return git;
+    }
+
     return null;
   }
 
@@ -41,15 +47,19 @@ export class GitRepositoryManager {
    * 发现工作区中的所有Git仓库（优化版本）
    */
   public async discoverRepositories(): Promise<void> {
-    if (!this.workspaceRoot) {
+    if (!this.workspaceRoots || this.workspaceRoots.length === 0) {
       return;
     }
 
     console.time("discoverRepositories");
     this.availableRepositories = [];
+    const seenPaths = new Set<string>();
 
     try {
-      await this.searchForGitRepositories(this.workspaceRoot);
+      for (const root of this.workspaceRoots) {
+        await this.collectRepositoriesFromPath(root, seenPaths);
+      }
+      this.sortRepositories();
       console.log(
         `发现 ${this.availableRepositories.length} 个Git仓库:`,
         this.availableRepositories.map((repo) => repo.path)
@@ -67,7 +77,8 @@ export class GitRepositoryManager {
   private async searchForGitRepositories(
     searchPath: string,
     maxDepth: number = 3,
-    currentDepth: number = 0
+    currentDepth: number = 0,
+    seenPaths?: Set<string>
   ): Promise<void> {
     if (currentDepth > maxDepth) {
       return;
@@ -83,12 +94,7 @@ export class GitRepositoryManager {
         const gitStat = await fs.stat(gitPath);
         if (gitStat.isDirectory() || gitStat.isFile()) {
           // 找到Git仓库
-          const repoName = path.basename(searchPath);
-          this.availableRepositories.push({
-            name: repoName,
-            path: searchPath,
-            isActive: false,
-          });
+          this.addRepository(searchPath, seenPaths);
           // 找到Git仓库后，不再搜索其子目录
           return;
         }
@@ -118,7 +124,8 @@ export class GitRepositoryManager {
           return this.searchForGitRepositories(
             subPath,
             maxDepth,
-            currentDepth + 1
+            currentDepth + 1,
+            seenPaths
           );
         });
         await Promise.all(promises);
@@ -126,6 +133,113 @@ export class GitRepositoryManager {
     } catch (error) {
       console.warn(`搜索Git仓库时出错 ${searchPath}:`, error);
     }
+  }
+
+  private async collectRepositoriesFromPath(
+    rootPath: string,
+    seenPaths: Set<string>
+  ): Promise<void> {
+    await this.searchForGitRepositories(rootPath, 3, 0, seenPaths);
+    await this.searchParentGitRepositories(rootPath, seenPaths);
+  }
+
+  private addRepository(repoPath: string, seenPaths?: Set<string>, prepend: boolean = false) {
+    const path = require("path");
+    const normalizedPath = path.resolve(repoPath);
+    if (seenPaths && seenPaths.has(normalizedPath)) {
+      return;
+    }
+
+    if (seenPaths) {
+      seenPaths.add(normalizedPath);
+    }
+
+    const repoName = path.basename(normalizedPath);
+    const repository: GitRepository = {
+      name: repoName,
+      path: normalizedPath,
+      isActive: false,
+    };
+
+    if (prepend) {
+      this.availableRepositories.unshift(repository);
+    } else {
+      this.availableRepositories.push(repository);
+    }
+  }
+
+  private async searchParentGitRepositories(
+    startPath: string,
+    seenPaths: Set<string>
+  ): Promise<void> {
+    const fs = require("fs").promises;
+    const path = require("path");
+
+    let currentPath = path.resolve(startPath);
+    while (true) {
+      const parentPath = path.dirname(currentPath);
+      if (parentPath === currentPath) {
+        break;
+      }
+
+      currentPath = parentPath;
+      const gitPath = path.join(currentPath, ".git");
+      try {
+        const gitStat = await fs.stat(gitPath);
+        if (gitStat.isDirectory() || gitStat.isFile()) {
+          this.addRepository(currentPath, seenPaths, true);
+        }
+      } catch (error) {
+        // 父级目录没有Git仓库，继续向上搜索
+      }
+    }
+  }
+
+  private sortRepositories() {
+    if (!this.workspaceRoots || this.workspaceRoots.length === 0) {
+      return;
+    }
+    const path = require("path");
+
+    this.availableRepositories.sort((a, b) => {
+      const scoreA = this.getRepositoryScore(a.path);
+      const scoreB = this.getRepositoryScore(b.path);
+      if (scoreA !== scoreB) {
+        return scoreA - scoreB;
+      }
+      return path.resolve(a.path).localeCompare(path.resolve(b.path));
+    });
+  }
+
+  private getRepositoryScore(repoPath: string): number {
+    if (!this.workspaceRoots || this.workspaceRoots.length === 0) {
+      return 0;
+    }
+
+    const path = require("path");
+    const normalizedRepo = path.resolve(repoPath);
+
+    const distances = this.workspaceRoots.map((root) => {
+      const normalizedRoot = path.resolve(root);
+      if (normalizedRepo === normalizedRoot) {
+        return 0;
+      }
+
+      const relativeFromRoot = path.relative(normalizedRoot, normalizedRepo);
+      if (relativeFromRoot && !relativeFromRoot.startsWith("..") && !path.isAbsolute(relativeFromRoot)) {
+        return relativeFromRoot.split(path.sep).length;
+      }
+
+      const relativeFromRepo = path.relative(normalizedRepo, normalizedRoot);
+      if (relativeFromRepo && !relativeFromRepo.startsWith("..") && !path.isAbsolute(relativeFromRepo)) {
+        return relativeFromRepo.split(path.sep).length;
+      }
+
+      // 如果不在同一目录树中，使用一个较大的距离值
+      return normalizedRepo.split(path.sep).length + normalizedRoot.split(path.sep).length;
+    });
+
+    return Math.min(...distances);
   }
 
   /** 获取所有可用的Git仓库 */
