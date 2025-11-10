@@ -1323,7 +1323,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     const timer = setTimeout(() => {
       if (!dismissed) {
         dismissed = true;
-        void vscode.commands.executeCommand("workbench.action.closeMessages");
+        void vscode.commands.executeCommand("notifications.hideToasts");
       }
     }, timeoutMs);
 
