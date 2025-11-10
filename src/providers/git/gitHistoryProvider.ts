@@ -12,6 +12,11 @@ import { i18n } from "../../utils/i18n";
 import { GitGraphOperations } from "./operations/gitGraphOperations";
 import { GitGraphLayout } from "./types/gitGraphTypes";
 
+export interface GitRemoteInfo {
+  name: string;
+  fetchUrl: string | null;
+  pushUrl: string | null;
+}
 
 /**
  * Git操作提供者，封装所有Git相关功能
@@ -1265,6 +1270,76 @@ export class GitHistoryProvider {
       return null;
     }
     return this.remoteOps.getRemoteUrl();
+  }
+
+  /**
+   * 获取远程仓库列表（包含URL）
+   */
+  async getRemoteRepositories(): Promise<GitRemoteInfo[]> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
+      throw new Error("Remote operations not available");
+    }
+    return this.remoteOps.getRemoteDetails();
+  }
+
+  /**
+   * 添加远程仓库
+   */
+  async addRemote(name: string, url: string): Promise<void> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
+      throw new Error("Remote operations not available");
+    }
+
+    const trimmedName = name?.trim();
+    const trimmedUrl = url?.trim();
+    if (!trimmedName) {
+      throw new Error("Remote name is required");
+    }
+    if (!trimmedUrl) {
+      throw new Error("Remote URL is required");
+    }
+
+    await this.remoteOps.addRemote(trimmedName, trimmedUrl);
+  }
+
+  /**
+   * 删除远程仓库
+   */
+  async removeRemote(name: string): Promise<void> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
+      throw new Error("Remote operations not available");
+    }
+
+    const trimmedName = name?.trim();
+    if (!trimmedName) {
+      throw new Error("Remote name is required");
+    }
+
+    await this.remoteOps.removeRemote(trimmedName);
+  }
+
+  /**
+   * 更新远程仓库地址
+   */
+  async updateRemote(name: string, url: string): Promise<void> {
+    const isReady = await this.ensureGitInitialized();
+    if (!isReady || !this.remoteOps) {
+      throw new Error("Remote operations not available");
+    }
+
+    const trimmedName = name?.trim();
+    const trimmedUrl = url?.trim();
+    if (!trimmedName) {
+      throw new Error("Remote name is required");
+    }
+    if (!trimmedUrl) {
+      throw new Error("Remote URL is required");
+    }
+
+    await this.remoteOps.updateRemote(trimmedName, trimmedUrl);
   }
 
   /**

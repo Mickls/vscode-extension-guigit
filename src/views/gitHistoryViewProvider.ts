@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
-import { GitHistoryProvider } from "../providers/git/gitHistoryProvider";
+import {
+  GitHistoryProvider,
+  GitRemoteInfo,
+} from "../providers/git/gitHistoryProvider";
 import { GitCommit } from "../providers/git/types/gitTypes";
 import { LanguageService } from "../services/languageService";
 import { i18n } from "../utils/i18n";
@@ -274,6 +277,18 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         case "changeLanguage":
           await this._handleChangeLanguage();
           break;
+        case "openRemoteManager":
+          await this._handleOpenRemoteManager();
+          break;
+        case "addRemote":
+          await this._handleAddRemote(data.name, data.url);
+          break;
+        case "updateRemote":
+          await this._handleUpdateRemote(data.name, data.url);
+          break;
+        case "removeRemote":
+          await this._handleRemoveRemote(data.name);
+          break;
         // 删除了checkCommitEditable处理，现在直接使用预计算的canEditMessage值
       }
     });
@@ -428,6 +443,130 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const errorMessage = error instanceof Error ? error.message : String(error);
       vscode.window.showErrorMessage(`${i18n.t("errors.proxyConfigFailed")}: ${errorMessage}`);
     }
+  }
+
+  /**
+   * 处理远程管理器相关操作
+   */
+  private async _handleOpenRemoteManager() {
+    await this._sendRemoteManagerData();
+  }
+
+  private async _handleAddRemote(name?: string, url?: string) {
+    try {
+      if (!name || !name.trim()) {
+        this._postRemoteManagerError(i18n.t("remoteManager.messages.invalidName"));
+        return;
+      }
+      if (!url || !url.trim()) {
+        this._postRemoteManagerError(i18n.t("remoteManager.messages.invalidUrl"));
+        return;
+      }
+
+      await this._gitHistoryProvider.addRemote(name, url);
+      await this._sendRemoteManagerData({
+        type: "success",
+        message: i18n.t("remoteManager.messages.addSuccess", name),
+      });
+    } catch (error) {
+      this._handleRemoteManagerError(error);
+    }
+  }
+
+  private async _handleUpdateRemote(name?: string, url?: string) {
+    try {
+      if (!name || !name.trim()) {
+        this._postRemoteManagerError(i18n.t("remoteManager.messages.invalidName"));
+        return;
+      }
+      if (!url || !url.trim()) {
+        this._postRemoteManagerError(i18n.t("remoteManager.messages.invalidUrl"));
+        return;
+      }
+
+      await this._gitHistoryProvider.updateRemote(name, url);
+      await this._sendRemoteManagerData({
+        type: "success",
+        message: i18n.t("remoteManager.messages.updateSuccess", name),
+      });
+    } catch (error) {
+      this._handleRemoteManagerError(error);
+    }
+  }
+
+  private async _handleRemoveRemote(name?: string) {
+    try {
+      if (!name || !name.trim()) {
+        this._postRemoteManagerError(i18n.t("remoteManager.messages.invalidName"));
+        return;
+      }
+
+      const trimmedName = name.trim();
+      const confirmMessage = i18n.t("remoteManager.messages.removeConfirm", trimmedName);
+      const confirmAction = i18n.t("remoteManager.buttons.delete");
+      const userChoice = await vscode.window.showWarningMessage(
+        confirmMessage,
+        { modal: true },
+        confirmAction
+      );
+
+      if (userChoice !== confirmAction) {
+        await this._sendRemoteManagerData({
+          type: "info",
+          message: i18n.t("remoteManager.messages.removeCancelled"),
+        });
+        return;
+      }
+
+      await this._gitHistoryProvider.removeRemote(trimmedName);
+      await this._sendRemoteManagerData({
+        type: "success",
+        message: i18n.t("remoteManager.messages.removeSuccess", trimmedName),
+      });
+    } catch (error) {
+      this._handleRemoteManagerError(error);
+    }
+  }
+
+  private async _sendRemoteManagerData(
+    statusMessage?: { type: "success" | "info"; message: string }
+  ) {
+    if (!this._view) {
+      return;
+    }
+
+    try {
+      const remotes: GitRemoteInfo[] =
+        await this._gitHistoryProvider.getRemoteRepositories();
+      this._view.webview.postMessage({
+        type: "remoteManagerData",
+        remotes,
+        statusMessage,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this._postRemoteManagerError(
+        i18n.t("remoteManager.messages.loadFailed", errorMessage)
+      );
+    }
+  }
+
+  private _handleRemoteManagerError(error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this._postRemoteManagerError(
+      i18n.t("remoteManager.messages.operationFailed", errorMessage)
+    );
+  }
+
+  private _postRemoteManagerError(message: string) {
+    if (!this._view) {
+      return;
+    }
+    this._view.webview.postMessage({
+      type: "remoteManagerError",
+      message,
+    });
   }
 
   /**
@@ -2157,10 +2296,56 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                         ${getCodiconHtml("info", "small")}
                         ${i18n.t("settingsMenu.refreshProxy")}
                     </div>
+                    <div class="menu-item" data-action="manageRemotes">
+                        ${getCodiconHtml("repo", "small")}
+                        ${i18n.t("settingsMenu.manageRemotes")}
+                    </div>
                     <div class="menu-separator"></div>
                     <div class="menu-item" data-action="changeLanguage">
                         ${getCodiconHtml("globe", "small")}
                         ${i18n.t("settingsMenu.changeLanguage")}
+                    </div>
+                </div>
+
+                <!-- Remote Manager Modal -->
+                <div id="remoteManagerOverlay" class="remote-manager-overlay" style="display: none;" aria-hidden="true">
+                    <div class="remote-manager-panel" role="dialog" aria-modal="true" aria-labelledby="remoteManagerTitle">
+                        <div class="remote-manager-header">
+                            <div class="remote-manager-heading">
+                                <h3 id="remoteManagerTitle">${i18n.t("remoteManager.title")}</h3>
+                                <p>${i18n.t("remoteManager.description")}</p>
+                            </div>
+                            <button id="closeRemoteManager" class="remote-manager-close" title="${i18n.t("remoteManager.close")}">
+                                ${getCodiconHtml("close", "medium")}
+                            </button>
+                        </div>
+                        <div class="remote-manager-content">
+                            <div id="remoteManagerStatus" class="remote-manager-status" role="status" aria-live="polite"></div>
+                            <div class="remote-manager-table">
+                                <div class="remote-manager-table-head">
+                                    <span>${i18n.t("remoteManager.name")}</span>
+                                    <span>${i18n.t("remoteManager.url")}</span>
+                                    <span>${i18n.t("remoteManager.actions")}</span>
+                                </div>
+                                <div id="remoteManagerList" class="remote-manager-list"></div>
+                                <div id="remoteManagerEmpty" class="remote-manager-empty">
+                                    ${i18n.t("remoteManager.empty")}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="remote-manager-footer">
+                            <div class="remote-manager-add-form">
+                                <input id="newRemoteName" type="text" class="remote-manager-input" placeholder="${i18n.t(
+                                  "remoteManager.addNamePlaceholder"
+                                )}" />
+                                <input id="newRemoteUrl" type="text" class="remote-manager-input" placeholder="${i18n.t(
+                                  "remoteManager.addUrlPlaceholder"
+                                )}" />
+                                <button id="addRemoteBtn" class="remote-manager-button primary">
+                                    ${i18n.t("remoteManager.addButton")}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

@@ -24,7 +24,41 @@
       "resetStash": "重置暂存偏好",
       "configureProxy": "配置代理",
       "refreshProxy": "查看代理状态",
+      "manageRemotes": "管理远程",
       "changeLanguage": "切换语言"
+    },
+    "remoteManager": {
+      "title": "管理远程",
+      "description": "查看、编辑、添加或删除当前仓库的远程。",
+      "name": "名称",
+      "url": "地址",
+      "actions": "操作",
+      "empty": "尚未配置远程。",
+      "close": "关闭",
+      "addButton": "添加远程",
+      "addNamePlaceholder": "远程名称（如 origin）",
+      "addUrlPlaceholder": "远程地址（https://... 或 git@...）",
+      "status": {
+        "loading": "正在加载远程...",
+        "working": "正在应用更改...",
+        "awaitingConfirmation": "请在 VS Code 提示中确认此操作..."
+      },
+      "buttons": {
+        "save": "保存",
+        "delete": "删除"
+      },
+      "messages": {
+        "loadFailed": "加载远程失败：{0}",
+        "operationFailed": "远程操作失败：{0}",
+        "addSuccess": "已添加远程 \"{0}\"",
+        "updateSuccess": "已更新远程 \"{0}\"",
+        "removeSuccess": "已删除远程 \"{0}\"",
+        "removeCancelled": "已取消删除远程",
+        "invalidName": "远程名称不能为空",
+        "invalidUrl": "远程地址不能为空",
+        "duplicateName": "远程 \"{0}\" 已存在",
+        "removeConfirm": "确定要删除远程 \"{0}\" 吗？"
+      }
     },
     "gitOperations": {
       "pull": "拉取",

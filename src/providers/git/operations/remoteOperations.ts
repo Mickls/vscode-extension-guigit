@@ -371,4 +371,63 @@ export class GitRemoteOperations {
       throw new Error(`Push commits to remote branch failed: ${errorMessage}`);
     }
   }
+
+  /**
+   * 获取远程仓库详细信息（包括 fetch/push URL）
+   */
+  async getRemoteDetails(): Promise<
+    { name: string; fetchUrl: string | null; pushUrl: string | null }[]
+  > {
+    try {
+      const remotes = await this.git.getRemotes(true);
+      return remotes.map((remote) => ({
+        name: remote.name,
+        fetchUrl: remote.refs?.fetch ?? null,
+        pushUrl: remote.refs?.push ?? null,
+      }));
+    } catch (error: any) {
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Get remote details failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 新增远程仓库
+   */
+  async addRemote(name: string, url: string): Promise<void> {
+    try {
+      await this.git.addRemote(name, url);
+    } catch (error: any) {
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Add remote failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 删除远程仓库
+   */
+  async removeRemote(name: string): Promise<void> {
+    try {
+      await this.git.removeRemote(name);
+    } catch (error: any) {
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Remove remote failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * 更新远程仓库地址
+   */
+  async updateRemote(name: string, url: string): Promise<void> {
+    try {
+      await this.git.raw(["remote", "set-url", name, url]);
+    } catch (error: any) {
+      const errorMessage =
+        error?.message || error?.toString() || "Unknown error";
+      throw new Error(`Update remote failed: ${errorMessage}`);
+    }
+  }
 }

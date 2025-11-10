@@ -24,7 +24,41 @@
       "resetStash": "Stash-Einstellung zurücksetzen",
       "configureProxy": "Proxy konfigurieren",
       "refreshProxy": "Proxy-Status anzeigen",
+      "manageRemotes": "Remotes verwalten",
       "changeLanguage": "Sprache wechseln"
+    },
+    "remoteManager": {
+      "title": "Remotes verwalten",
+      "description": "Remote-Repositories dieses Projekts anzeigen, bearbeiten, hinzufügen oder entfernen.",
+      "name": "Name",
+      "url": "Adresse",
+      "actions": "Aktionen",
+      "empty": "Keine Remotes konfiguriert.",
+      "close": "Schließen",
+      "addButton": "Remote hinzufügen",
+      "addNamePlaceholder": "Remotename (z. B. origin)",
+      "addUrlPlaceholder": "Remote-URL (https://... oder git@...)",
+      "status": {
+        "loading": "Remotes werden geladen...",
+        "working": "Änderungen werden angewendet...",
+        "awaitingConfirmation": "Bitte bestätige die Aktion im VS-Code-Dialog..."
+      },
+      "buttons": {
+        "save": "Speichern",
+        "delete": "Löschen"
+      },
+      "messages": {
+        "loadFailed": "Remotes konnten nicht geladen werden: {0}",
+        "operationFailed": "Remote-Vorgang fehlgeschlagen: {0}",
+        "addSuccess": "Remote \"{0}\" hinzugefügt",
+        "updateSuccess": "Remote \"{0}\" aktualisiert",
+        "removeSuccess": "Remote \"{0}\" entfernt",
+        "removeCancelled": "Entfernen des Remotes abgebrochen",
+        "invalidName": "Ein Remotename ist erforderlich",
+        "invalidUrl": "Eine Remote-URL ist erforderlich",
+        "duplicateName": "Remote \"{0}\" ist bereits vorhanden",
+        "removeConfirm": "Remote \"{0}\" entfernen?"
+      }
     },
     "gitOperations": {
       "pull": "Pull",

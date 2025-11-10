@@ -90,6 +90,14 @@ import { translate } from './utils/i18n-utils.js';
     const checkoutBtn = document.getElementById('checkoutBtn');           // 签出按钮
     const settingsBtn = document.getElementById('settingsBtn');           // 设置按钮
     const settingsMenu = document.getElementById('settingsMenu');         // 设置菜单
+    const remoteManagerOverlay = document.getElementById('remoteManagerOverlay'); // 远程管理器遮罩
+    const remoteManagerList = document.getElementById('remoteManagerList');       // 远程列表
+    const remoteManagerEmpty = document.getElementById('remoteManagerEmpty');     // 空状态
+    const remoteManagerStatus = document.getElementById('remoteManagerStatus');   // 状态提示
+    const addRemoteBtn = document.getElementById('addRemoteBtn');                 // 添加按钮
+    const newRemoteNameInput = document.getElementById('newRemoteName');          // 新远程名称
+    const newRemoteUrlInput = document.getElementById('newRemoteUrl');            // 新远程地址
+    const closeRemoteManagerBtn = document.getElementById('closeRemoteManager');  // 关闭按钮
 
     // 新增的拖拽和折叠相关元素（这些元素是动态创建的，不在初始化时获取）
     const resizer = document.getElementById('resizer');                   // 分割线
@@ -99,6 +107,11 @@ import { translate } from './utils/i18n-utils.js';
     let gitGraphRenderer = null;                                          // Git Graph 渲染器
     let pendingGitGraphLayout = null;                                     // 待应用的Git Graph布局
     let showGitGraph = true;                                              // 是否显示 Git Graph
+    const remoteManagerState = {                                          // 远程管理器状态
+        isOpen: false,
+        remotes: []
+    };
+    let remoteManagerStatusHideTimeout = null;
 
     // 事件监听器设置
     // 添加滚动监听器以实现无限滚动加载
@@ -310,6 +323,7 @@ import { translate } from './utils/i18n-utils.js';
     const resetStashMenuItem = settingsMenu.querySelector('[data-action="resetStash"]');
     const configureProxyMenuItem = settingsMenu.querySelector('[data-action="configureProxy"]');
     const refreshProxyMenuItem = settingsMenu.querySelector('[data-action="refreshProxy"]');
+    const manageRemotesMenuItem = settingsMenu.querySelector('[data-action="manageRemotes"]');
     const changeLanguageMenuItem = settingsMenu.querySelector('[data-action="changeLanguage"]');
 
     if (resetStashMenuItem) {
@@ -333,11 +347,54 @@ import { translate } from './utils/i18n-utils.js';
         });
     }
 
+    if (manageRemotesMenuItem) {
+        manageRemotesMenuItem.addEventListener('click', () => {
+            settingsMenu.style.display = 'none';
+            openRemoteManager();
+        });
+    }
+
     if (changeLanguageMenuItem) {
         changeLanguageMenuItem.addEventListener('click', () => {
             settingsMenu.style.display = 'none';
             vscode.postMessage({ type: 'changeLanguage' });
         });
+    }
+
+    if (closeRemoteManagerBtn) {
+        closeRemoteManagerBtn.addEventListener('click', () => {
+            closeRemoteManager();
+        });
+    }
+
+    if (remoteManagerOverlay) {
+        remoteManagerOverlay.addEventListener('click', (event) => {
+            if (event.target === remoteManagerOverlay) {
+                closeRemoteManager();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && remoteManagerState.isOpen) {
+            closeRemoteManager();
+        }
+    });
+
+    if (newRemoteNameInput) {
+        newRemoteNameInput.addEventListener('input', updateAddRemoteButtonState);
+    }
+
+    if (newRemoteUrlInput) {
+        newRemoteUrlInput.addEventListener('input', updateAddRemoteButtonState);
+    }
+
+    if (addRemoteBtn) {
+        addRemoteBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            handleAddRemote();
+        });
+        updateAddRemoteButtonState();
     }
 
     // ==================== 搜索功能事件监听器 ====================
@@ -475,6 +532,12 @@ import { translate } from './utils/i18n-utils.js';
                     type: 'currentFilterState',
                     filterState: currentFilterState
                 });
+                break;
+            case 'remoteManagerData':
+                handleRemoteManagerData(message.remotes, message.statusMessage);
+                break;
+            case 'remoteManagerError':
+                handleRemoteManagerError(message.message);
                 break;
             // 删除了commitEditableStatus处理，现在直接使用预计算的canEditMessage值
         }
@@ -2367,7 +2430,285 @@ import { translate } from './utils/i18n-utils.js';
             pendingGitGraphLayout = null;
         }
     }
+    
+    // ==================== 远程管理器 ====================
+    
+    function openRemoteManager() {
+        if (!remoteManagerOverlay) {
+            vscode.postMessage({ type: 'openRemoteManager' });
+            return;
+        }
 
+        remoteManagerOverlay.style.display = 'flex';
+        remoteManagerOverlay.setAttribute('aria-hidden', 'false');
+        remoteManagerState.isOpen = true;
+
+        if (remoteManagerList) {
+            remoteManagerList.scrollTop = 0;
+        }
+
+        if (newRemoteNameInput) {
+            newRemoteNameInput.value = '';
+        }
+        if (newRemoteUrlInput) {
+            newRemoteUrlInput.value = '';
+        }
+        updateAddRemoteButtonState();
+
+        if (remoteManagerState.remotes.length > 0) {
+            renderRemoteManagerList(remoteManagerState.remotes);
+        } else if (remoteManagerEmpty) {
+            remoteManagerEmpty.style.display = 'none';
+        }
+
+        setRemoteManagerStatus('info', translate('remoteManager.status.loading', 'Loading remotes...'));
+        vscode.postMessage({ type: 'openRemoteManager' });
+    }
+
+    function closeRemoteManager() {
+        if (!remoteManagerOverlay) {
+            return;
+        }
+        remoteManagerOverlay.style.display = 'none';
+        remoteManagerOverlay.setAttribute('aria-hidden', 'true');
+        remoteManagerState.isOpen = false;
+        setRemoteManagerStatus('', '');
+    }
+
+    function handleRemoteManagerData(remotes, statusMessage) {
+        remoteManagerState.remotes = normalizeRemotes(remotes);
+        if (!remoteManagerState.isOpen) {
+            return;
+        }
+        renderRemoteManagerList(remoteManagerState.remotes);
+
+        if (statusMessage && statusMessage.message) {
+            setRemoteManagerStatus(statusMessage.type || 'info', statusMessage.message);
+        } else {
+            setRemoteManagerStatus('', '');
+        }
+    }
+
+    function handleRemoteManagerError(message) {
+        if (!remoteManagerState.isOpen) {
+            return;
+        }
+        const fallback = translate('remoteManager.messages.operationFailed', 'Remote operation failed: {0}', message || '');
+        setRemoteManagerStatus('error', message || fallback);
+    }
+
+    function normalizeRemotes(remotes) {
+        if (!Array.isArray(remotes)) {
+            return [];
+        }
+
+        const normalized = remotes
+            .filter(remote => remote && remote.name)
+            .map(remote => {
+                const fetchUrl = remote.fetchUrl || (remote.refs && remote.refs.fetch) || remote.url || null;
+                const pushUrl = remote.pushUrl || (remote.refs && remote.refs.push) || null;
+                const preferredUrl = fetchUrl || pushUrl || '';
+                return {
+                    name: remote.name,
+                    fetchUrl,
+                    pushUrl,
+                    url: preferredUrl
+                };
+            });
+
+        normalized.sort((a, b) => {
+            if (a.name === 'origin') return -1;
+            if (b.name === 'origin') return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        return normalized;
+    }
+
+    function renderRemoteManagerList(remotes) {
+        if (!remoteManagerList || !remoteManagerEmpty) {
+            return;
+        }
+
+        remoteManagerList.innerHTML = '';
+
+        if (!remotes || remotes.length === 0) {
+            remoteManagerEmpty.style.display = 'flex';
+            return;
+        }
+
+        remoteManagerEmpty.style.display = 'none';
+        const fragment = document.createDocumentFragment();
+        remotes.forEach(remote => {
+            fragment.appendChild(createRemoteRow(remote));
+        });
+        remoteManagerList.appendChild(fragment);
+    }
+
+    function createRemoteRow(remote) {
+        const row = document.createElement('div');
+        row.className = 'remote-manager-row';
+
+        const nameCell = document.createElement('div');
+        nameCell.className = 'remote-manager-name';
+        nameCell.textContent = remote.name;
+        nameCell.title = remote.name;
+
+        const urlCell = document.createElement('div');
+        urlCell.className = 'remote-manager-url';
+        const urlInput = document.createElement('input');
+        urlInput.type = 'text';
+        urlInput.className = 'remote-manager-input';
+        urlInput.value = remote.url || '';
+        urlInput.placeholder = translate('remoteManager.addUrlPlaceholder', 'Remote URL (https://... or git@...)');
+        urlInput.spellcheck = false;
+        urlInput.autocomplete = 'off';
+
+        const tooltipParts = [];
+        if (remote.fetchUrl) {
+            tooltipParts.push(`fetch: ${remote.fetchUrl}`);
+        }
+        if (remote.pushUrl && remote.pushUrl !== remote.fetchUrl) {
+            tooltipParts.push(`push: ${remote.pushUrl}`);
+        }
+        if (tooltipParts.length > 0) {
+            urlInput.title = tooltipParts.join('\n');
+        } else if (remote.url) {
+            urlInput.title = remote.url;
+        }
+
+        urlCell.appendChild(urlInput);
+
+        const actionsCell = document.createElement('div');
+        actionsCell.className = 'remote-manager-actions';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'remote-manager-button secondary';
+        saveBtn.textContent = translate('remoteManager.buttons.save', 'Save');
+        saveBtn.disabled = true;
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'remote-manager-button danger';
+        deleteBtn.textContent = translate('remoteManager.buttons.delete', 'Delete');
+
+        urlInput.addEventListener('input', () => {
+            const current = urlInput.value.trim();
+            const original = remote.url || '';
+            saveBtn.disabled = current.length === 0 || current === original;
+        });
+
+        saveBtn.addEventListener('click', () => {
+            const newUrl = urlInput.value.trim();
+            if (!newUrl) {
+                setRemoteManagerStatus('error', translate('remoteManager.messages.invalidUrl', 'Remote URL is required'));
+                return;
+            }
+            setRemoteManagerStatus('info', translate('remoteManager.status.working', 'Applying changes...'));
+            vscode.postMessage({
+                type: 'updateRemote',
+                name: remote.name,
+                url: newUrl
+            });
+        });
+
+        deleteBtn.addEventListener('click', () => {
+            setRemoteManagerStatus('info', translate('remoteManager.status.awaitingConfirmation', 'Please confirm deletion in VS Code...'));
+            vscode.postMessage({
+                type: 'removeRemote',
+                name: remote.name
+            });
+        });
+
+        actionsCell.appendChild(saveBtn);
+        actionsCell.appendChild(deleteBtn);
+
+        row.appendChild(nameCell);
+        row.appendChild(urlCell);
+        row.appendChild(actionsCell);
+
+        return row;
+    }
+
+    function setRemoteManagerStatus(kind, message) {
+        if (!remoteManagerStatus) {
+            return;
+        }
+
+        if (remoteManagerStatusHideTimeout) {
+            clearTimeout(remoteManagerStatusHideTimeout);
+            remoteManagerStatusHideTimeout = null;
+        }
+
+        remoteManagerStatus.classList.remove('is-info', 'is-success', 'is-error');
+
+        if (!message) {
+            remoteManagerStatus.textContent = '';
+            remoteManagerStatus.style.display = 'none';
+            return;
+        }
+
+        remoteManagerStatus.textContent = message;
+        remoteManagerStatus.style.display = 'block';
+
+        if (kind === 'error') {
+            remoteManagerStatus.classList.add('is-error');
+        } else if (kind === 'success') {
+            remoteManagerStatus.classList.add('is-success');
+        } else {
+            remoteManagerStatus.classList.add('is-info');
+        }
+
+        if (kind === 'success' || kind === 'info' || !kind) {
+            remoteManagerStatusHideTimeout = setTimeout(() => {
+                remoteManagerStatus.style.display = 'none';
+                remoteManagerStatus.textContent = '';
+                remoteManagerStatus.classList.remove('is-info', 'is-success', 'is-error');
+                remoteManagerStatusHideTimeout = null;
+            }, 4000);
+        }
+    }
+
+    function updateAddRemoteButtonState() {
+        if (!addRemoteBtn) {
+            return;
+        }
+        const hasName = !!(newRemoteNameInput && newRemoteNameInput.value.trim());
+        const hasUrl = !!(newRemoteUrlInput && newRemoteUrlInput.value.trim());
+        addRemoteBtn.disabled = !(hasName && hasUrl);
+    }
+
+    function handleAddRemote() {
+        if (!newRemoteNameInput || !newRemoteUrlInput) {
+            return;
+        }
+        const name = newRemoteNameInput.value.trim();
+        const url = newRemoteUrlInput.value.trim();
+
+        if (!name) {
+            setRemoteManagerStatus('error', translate('remoteManager.messages.invalidName', 'Remote name is required'));
+            return;
+        }
+        if (!url) {
+            setRemoteManagerStatus('error', translate('remoteManager.messages.invalidUrl', 'Remote URL is required'));
+            return;
+        }
+        const duplicate = remoteManagerState.remotes.find(remote => remote.name === name);
+        if (duplicate) {
+            setRemoteManagerStatus('error', translate('remoteManager.messages.duplicateName', 'Remote "{0}" already exists', name));
+            return;
+        }
+
+        setRemoteManagerStatus('info', translate('remoteManager.status.working', 'Applying changes...'));
+        vscode.postMessage({
+            type: 'addRemote',
+            name,
+            url
+        });
+
+        newRemoteNameInput.value = '';
+        newRemoteUrlInput.value = '';
+        updateAddRemoteButtonState();
+    }
 
 
     // 延迟初始化 Git Graph，确保 DOM 完全加载

@@ -24,7 +24,41 @@
       "resetStash": "Restablecer preferencia de stash",
       "configureProxy": "Configurar proxy",
       "refreshProxy": "Ver estado del proxy",
+      "manageRemotes": "Gestionar remotos",
       "changeLanguage": "Cambiar idioma"
+    },
+    "remoteManager": {
+      "title": "Gestionar remotos",
+      "description": "Consulta, edita, añade o elimina los remotos del repositorio actual.",
+      "name": "Nombre",
+      "url": "Dirección",
+      "actions": "Acciones",
+      "empty": "No hay remotos configurados.",
+      "close": "Cerrar",
+      "addButton": "Agregar remoto",
+      "addNamePlaceholder": "Nombre del remoto (p. ej. origin)",
+      "addUrlPlaceholder": "URL del remoto (https://... o git@...)",
+      "status": {
+        "loading": "Cargando remotos...",
+        "working": "Aplicando cambios...",
+        "awaitingConfirmation": "Confirma la acción en el mensaje de VS Code..."
+      },
+      "buttons": {
+        "save": "Guardar",
+        "delete": "Eliminar"
+      },
+      "messages": {
+        "loadFailed": "No se pudieron cargar los remotos: {0}",
+        "operationFailed": "La operación de remotos falló: {0}",
+        "addSuccess": "Se agregó el remoto \"{0}\"",
+        "updateSuccess": "Se actualizó el remoto \"{0}\"",
+        "removeSuccess": "Se eliminó el remoto \"{0}\"",
+        "removeCancelled": "Se canceló la eliminación del remoto",
+        "invalidName": "El nombre del remoto es obligatorio",
+        "invalidUrl": "La URL del remoto es obligatoria",
+        "duplicateName": "El remoto \"{0}\" ya existe",
+        "removeConfirm": "¿Eliminar el remoto \"{0}\"?"
+      }
     },
     "gitOperations": {
       "pull": "Pull",

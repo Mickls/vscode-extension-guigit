@@ -24,7 +24,41 @@
       "resetStash": "スタッシュ設定をリセット",
       "configureProxy": "プロキシを設定",
       "refreshProxy": "プロキシ状態を表示",
+      "manageRemotes": "リモートを管理",
       "changeLanguage": "言語を変更"
+    },
+    "remoteManager": {
+      "title": "リモートを管理",
+      "description": "現在のリポジトリのリモートを表示・編集・追加・削除します。",
+      "name": "名前",
+      "url": "URL",
+      "actions": "操作",
+      "empty": "リモートはまだ設定されていません。",
+      "close": "閉じる",
+      "addButton": "リモートを追加",
+      "addNamePlaceholder": "リモート名（例: origin）",
+      "addUrlPlaceholder": "リモートURL（https://... または git@...）",
+      "status": {
+        "loading": "リモートを読み込み中...",
+        "working": "変更を適用しています...",
+        "awaitingConfirmation": "VS Code のダイアログで操作を確認してください..."
+      },
+      "buttons": {
+        "save": "保存",
+        "delete": "削除"
+      },
+      "messages": {
+        "loadFailed": "リモートの読み込みに失敗しました: {0}",
+        "operationFailed": "リモート操作に失敗しました: {0}",
+        "addSuccess": "リモート「{0}」を追加しました",
+        "updateSuccess": "リモート「{0}」を更新しました",
+        "removeSuccess": "リモート「{0}」を削除しました",
+        "removeCancelled": "リモートの削除をキャンセルしました",
+        "invalidName": "リモート名は必須です",
+        "invalidUrl": "リモートURLは必須です",
+        "duplicateName": "リモート「{0}」は既に存在します",
+        "removeConfirm": "リモート「{0}」を削除しますか？"
+      }
     },
     "gitOperations": {
       "pull": "Pull",
