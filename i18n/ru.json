@@ -65,7 +65,8 @@
       "push": "Push",
       "fetch": "Fetch",
       "clone": "Clone",
-      "checkout": "Checkout"
+      "checkout": "Checkout",
+      "settings": "Настройки"
     },
     "errors": {
       "noWorkspace": "Папка рабочей области не найдена",

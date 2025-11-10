@@ -65,7 +65,8 @@
       "push": "推送",
       "fetch": "抓取",
       "clone": "克隆",
-      "checkout": "签出"
+      "checkout": "签出",
+      "settings": "设置"
     },
     "errors": {
       "noWorkspace": "未找到工作区文件夹",

@@ -65,7 +65,8 @@
       "push": "Push",
       "fetch": "Fetch",
       "clone": "Klonen",
-      "checkout": "Checkout"
+      "checkout": "Checkout",
+      "settings": "Einstellungen"
     },
     "errors": {
       "noWorkspace": "Kein Arbeitsbereichsordner gefunden",

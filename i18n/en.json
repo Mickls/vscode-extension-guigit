@@ -65,7 +65,8 @@
       "push": "Push",
       "fetch": "Fetch",
       "clone": "Clone",
-      "checkout": "Checkout"
+      "checkout": "Checkout",
+      "settings": "Settings"
     },
     "errors": {
       "noWorkspace": "No workspace folder found",

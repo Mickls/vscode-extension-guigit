@@ -65,7 +65,8 @@
       "push": "Push",
       "fetch": "Fetch",
       "clone": "Cloner",
-      "checkout": "Checkout"
+      "checkout": "Checkout",
+      "settings": "Paramètres"
     },
     "errors": {
       "noWorkspace": "Aucun dossier d'espace de travail trouvé",

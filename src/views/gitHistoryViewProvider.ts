@@ -2069,19 +2069,37 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         id: "pullBtn",
         action: "pull",
         title: i18n.t("pullTooltip"),
+        label: i18n.t("gitOperations.pull"),
       },
       {
         id: "pushBtn",
         action: "push",
         title: i18n.t("pushTooltip"),
+        label: i18n.t("gitOperations.push"),
       },
-      { id: "fetchBtn", action: "fetch", title: i18n.t("fetchTooltip") },
-      { id: "cloneBtn", action: "clone", title: i18n.t("cloneTooltip") },
-      { id: "checkoutBtn", action: "checkout", title: i18n.t("checkoutTooltip") },
+      {
+        id: "fetchBtn",
+        action: "fetch",
+        title: i18n.t("fetchTooltip"),
+        label: i18n.t("gitOperations.fetch"),
+      },
+      {
+        id: "cloneBtn",
+        action: "clone",
+        title: i18n.t("cloneTooltip"),
+        label: i18n.t("gitOperations.clone"),
+      },
+      {
+        id: "checkoutBtn",
+        action: "checkout",
+        title: i18n.t("checkoutTooltip"),
+        label: i18n.t("gitOperations.checkout"),
+      },
       {
         id: "settingsBtn",
         action: "settings",
         title: i18n.t("settingsTooltip"),
+        label: i18n.t("gitOperations.settings"),
       },
     ];
 
@@ -2188,16 +2206,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                                 ${gitOperations
                                   .map(
                                     (op) => `
-                                    <button id="${
-                                      op.id
-                                    }" class="git-btn" title="${
-                                      op.title
-                                    }" data-action="${op.action}">
+                                    <button id="${op.id}" class="git-btn" title="${op.title}" data-action="${op.action}">
                                         ${getCodiconHtml(op.action, "small")}
-                                        ${
-                                          op.action.charAt(0).toUpperCase() +
-                                          op.action.slice(1)
-                                        }
+                                        ${op.label && op.label !== `gitOperations.${op.action}`
+                                          ? op.label
+                                          : op.action.charAt(0).toUpperCase() + op.action.slice(1)}
                                     </button>
                                 `
                                   )

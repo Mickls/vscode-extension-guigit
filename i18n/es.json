@@ -65,7 +65,8 @@
       "push": "Push",
       "fetch": "Fetch",
       "clone": "Clonar",
-      "checkout": "Checkout"
+      "checkout": "Checkout",
+      "settings": "Configuración"
     },
     "errors": {
       "noWorkspace": "No se encontró ninguna carpeta de área de trabajo",
