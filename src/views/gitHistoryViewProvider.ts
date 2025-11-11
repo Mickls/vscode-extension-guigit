@@ -2456,12 +2456,22 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitClone() {
     try {
+      const cloneText = {
+        prompt: i18n.t("clone.prompt"),
+        placeholder: i18n.t("clone.placeholder"),
+        urlRequired: i18n.t("clone.urlRequired"),
+        selectFolder: i18n.t("clone.selectFolder"),
+        progress: i18n.t("clone.progress"),
+        success: i18n.t("clone.success"),
+        openFolderAction: i18n.t("clone.openFolderAction"),
+      };
+
       const repoUrl = await vscode.window.showInputBox({
-        prompt: "Enter repository URL to clone",
-        placeHolder: "https://github.com/user/repo.git",
+        prompt: cloneText.prompt,
+        placeHolder: cloneText.placeholder,
         validateInput: (value) => {
           if (!value || value.trim().length === 0) {
-            return "Repository URL is required";
+            return cloneText.urlRequired;
           }
           return null;
         },
@@ -2475,7 +2485,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         canSelectFiles: false,
         canSelectFolders: true,
         canSelectMany: false,
-        openLabel: "Select Clone Location",
+        openLabel: cloneText.selectFolder,
       });
 
       if (!targetFolder || targetFolder.length === 0) {
@@ -2485,7 +2495,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: "Cloning repository...",
+          title: cloneText.progress,
           cancellable: false,
         },
         async () => {
@@ -2498,10 +2508,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         const openChoice = await vscode.window.showInformationMessage(
-          "Repository cloned successfully",
-          "Open Folder"
+          cloneText.success,
+          cloneText.openFolderAction
         );
-        if (openChoice === "Open Folder") {
+        if (openChoice === cloneText.openFolderAction) {
           await vscode.commands.executeCommand(
             "vscode.openFolder",
             vscode.Uri.file(result)
@@ -2520,14 +2530,32 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitCheckout() {
     try {
+      const checkoutText = {
+        createOption: i18n.t("advancedOperations.checkout.createOption"),
+        placeholder: i18n.t("advancedOperations.checkout.placeholder"),
+        inputPrompt: i18n.t("advancedOperations.checkout.inputPrompt"),
+        inputPlaceholder: i18n.t("advancedOperations.checkout.inputPlaceholder"),
+        inputRequired: i18n.t("advancedOperations.checkout.inputRequired"),
+        inputExists: i18n.t("advancedOperations.checkout.inputExists"),
+        inputInvalid: i18n.t("advancedOperations.checkout.inputInvalid"),
+        progressCreate: (branch: string) =>
+          i18n.t("advancedOperations.checkout.progressCreate", branch),
+        progressCheckout: (branch: string) =>
+          i18n.t("advancedOperations.checkout.progressCheckout", branch),
+        successCreate: (branch: string) =>
+          i18n.t("advancedOperations.checkout.successCreate", branch),
+        successCheckout: (branch: string) =>
+          i18n.t("advancedOperations.checkout.successCheckout", branch),
+      };
+
       const branches = await this._gitHistoryProvider.getBranches();
       const branchNames = branches.map((branch) => branch.name);
 
       // 添加创建新分支选项
-      const branchOptions = [...branchNames, "+ Create new branch"];
+      const branchOptions = [...branchNames, checkoutText.createOption];
 
       const selectedOption = await vscode.window.showQuickPick(branchOptions, {
-        placeHolder: "Select a branch to checkout or create new one",
+        placeHolder: checkoutText.placeholder,
         canPickMany: false,
       });
 
@@ -2538,21 +2566,21 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       let targetBranch: string;
       let isNewBranch = false;
 
-      if (selectedOption === "+ Create new branch") {
+      if (selectedOption === checkoutText.createOption) {
         // 创建新分支
         const newBranchName = await vscode.window.showInputBox({
-          prompt: "Enter new branch name",
-          placeHolder: "new-branch-name",
+          prompt: checkoutText.inputPrompt,
+          placeHolder: checkoutText.inputPlaceholder,
           validateInput: (value) => {
             if (!value || value.trim().length === 0) {
-              return "Branch name is required";
+              return checkoutText.inputRequired;
             }
             if (branchNames.includes(value.trim())) {
-              return "Branch name already exists";
+              return checkoutText.inputExists;
             }
             // 检查分支名称格式
             if (!/^[a-zA-Z0-9._/-]+$/.test(value.trim())) {
-              return "Invalid branch name. Use only letters, numbers, dots, hyphens, underscores, and slashes";
+              return checkoutText.inputInvalid;
             }
             return null;
           },
@@ -2572,8 +2600,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         {
           location: vscode.ProgressLocation.Notification,
           title: isNewBranch
-            ? `Creating and checking out branch ${targetBranch}...`
-            : `Checking out branch ${targetBranch}...`,
+            ? checkoutText.progressCreate(targetBranch)
+            : checkoutText.progressCheckout(targetBranch),
           cancellable: false,
         },
         async () => {
@@ -2590,8 +2618,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       if (result) {
         vscode.window.showInformationMessage(
           isNewBranch
-            ? `Successfully created and checked out branch: ${targetBranch}`
-            : `Successfully checked out branch: ${targetBranch}`
+            ? checkoutText.successCreate(targetBranch)
+            : checkoutText.successCheckout(targetBranch)
         );
         this.refresh(true);
       }
@@ -2607,6 +2635,35 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitPullAdvanced() {
     try {
+      const pullText = {
+        noRemotes: i18n.t("advancedOperations.pull.noRemoteBranches"),
+        mergeLabel: i18n.t("advancedOperations.pull.mergeLabel"),
+        mergeDescription: i18n.t("advancedOperations.pull.mergeDescription"),
+        rebaseLabel: i18n.t("advancedOperations.pull.rebaseLabel"),
+        rebaseDescription: i18n.t("advancedOperations.pull.rebaseDescription"),
+        methodPlaceholder: i18n.t("advancedOperations.pull.methodPlaceholder"),
+        methodPlaceholderWithHistory: (method: string) =>
+          i18n.t("advancedOperations.pull.methodPlaceholderWithHistory", method),
+        suggestionsSeparator: i18n.t("advancedOperations.pull.suggestionsSeparator"),
+        remoteSeparator: i18n.t("advancedOperations.pull.remoteSeparator"),
+        upstreamLabel: (branch: string) =>
+          i18n.t("advancedOperations.pull.upstreamLabel", branch),
+        upstreamDescription: i18n.t("advancedOperations.pull.upstreamDescription"),
+        upstreamDescriptionWithBranch: (branch: string) =>
+          i18n.t("advancedOperations.pull.upstreamDescriptionWithBranch", branch),
+        remoteDescription: i18n.t("advancedOperations.pull.remoteDescription"),
+        selectBranchPlaceholder: (method: string) =>
+          i18n.t("advancedOperations.pull.selectBranchPlaceholder", method),
+        progressMerge: (branch: string) =>
+          i18n.t("advancedOperations.pull.progressMerge", branch),
+        progressRebase: (branch: string) =>
+          i18n.t("advancedOperations.pull.progressRebase", branch),
+        resultMerge: (branch: string) =>
+          i18n.t("advancedOperations.pull.resultMerge", branch),
+        resultRebase: (branch: string) =>
+          i18n.t("advancedOperations.pull.resultRebase", branch),
+      };
+
       // 并行获取远程分支、当前分支与上游分支，提高效率
       const [remoteBranches, currentBranch, upstream] = await Promise.all([
         this._gitHistoryProvider.getAllRemoteBranches(),
@@ -2615,24 +2672,43 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       ]);
 
       if (!remoteBranches || remoteBranches.length === 0) {
-        vscode.window.showErrorMessage("未发现任何远程分支");
+        vscode.window.showErrorMessage(pullText.noRemotes);
         return;
       }
 
       // 读取上次选择的拉取方式，并在列表中置顶（使用 Memento，不暴露到设置中）
       const lastMethod = this._state.get<"merge" | "rebase">("guigit:lastPullMethod");
 
-      let methodOptions: (vscode.QuickPickItem & { isRebase: boolean; key: "merge" | "rebase" })[] = [
-        { label: "$(git-merge) Merge", description: "使用 merge 拉取", isRebase: false, key: "merge" },
-        { label: "$(git-pull-request) Rebase", description: "使用 rebase 拉取", isRebase: true, key: "rebase" },
+      let methodOptions: (vscode.QuickPickItem & {
+        isRebase: boolean;
+        key: "merge" | "rebase";
+      })[] = [
+        {
+          label: `$(git-merge) ${pullText.mergeLabel}`,
+          description: pullText.mergeDescription,
+          isRebase: false,
+          key: "merge",
+        },
+        {
+          label: `$(git-pull-request) ${pullText.rebaseLabel}`,
+          description: pullText.rebaseDescription,
+          isRebase: true,
+          key: "rebase",
+        },
       ];
       if (lastMethod) {
         methodOptions = methodOptions.sort((a, b) => (a.key === lastMethod ? -1 : b.key === lastMethod ? 1 : 0));
       }
 
+      const methodPlaceholder = lastMethod
+        ? pullText.methodPlaceholderWithHistory(
+            lastMethod === "rebase" ? pullText.rebaseLabel : pullText.mergeLabel
+          )
+        : pullText.methodPlaceholder;
+
       // 第一步：先选择拉取方式（Merge 或 Rebase）
       const methodPick = await vscode.window.showQuickPick(methodOptions, {
-        placeHolder: `选择拉取方式 (Merge 或 Rebase)${lastMethod ? `，上次使用：${lastMethod === "rebase" ? "Rebase" : "Merge"}` : ""}`,
+        placeHolder: methodPlaceholder,
         canPickMany: false,
         matchOnDescription: true,
       });
@@ -2649,26 +2725,35 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const items: (vscode.QuickPickItem & { branch?: string })[] = [];
       if (upstream && remoteBranches.includes(upstream)) {
         items.push({
-          label: `$(arrow-up) Upstream: ${upstream}`,
+          label: `$(arrow-up) ${pullText.upstreamLabel(upstream)}`,
           description: currentBranch
-            ? `当前分支 ${currentBranch} 的上游`
-            : "当前分支的上游",
+            ? pullText.upstreamDescriptionWithBranch(currentBranch)
+            : pullText.upstreamDescription,
           branch: upstream,
         });
-        items.push({ label: "建议", kind: vscode.QuickPickItemKind.Separator } as any);
+        items.push({
+          label: pullText.suggestionsSeparator,
+          kind: vscode.QuickPickItemKind.Separator,
+        } as any);
       }
 
-      items.push({ label: "远程分支", kind: vscode.QuickPickItemKind.Separator } as any);
+      items.push({
+        label: pullText.remoteSeparator,
+        kind: vscode.QuickPickItemKind.Separator,
+      } as any);
       items.push(
         ...remoteBranches.map((branch) => ({
           label: branch,
-          description: "远程分支",
+          description: pullText.remoteDescription,
           branch,
         }))
       );
 
+      const branchPlaceholder = pullText.selectBranchPlaceholder(
+        isRebase ? pullText.rebaseLabel : pullText.mergeLabel
+      );
       const selected = await vscode.window.showQuickPick(items, {
-        placeHolder: `选择要从远程拉取的分支 (${isRebase ? "Rebase" : "Merge"})` ,
+        placeHolder: branchPlaceholder,
         canPickMany: false,
         matchOnDescription: true,
       });
@@ -2682,7 +2767,9 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `${isRebase ? "使用 rebase 拉取" : "正在拉取"}：${branch}...`,
+          title: isRebase
+            ? pullText.progressRebase(branch)
+            : pullText.progressMerge(branch),
           cancellable: false,
         },
         async () => {
@@ -2695,7 +2782,7 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
       if (result) {
         vscode.window.showInformationMessage(
-          `${isRebase ? "已使用 rebase 拉取" : "已拉取"}：${branch}`
+          isRebase ? pullText.resultRebase(branch) : pullText.resultMerge(branch)
         );
         this.refresh(true);
       }
@@ -2711,17 +2798,31 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
    */
   private async _handleGitPushAdvanced() {
     try {
+      type PushQuickPickItem = vscode.QuickPickItem & {
+        branch?: string;
+        isCreate?: boolean;
+      };
+
+      const pushText = {
+        placeholder: i18n.t("advancedOperations.push.placeholder"),
+        existingDescription: i18n.t("advancedOperations.push.existingDescription"),
+        createDescription: i18n.t("advancedOperations.push.createDescription"),
+        createDetail: i18n.t("advancedOperations.push.createDetail"),
+        createLabel: (branch: string) =>
+          i18n.t("advancedOperations.push.createLabel", branch),
+      };
+
       // 获取所有远程分支列表
       const remoteBranches =
         await this._gitHistoryProvider.getAllRemoteBranches();
 
       // 创建一个 QuickPick 来显示所有远程分支并支持输入筛选
-      const quickPick = vscode.window.createQuickPick();
-      quickPick.placeholder =
-        "Select a remote branch or type to create new one";
+      const quickPick = vscode.window.createQuickPick<PushQuickPickItem>();
+      quickPick.placeholder = pushText.placeholder;
       quickPick.items = remoteBranches.map((branch) => ({
         label: branch,
-        description: "Existing remote branch",
+        description: pushText.existingDescription,
+        branch,
       }));
       quickPick.canSelectMany = false;
       quickPick.matchOnDescription = true;
@@ -2737,7 +2838,8 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             // 如果输入为空，显示所有远程分支
             quickPick.items = remoteBranches.map((branch) => ({
               label: branch,
-              description: "Existing remote branch",
+              description: pushText.existingDescription,
+              branch,
             }));
             return;
           }
@@ -2747,13 +2849,14 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
             branch.toLowerCase().includes(trimmedValue.toLowerCase())
           );
 
-          const items: vscode.QuickPickItem[] = [];
+          const items: PushQuickPickItem[] = [];
 
           // 添加筛选出的现有分支
           items.push(
             ...filteredBranches.map((branch) => ({
               label: branch,
-              description: "Existing remote branch",
+              description: pushText.existingDescription,
+              branch,
             }))
           );
 
@@ -2773,9 +2876,11 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
 
           if (!exactMatch) {
             items.push({
-              label: `$(add) Create: ${targetBranch}`,
-              description: "Create new remote branch",
-              detail: "This will create a new branch and push to it",
+              label: `$(add) ${pushText.createLabel(targetBranch)}`,
+              description: pushText.createDescription,
+              detail: pushText.createDetail,
+              isCreate: true,
+              branch: targetBranch,
             });
           }
 
@@ -2783,17 +2888,10 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         });
 
         quickPick.onDidAccept(() => {
-          const selected = quickPick.selectedItems[0];
+          const selected = quickPick.selectedItems[0] as PushQuickPickItem | undefined;
           if (selected) {
-            if (selected.label.startsWith("$(add) Create: ")) {
-              // 用户选择创建新分支
-              selectedBranch = selected.label.replace("$(add) Create: ", "");
-              isNewBranch = true;
-            } else {
-              // 用户选择现有分支
-              selectedBranch = selected.label;
-              isNewBranch = false;
-            }
+            selectedBranch = selected.branch || selected.label;
+            isNewBranch = !!selected.isCreate;
             quickPick.hide();
           }
         });
@@ -2826,17 +2924,36 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     isNewBranch: boolean
   ) {
     try {
+      const pushText = {
+        pushOptionsPlaceholder: i18n.t("advancedOperations.push.pushOptionsPlaceholder"),
+        pushNormalLabel: i18n.t("advancedOperations.push.pushNormalLabel"),
+        pushForceLabel: i18n.t("advancedOperations.push.pushForceLabel"),
+        forceConfirm: i18n.t("advancedOperations.push.forceConfirm"),
+        forceConfirmYes: i18n.t("advancedOperations.push.forceConfirmYes"),
+        forceConfirmCancel: i18n.t("advancedOperations.push.forceConfirmCancel"),
+        progressNormal: (branch: string, suffix: string) =>
+          i18n.t("advancedOperations.push.progressNormal", branch, suffix),
+        progressForce: (branch: string, suffix: string) =>
+          i18n.t("advancedOperations.push.progressForce", branch, suffix),
+        progressNewBranchSuffix: i18n.t("advancedOperations.push.progressNewBranchSuffix"),
+        successNormal: (branch: string, suffix: string) =>
+          i18n.t("advancedOperations.push.successNormal", branch, suffix),
+        successForce: (branch: string, suffix: string) =>
+          i18n.t("advancedOperations.push.successForce", branch, suffix),
+        successNewBranchSuffix: i18n.t("advancedOperations.push.successNewBranchSuffix"),
+      };
+
       let isForce = false;
 
       // 对于新分支，自动选择 normal push；对于现有分支，让用户选择
       if (!isNewBranch) {
         const pushOptions = await vscode.window.showQuickPick(
           [
-            { label: "Normal push", value: "normal" },
-            { label: "Force push (--force)", value: "force" },
+            { label: pushText.pushNormalLabel, value: "normal" },
+            { label: pushText.pushForceLabel, value: "force" },
           ],
           {
-            placeHolder: "Select push option",
+            placeHolder: pushText.pushOptionsPlaceholder,
             canPickMany: false,
           }
         );
@@ -2850,24 +2967,25 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         // 如果是强制推送，显示警告
         if (isForce) {
           const confirm = await vscode.window.showWarningMessage(
-            "Force push can overwrite remote changes and may cause data loss. Are you sure?",
+            pushText.forceConfirm,
             { modal: true },
-            "Yes, force push",
-            "Cancel"
+            pushText.forceConfirmYes,
+            pushText.forceConfirmCancel
           );
 
-          if (confirm !== "Yes, force push") {
+          if (confirm !== pushText.forceConfirmYes) {
             return;
           }
         }
       }
 
+      const progressSuffix = isNewBranch ? pushText.progressNewBranchSuffix : "";
       const result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `${isForce ? "Force pushing" : "Pushing"} to ${targetBranch}${
-            isNewBranch ? " (new branch)" : ""
-          }...`,
+          title: isForce
+            ? pushText.progressForce(targetBranch, progressSuffix)
+            : pushText.progressNormal(targetBranch, progressSuffix),
           cancellable: false,
         },
         async () => {
@@ -2879,11 +2997,13 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
       );
 
       if (result) {
-        vscode.window.showInformationMessage(
-          `Successfully ${
-            isForce ? "force pushed" : "pushed"
-          } to ${targetBranch}${isNewBranch ? " (new branch created)" : ""}`
-        );
+        const successSuffix = isNewBranch
+          ? pushText.successNewBranchSuffix
+          : "";
+        const successMessage = isForce
+          ? pushText.successForce(targetBranch, successSuffix)
+          : pushText.successNormal(targetBranch, successSuffix);
+        vscode.window.showInformationMessage(successMessage);
         void this._promptForPullRequestCreation();
         this.refresh(true);
       }
