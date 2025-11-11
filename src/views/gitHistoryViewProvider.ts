@@ -3,7 +3,7 @@ import {
   GitHistoryProvider,
   GitRemoteInfo,
 } from "../providers/git/gitHistoryProvider";
-import { GitCommit } from "../providers/git/types/gitTypes";
+import { GitBranch, GitCommit } from "../providers/git/types/gitTypes";
 import { LanguageService } from "../services/languageService";
 import { i18n } from "../utils/i18n";
 import * as path from "path";
@@ -853,10 +853,19 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const branches = await this._gitHistoryProvider.getBranches();
+      const [localBranches, remoteBranchList] = await Promise.all([
+        this._gitHistoryProvider.getBranches(),
+        this._safeGetRemoteBranches(),
+      ]);
+
+      const remoteGroups = this._groupRemoteBranches(remoteBranchList);
+
       this._view.webview.postMessage({
         type: "branches",
-        data: branches,
+        data: {
+          locals: localBranches,
+          remotes: remoteGroups,
+        },
       });
     } catch (error) {
       console.error("Error getting branches:", error);
@@ -867,6 +876,74 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
         }`,
       });
     }
+  }
+
+  private async _safeGetRemoteBranches(): Promise<string[]> {
+    try {
+      return await this._gitHistoryProvider.getAllRemoteBranches();
+    } catch (error) {
+      console.warn("Failed to load remote branches:", error);
+      return [];
+    }
+  }
+
+  private _groupRemoteBranches(
+    branchNames: string[]
+  ): { remote: string; branches: GitBranch[] }[] {
+    if (!branchNames || branchNames.length === 0) {
+      return [];
+    }
+
+    const remoteMap = new Map<string, GitBranch[]>();
+
+    for (const fullName of branchNames) {
+      const slashIndex = fullName.indexOf("/");
+      if (slashIndex <= 0 || slashIndex === fullName.length - 1) {
+        continue;
+      }
+
+      const remote = fullName.slice(0, slashIndex);
+      const shortName = fullName.slice(slashIndex + 1);
+      const branches = remoteMap.get(remote) ?? [];
+      branches.push({
+        name: fullName,
+        shortName,
+        remote,
+        current: false,
+        commit: "",
+        type: "remote",
+      });
+      remoteMap.set(remote, branches);
+    }
+
+    const sortedRemoteNames = Array.from(remoteMap.keys()).sort((a, b) => {
+      if (a === "origin") return -1;
+      if (b === "origin") return 1;
+      return a.localeCompare(b);
+    });
+
+    return sortedRemoteNames.map((remote) => ({
+      remote,
+      branches: this._sortBranches(remoteMap.get(remote) ?? []),
+    }));
+  }
+
+  private _sortBranches(branches: GitBranch[]): GitBranch[] {
+    return branches.sort((a, b) =>
+      this._compareBranchNames(a.shortName ?? a.name, b.shortName ?? b.name)
+    );
+  }
+
+  private _compareBranchNames(a: string, b: string): number {
+    const priority = (name: string) =>
+      name === "main" ? 2 : name === "master" ? 1 : 0;
+
+    const priorityDiff = priority(b) - priority(a);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    return a.localeCompare(b);
   }
 
   /**
@@ -2029,23 +2106,24 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
     );
 
     // 图标映射表 - 与前端icons.js保持一致
-    const getCodiconHtml = (iconName: string, size: string = "medium") => {
-      const iconMap: { [key: string]: string } = {
-        pull: "repo-pull",
-        push: "repo-push",
-        fetch: "git-fetch",
-        clone: "repo-clone",
-        checkout: "git-branch",
-        settings: "settings-gear",
-        resetStash: "settings-gear",
-        jumpToHead: "target",
-        refresh: "refresh",
-        toggleGraph: "git-branch",
-        globe: "globe",
-        collapseLeft: "chevron-left",
-        collapseRight: "chevron-right",
-        close: "close",
-      };
+      const getCodiconHtml = (iconName: string, size: string = "medium") => {
+        const iconMap: { [key: string]: string } = {
+          pull: "repo-pull",
+          push: "repo-push",
+          fetch: "git-fetch",
+          clone: "repo-clone",
+          checkout: "git-branch",
+          settings: "settings-gear",
+          resetStash: "settings-gear",
+          jumpToHead: "target",
+          refresh: "refresh",
+          toggleGraph: "git-branch",
+          globe: "globe",
+          collapseLeft: "chevron-left",
+          collapseRight: "chevron-right",
+          "chevron-down": "chevron-down",
+          close: "close",
+        };
 
       const codiconName = iconMap[iconName];
       if (!codiconName) {
@@ -2191,9 +2269,20 @@ export class GitHistoryViewProvider implements vscode.WebviewViewProvider {
                             <select id="repositorySelect" class="repository-select">
                             <!-- 仓库选项将通过JavaScript动态填充 -->
                         </select>
-                            <select id="branchSelect" class="branch-select">
-                                <option value="">${i18n.t("allBranches")}</option>
-                            </select>
+                            <div class="branch-switcher" id="branchSwitcher">
+                                <button id="branchSwitcherToggle" class="branch-switcher-toggle" aria-haspopup="true" aria-expanded="false">
+                                    <span id="branchSwitcherLabel">${i18n.t("allBranches")}</span>
+                                    ${getCodiconHtml("chevron-down", "small")}
+                                </button>
+                                <div class="branch-switcher-panel" id="branchSwitcherPanel">
+                                    <div class="branch-switcher-global" id="branchGlobalSection">
+                                        <div class="branch-tabs-empty">${i18n.t("loading")}</div>
+                                    </div>
+                                    <div class="branch-tabs" id="branchTabs">
+                                        <div class="branch-tabs-empty">${i18n.t("loading")}</div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="search-container">
                                 <input type="text" id="commitSearchInput" class="commit-search-input" placeholder="${i18n.t("placeholderCommitMessage")}" />
                                 <button id="clearSearchBtn" class="clear-search-btn" title="清除搜索" style="display: none;">

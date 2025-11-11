@@ -10,6 +10,15 @@
     "noCommitsFound": "Keine Commits gefunden",
     "noCommitsFoundForSearch": "Keine Commits für \"{0}\" gefunden",
     "allBranches": "Alle Branches",
+    "branchTabs": {
+      "recent": "Zuletzt",
+      "local": "Lokal",
+      "remote": "Remote",
+      "noRecent": "Keine zuletzt verwendeten Branches",
+      "noLocal": "Keine lokalen Branches",
+      "noRemote": "Keine Remote-Branches",
+      "all": "Alle Branches"
+    },
     "pullTooltip": "Pull (Strg+Klick für erweiterte Optionen)",
     "pushTooltip": "Push (Strg+Klick für erweiterte Optionen)",
     "fetchTooltip": "Fetch",

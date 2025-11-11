@@ -122,38 +122,215 @@ body {
   background-color: var(--vscode-list-hoverBackground);
 }
 
-/* 分支选择下拉框 */
-.branch-select {
-  width: 100%;
-  max-width: 180px; /* 调整最大宽度以适应仓库选择器 */
-  padding: 4px 8px;
+/* 分支切换器 */
+.branch-switcher {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.branch-switcher-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 180px;
+  max-width: 240px;
+  padding: 4px 10px;
   background-color: var(--vscode-list-background);
   color: var(--vscode-dropdown-foreground);
   border: 1px solid var(--vscode-dropdown-border);
   border-radius: 2px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.branch-switcher-toggle:hover,
+.branch-switcher-toggle:focus {
+  background-color: var(--vscode-dropdown-background);
+  outline: none;
+}
+
+.branch-switcher-toggle .codicon {
+  transition: transform 0.2s ease;
+}
+
+.branch-switcher.is-open .branch-switcher-toggle .codicon {
+  transform: rotate(180deg);
+}
+
+.branch-switcher-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 320px;
+  max-height: clamp(220px, calc(100vh - 140px), 420px);
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 200;
+  display: none;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.branch-select:hover {
-  background-color: var(--vscode-dropdown-background);
+.branch-switcher-global {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-dropdown-border);
+  background-color: var(--vscode-sideBar-background);
+  flex: 0 0 auto;
 }
 
-.branch-select:focus {
-  outline: 1px solid var(--vscode-focusBorder);
-  outline-offset: -1px;
+.branch-switcher-global .branch-item {
+  width: 100%;
 }
 
-/* 下拉框选项样式 */
-.branch-select option {
-  background-color: var(--vscode-dropdown-background);
-  color: var(--vscode-dropdown-foreground);
-  padding: 4px 8px;
+.branch-switcher-global .branch-tabs-empty {
+  padding: 4px 0;
 }
 
-.branch-select option:hover {
+.branch-switcher.is-open .branch-switcher-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.branch-tabs {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.branch-tab {
+  border-bottom: 1px solid var(--vscode-list-hoverBackground);
+}
+
+.branch-tab:last-child {
+  border-bottom: none;
+}
+
+.branch-tab-header {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.branch-tab-header .codicon {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.branch-tab.is-collapsed .branch-tab-header .codicon {
+  transform: rotate(-90deg);
+}
+
+.branch-tab-content {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.branch-tab.is-collapsed .branch-tab-content {
+  display: none;
+}
+
+.branch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+
+.branch-item:hover {
   background-color: var(--vscode-list-hoverBackground);
+}
+
+.branch-item.is-active {
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  border-color: var(--vscode-list-activeSelectionForeground);
+}
+
+.branch-item-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.branch-item-name {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.branch-item-meta {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.branch-remote-badge {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.branch-tabs-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.remote-branch-group {
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 4px;
+  margin-top: 6px;
+}
+
+.remote-branch-group-header {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.remote-branch-group-header .codicon {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.remote-branch-group.is-collapsed .remote-branch-group-header .codicon {
+  transform: rotate(-90deg);
+}
+
+.remote-branch-group-content {
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.remote-branch-group.is-collapsed .remote-branch-group-content {
+  display: none;
 }
 
 /* ==================== 搜索框样式 ==================== */

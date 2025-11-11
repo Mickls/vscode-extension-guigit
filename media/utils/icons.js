@@ -26,6 +26,7 @@ export const CodiconMap = {
     // 面板控制图标
     collapseLeft: 'chevron-left',
     collapseRight: 'chevron-right',
+    chevronDown: 'chevron-down',
     
     // Git操作图标
     pull: 'repo-pull',

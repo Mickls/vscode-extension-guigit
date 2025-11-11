@@ -10,6 +10,15 @@
     "noCommitsFound": "コミットが見つかりませんでした",
     "noCommitsFoundForSearch": "\"{0}\" に一致するコミットは見つかりませんでした",
     "allBranches": "すべてのブランチ",
+    "branchTabs": {
+      "recent": "最近",
+      "local": "ローカル",
+      "remote": "リモート",
+      "noRecent": "最近のブランチはありません",
+      "noLocal": "ローカルブランチがありません",
+      "noRemote": "リモートブランチがありません",
+      "all": "すべてのブランチ"
+    },
     "pullTooltip": "Pull (Ctrl+クリックで詳細オプション)",
     "pushTooltip": "Push (Ctrl+クリックで詳細オプション)",
     "fetchTooltip": "Fetch",

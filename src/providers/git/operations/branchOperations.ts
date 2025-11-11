@@ -19,11 +19,15 @@ export class GitBranchOperations {
   async getBranches(): Promise<GitBranch[]> {
     try {
       const branchSummary = await this.git.branch();
-      const branches = branchSummary.all.map((branch) => ({
-        name: branch,
-        current: branch === branchSummary.current,
-        commit: "",
-      }));
+      const branches = branchSummary.all
+        .filter((branch) => !this._isRemoteTrackingBranch(branch))
+        .map((branch) => ({
+          name: branch,
+          shortName: branch,
+          current: branch === branchSummary.current,
+          commit: "",
+          type: "local" as const,
+        }));
 
       // 对分支进行排序，让 main 或 master 排在最上方
       return branches.sort((a, b) => {
@@ -55,6 +59,19 @@ export class GitBranchOperations {
       console.error("Failed to get branches:", error);
       return [];
     }
+  }
+
+  private _isRemoteTrackingBranch(branchName: string): boolean {
+    if (!branchName) {
+      return false;
+    }
+    const normalized = branchName.trim();
+    return (
+      normalized.startsWith("remotes/") ||
+      normalized.startsWith("remote/") ||
+      normalized.startsWith("origin/") ||
+      normalized.includes("->")
+    );
   }
 
   /**

@@ -76,9 +76,20 @@ export const Templates = {
                 <div class="container">
                     <div class="header">
                         <div class="header-left">
-                            <select id="branchSelect" class="branch-select">
-                                <option value="">${i18n.t('allBranches')}</option>
-                            </select>
+                            <div class="branch-switcher" id="branchSwitcher">
+                                <button id="branchSwitcherToggle" class="branch-switcher-toggle" aria-haspopup="true" aria-expanded="false">
+                                    <span id="branchSwitcherLabel">${i18n.t('allBranches')}</span>
+                                    ${getIcon('chevronDown', { size: 'small', className: 'branch-switcher-icon' })}
+                                </button>
+                                <div class="branch-switcher-panel" id="branchSwitcherPanel">
+                                    <div class="branch-switcher-global" id="branchGlobalSection">
+                                        <div class="branch-tabs-empty">${i18n.t('loading')}</div>
+                                    </div>
+                                    <div class="branch-tabs" id="branchTabs">
+                                        <div class="branch-tabs-empty">${i18n.t('loading')}</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="header-right">
                             <div class="git-operations">

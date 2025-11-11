@@ -16,6 +16,9 @@ export interface GitBranch {
   name: string;
   current: boolean;
   commit: string;
+  type?: "local" | "remote";
+  remote?: string;
+  shortName?: string;
 }
 
 export interface GitRepository {

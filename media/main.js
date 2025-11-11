@@ -69,7 +69,12 @@ import { translate } from './utils/i18n-utils.js';
 
     // DOM元素引用
     const repositorySelect = document.getElementById('repositorySelect'); // 仓库选择下拉框
-    const branchSelect = document.getElementById('branchSelect');         // 分支选择下拉框
+    const branchSwitcher = document.getElementById('branchSwitcher');     // 分支切换器容器
+    const branchSwitcherToggle = document.getElementById('branchSwitcherToggle'); // 切换器按钮
+    const branchSwitcherPanel = document.getElementById('branchSwitcherPanel');   // 切换器面板
+    const branchSwitcherLabel = document.getElementById('branchSwitcherLabel');   // 当前分支标签
+    const branchGlobalSection = document.getElementById('branchGlobalSection');   // 全局选项区域
+    const branchTabsContainer = document.getElementById('branchTabs');    // 分支标签容器
     const commitSearchInput = document.getElementById('commitSearchInput'); // 提交搜索输入框
     const clearSearchBtn = document.getElementById('clearSearchBtn');     // 清除搜索按钮
     const refreshBtn = document.getElementById('refreshBtn');             // 刷新按钮
@@ -112,6 +117,17 @@ import { translate } from './utils/i18n-utils.js';
         remotes: []
     };
     let remoteManagerStatusHideTimeout = null;
+
+    const RECENT_BRANCH_STORAGE_KEY = 'guigit:recentBranches';
+    const DEFAULT_REPOSITORY_KEY = '__default_repository__';
+    const branchTabState = {
+        collapsed: {
+            recent: false,
+            local: false,
+            remote: false
+        },
+        remoteCollapsed: {}
+    };
 
     // 事件监听器设置
     // 添加滚动监听器以实现无限滚动加载
@@ -204,17 +220,32 @@ import { translate } from './utils/i18n-utils.js';
                 repositoryPath: repositoryPath
             });
         }
+        setState('currentRepositoryPath', repositoryPath || '');
+        syncRecentBranchesState(repositoryPath || '');
+        renderBranchTabs(getState('branches'));
     });
 
-    // 分支选择变更事件
-    branchSelect.addEventListener('change', (e) => {
-        setCurrentBranch(e.target.value);
-        resetCommitState();
-        // 注意：不重置currentCommit，让updateCommitHistory函数来处理
-        // 性能优化：切换分支时清理缓存
-        clearAllCache();
-        updateMultiSelectInfo();
-        loadCommits(true);
+    if (branchSwitcherToggle) {
+        branchSwitcherToggle.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleBranchPanel();
+        });
+    }
+
+    document.addEventListener('click', (event) => {
+        if (!branchSwitcher) {
+            return;
+        }
+        if (branchSwitcher.contains(event.target)) {
+            return;
+        }
+        closeBranchPanel();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeBranchPanel();
+        }
     });
 
     // 刷新按钮点击事件
@@ -599,7 +630,11 @@ import { translate } from './utils/i18n-utils.js';
      * 更新仓库列表
      * @param {Array} repositories - 仓库数据数组
      */
-    function updateRepositories(repositories) {
+    function updateRepositories(repositories = []) {
+        if (!repositorySelect) {
+            return;
+        }
+
         repositorySelect.innerHTML = '';
 
         // 遍历仓库数据，创建选项元素
@@ -620,7 +655,16 @@ import { translate } from './utils/i18n-utils.js';
             option.textContent = translate('noRepositoriesFound', 'No repositories found');
             option.disabled = true;
             repositorySelect.appendChild(option);
+            setState('currentRepositoryPath', '');
+            syncRecentBranchesState('');
+            renderBranchTabs(getState('branches'));
+            return;
         }
+
+        const activeRepo = repositories.find(repo => repo.isActive) || repositories[0];
+        setState('currentRepositoryPath', activeRepo ? activeRepo.path : '');
+        syncRecentBranchesState(activeRepo ? activeRepo.path : '');
+        renderBranchTabs(getState('branches'));
     }
 
     /**
@@ -636,6 +680,13 @@ import { translate } from './utils/i18n-utils.js';
         if (option) {
             option.selected = true;
         }
+
+        setState('currentRepositoryPath', repository.path || '');
+        syncRecentBranchesState(repository.path || '');
+        setCurrentBranch('all');
+        updateBranchSwitcherLabel('all');
+        closeBranchPanel();
+        renderBranchTabs(getState('branches'));
         
         // 重置状态
         resetCommitState();
@@ -648,33 +699,530 @@ import { translate } from './utils/i18n-utils.js';
      * @param {Array} branchData - 分支数据数组
      */
     function updateBranches(branchData) {
-        setState('branches', branchData);
-        
-        // 保存当前选中的分支
-        const currentSelectedBranch = getState('currentBranch') || 'all';
-        
-        branchSelect.innerHTML = Templates.defaultBranchOption();
+        const normalizedData = normalizeBranchData(branchData);
+        setState('branches', normalizedData);
+        syncRecentBranchesState(getState('currentRepositoryPath') || '');
 
-        // 遍历分支数据，创建选项元素
-        branchData.forEach(branch => {
-            const option = document.createElement('option');
-            option.value = branch.name;
-            option.textContent = branch.name + (branch.current ? ' (current)' : '');
-            branchSelect.appendChild(option);
+        const currentSelectedBranch = getState('currentBranch') || 'all';
+        const branchExists = branchValueExists(currentSelectedBranch, normalizedData);
+
+        if (!branchExists) {
+            setCurrentBranch('all');
+            updateBranchSwitcherLabel('all');
+        } else {
+            updateBranchSwitcherLabel(currentSelectedBranch);
+        }
+
+        renderBranchTabs(normalizedData);
+    }
+
+    /**
+     * 规范化分支数据，确保始终包含本地与远程数组
+     */
+    function normalizeBranchData(data) {
+        if (!data || typeof data !== 'object') {
+            return {
+                locals: [],
+                remotes: []
+            };
+        }
+        return {
+            locals: Array.isArray(data.locals) ? data.locals : [],
+            remotes: Array.isArray(data.remotes) ? data.remotes : []
+        };
+    }
+
+    /**
+     * 判断当前选中的分支是否仍然可用
+     */
+    function branchValueExists(branchValue, branchData) {
+        if (!branchValue || branchValue === 'all') {
+            return true;
+        }
+
+        const locals = Array.isArray(branchData.locals) ? branchData.locals : [];
+        if (locals.some(branch => branch.name === branchValue)) {
+            return true;
+        }
+
+        const remotes = Array.isArray(branchData.remotes) ? branchData.remotes : [];
+        if (remotes.some(group => Array.isArray(group.branches) && group.branches.some(branch => branch.name === branchValue))) {
+            return true;
+        }
+
+        const recents = getState('recentBranches') || [];
+        return recents.some(entry => entry.value === branchValue);
+    }
+
+    /**
+     * 渲染全局分支操作（例如“所有分支”）
+     */
+    function renderGlobalBranchActions() {
+        if (!branchGlobalSection) {
+            return;
+        }
+        const allEntry = createAllBranchesEntry();
+        branchGlobalSection.innerHTML = '';
+        const button = createBranchButton(allEntry, { extraClass: 'branch-item-global' });
+        branchGlobalSection.appendChild(button);
+    }
+
+    /**
+     * 渲染分支切换面板
+     * @param {Object} branchData - 分支数据
+     */
+    function renderBranchTabs(branchData) {
+        if (!branchTabsContainer) {
+            return;
+        }
+
+        renderGlobalBranchActions();
+
+        const locals = Array.isArray(branchData.locals) ? branchData.locals : [];
+        const remotes = Array.isArray(branchData.remotes) ? branchData.remotes : [];
+        const recentBranches = getState('recentBranches') || [];
+
+        const tabs = [
+            {
+                key: 'recent',
+                label: translate('branchTabs.recent', 'Recent'),
+                type: 'list',
+                items: recentBranches,
+                emptyText: translate('branchTabs.noRecent', 'No recent branches')
+            },
+            {
+                key: 'local',
+                label: translate('branchTabs.local', 'Local'),
+                type: 'list',
+                items: buildLocalBranchEntries(locals),
+                emptyText: translate('branchTabs.noLocal', 'No local branches')
+            },
+            {
+                key: 'remote',
+                label: translate('branchTabs.remote', 'Remote'),
+                type: 'remote',
+                groups: remotes,
+                emptyText: translate('branchTabs.noRemote', 'No remote branches')
+            }
+        ];
+
+        const remoteNames = remotes
+            .map(group => group && group.remote)
+            .filter(Boolean);
+        Object.keys(branchTabState.remoteCollapsed).forEach(remoteName => {
+            if (!remoteNames.includes(remoteName)) {
+                delete branchTabState.remoteCollapsed[remoteName];
+            }
         });
 
-        // 检查当前选中的分支是否仍然存在于新的分支列表中
-        const branchExists = currentSelectedBranch === 'all' || 
-                            branchData.some(branch => branch.name === currentSelectedBranch);
-        
-        if (branchExists) {
-            // 如果当前分支仍然存在，保持选中状态
-            branchSelect.value = currentSelectedBranch;
-            setCurrentBranch(currentSelectedBranch);
+        branchTabsContainer.innerHTML = '';
+
+        tabs.forEach(tab => {
+            const tabElement = document.createElement('div');
+            tabElement.className = 'branch-tab';
+            if (branchTabState.collapsed[tab.key]) {
+                tabElement.classList.add('is-collapsed');
+            }
+
+            const headerButton = document.createElement('button');
+            headerButton.type = 'button';
+            headerButton.className = 'branch-tab-header';
+            const headerLabel = document.createElement('span');
+            headerLabel.textContent = tab.label;
+            const headerIcon = document.createElement('i');
+            headerIcon.className = 'codicon codicon-chevron-down';
+            headerButton.appendChild(headerLabel);
+            headerButton.appendChild(headerIcon);
+            headerButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                branchTabState.collapsed[tab.key] = !branchTabState.collapsed[tab.key];
+                renderBranchTabs(branchData);
+            });
+            tabElement.appendChild(headerButton);
+
+            const content = document.createElement('div');
+            content.className = 'branch-tab-content';
+
+            if (tab.type === 'list') {
+                if (!tab.items || tab.items.length === 0) {
+                    content.innerHTML = `<div class="branch-tabs-empty">${escapeHtml(tab.emptyText)}</div>`;
+                } else {
+                    tab.items.forEach(item => {
+                        const entryButton = createBranchButton(item);
+                        content.appendChild(entryButton);
+                    });
+                }
+            } else if (tab.type === 'remote') {
+                const groups = Array.isArray(tab.groups) ? tab.groups : [];
+                if (groups.length === 0) {
+                    content.innerHTML = `<div class="branch-tabs-empty">${escapeHtml(tab.emptyText)}</div>`;
+                } else {
+                    groups.forEach(group => {
+                        if (!group || !group.remote) {
+                            return;
+                        }
+                        const groupElement = document.createElement('div');
+                        groupElement.className = 'remote-branch-group';
+                        if (branchTabState.remoteCollapsed[group.remote]) {
+                            groupElement.classList.add('is-collapsed');
+                        }
+
+                        const groupHeader = document.createElement('button');
+                        groupHeader.type = 'button';
+                        groupHeader.className = 'remote-branch-group-header';
+                        const groupLabel = document.createElement('span');
+                        groupLabel.textContent = group.remote;
+                        const groupIcon = document.createElement('i');
+                        groupIcon.className = 'codicon codicon-chevron-down';
+                        groupHeader.appendChild(groupLabel);
+                        groupHeader.appendChild(groupIcon);
+                        groupHeader.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            branchTabState.remoteCollapsed[group.remote] = !branchTabState.remoteCollapsed[group.remote];
+                            renderBranchTabs(branchData);
+                        });
+
+                        const groupContent = document.createElement('div');
+                        groupContent.className = 'remote-branch-group-content';
+                        const branches = Array.isArray(group.branches) ? group.branches : [];
+                        if (branches.length === 0) {
+                            const empty = document.createElement('div');
+                            empty.className = 'branch-tabs-empty';
+                            empty.textContent = tab.emptyText;
+                            groupContent.appendChild(empty);
+                        } else {
+                            branches.forEach(branch => {
+                                const entryButton = createBranchButton(toRemoteBranchEntry(branch, group.remote));
+                                groupContent.appendChild(entryButton);
+                            });
+                        }
+
+                        groupElement.appendChild(groupHeader);
+                        groupElement.appendChild(groupContent);
+                        content.appendChild(groupElement);
+                    });
+                }
+            }
+
+            tabElement.appendChild(content);
+            branchTabsContainer.appendChild(tabElement);
+        });
+    }
+
+    /**
+     * 构建本地分支入口列表，包含“所有分支”选项
+     */
+    function buildLocalBranchEntries(locals) {
+        const entries = [];
+        (locals || [])
+            .filter(isLocalBranchRecord)
+            .forEach(branch => {
+                entries.push(toLocalBranchEntry(branch));
+            });
+        return entries;
+    }
+
+    function isLocalBranchRecord(branch) {
+        if (!branch) {
+            return false;
+        }
+        if (branch.type) {
+            return branch.type === 'local';
+        }
+        if (branch.remote) {
+            return false;
+        }
+        const name = branch.shortName || branch.name || '';
+        return Boolean(name) && !name.includes('/');
+    }
+
+    /**
+     * 创建“所有分支”入口
+     */
+    function createAllBranchesEntry() {
+        return {
+            value: 'all',
+            label: getAllBranchesLabel(),
+            type: 'all'
+        };
+    }
+
+    /**
+     * 将本地分支转换为入口对象
+     */
+    function toLocalBranchEntry(branch) {
+        if (!branch) {
+            return createAllBranchesEntry();
+        }
+        return {
+            value: branch.name,
+            label: branch.shortName || branch.name,
+            type: 'local'
+        };
+    }
+
+    /**
+     * 将远程分支转换为入口对象
+     */
+    function toRemoteBranchEntry(branch, remoteName) {
+        if (!branch) {
+            return null;
+        }
+        return {
+            value: branch.name,
+            label: branch.shortName || branch.name,
+            remote: remoteName || branch.remote || null,
+            type: 'remote'
+        };
+    }
+
+    /**
+     * 创建分支项按钮
+     */
+    function createBranchButton(entry, options = {}) {
+        if (!entry) {
+            return document.createElement('span');
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'branch-item';
+        if (options.extraClass) {
+            button.classList.add(options.extraClass);
+        }
+
+        const currentBranch = getState('currentBranch') || 'all';
+        if ((entry.value || 'all') === currentBranch) {
+            button.classList.add('is-active');
+        }
+
+        const labelWrapper = document.createElement('div');
+        labelWrapper.className = 'branch-item-label';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'branch-item-name';
+        nameEl.textContent = entry.label || entry.value || getAllBranchesLabel();
+        labelWrapper.appendChild(nameEl);
+
+        if (entry.meta) {
+            const metaEl = document.createElement('span');
+            metaEl.className = 'branch-item-meta';
+            metaEl.textContent = entry.meta;
+            labelWrapper.appendChild(metaEl);
+        }
+
+        button.appendChild(labelWrapper);
+
+        if (entry.remote) {
+            const badge = document.createElement('span');
+            badge.className = 'branch-remote-badge';
+            badge.textContent = entry.remote;
+            button.appendChild(badge);
+        }
+
+        button.addEventListener('click', () => handleBranchSelection(entry));
+
+        return button;
+    }
+
+    /**
+     * 处理分支选择
+     */
+    function handleBranchSelection(entry, options = {}) {
+        if (!entry) {
+            return;
+        }
+        const branchValue = entry.value || 'all';
+        const currentBranch = getState('currentBranch') || 'all';
+        const shouldReload = options.forceReload || branchValue !== currentBranch;
+
+        setCurrentBranch(branchValue);
+        updateBranchSwitcherLabel(branchValue, entry.label);
+        if (!options.skipRecent) {
+            recordRecentBranch(entry);
+        }
+        closeBranchPanel();
+        renderBranchTabs(getState('branches'));
+
+        if (!shouldReload) {
+            return;
+        }
+
+        resetCommitState();
+        clearAllCache();
+        updateMultiSelectInfo();
+        loadCommits(true);
+    }
+
+    /**
+     * 根据分支名称生成入口对象
+     */
+    function describeBranchEntry(branchValue) {
+        if (!branchValue || branchValue === 'all') {
+            return createAllBranchesEntry();
+        }
+
+        const branchData = getState('branches') || {};
+        const locals = Array.isArray(branchData.locals) ? branchData.locals : [];
+        const localMatch = locals.find(branch => branch.name === branchValue);
+        if (localMatch) {
+            return toLocalBranchEntry(localMatch);
+        }
+
+        const remotes = Array.isArray(branchData.remotes) ? branchData.remotes : [];
+        for (const group of remotes) {
+            if (!group || !Array.isArray(group.branches)) {
+                continue;
+            }
+            const match = group.branches.find(branch => branch.name === branchValue);
+            if (match) {
+                return toRemoteBranchEntry(match, group.remote);
+            }
+        }
+
+        const recents = getState('recentBranches') || [];
+        const recentMatch = recents.find(item => item.value === branchValue);
+        if (recentMatch) {
+            return recentMatch;
+        }
+
+        const slashIndex = branchValue.indexOf('/');
+        if (slashIndex > 0 && slashIndex < branchValue.length - 1) {
+            return {
+                value: branchValue,
+                label: branchValue.slice(slashIndex + 1),
+                remote: branchValue.slice(0, slashIndex),
+                type: 'remote'
+            };
+        }
+
+        return {
+            value: branchValue,
+            label: branchValue,
+            type: 'local'
+        };
+    }
+
+    /**
+     * 记录最近使用的分支
+     */
+    function recordRecentBranch(entry) {
+        if (!entry || !entry.value || entry.value === 'all') {
+            return;
+        }
+
+        const repoPath = getState('currentRepositoryPath') || '';
+        const storage = readRecentBranchStorage();
+        const key = getRepositoryStorageKey(repoPath);
+        const list = Array.isArray(storage[key]) ? storage[key] : [];
+
+        const normalizedEntry = {
+            value: entry.value,
+            label: entry.label || entry.value,
+            remote: entry.remote || null,
+            type: entry.type || (entry.remote ? 'remote' : 'local')
+        };
+
+        const filtered = list.filter(item => item.value !== normalizedEntry.value);
+        filtered.unshift(normalizedEntry);
+        storage[key] = filtered.slice(0, 5);
+        writeRecentBranchStorage(storage);
+        setState('recentBranches', storage[key]);
+    }
+
+    /**
+     * 同步当前仓库的最近分支状态
+     */
+    function syncRecentBranchesState(repoPath) {
+        const storage = readRecentBranchStorage();
+        const key = getRepositoryStorageKey(repoPath);
+        const list = Array.isArray(storage[key]) ? storage[key] : [];
+        setState('recentBranches', list);
+    }
+
+    function readRecentBranchStorage() {
+        try {
+            const raw = localStorage.getItem(RECENT_BRANCH_STORAGE_KEY);
+            if (!raw) {
+                return {};
+            }
+            const parsed = JSON.parse(raw);
+            return typeof parsed === 'object' && parsed !== null ? parsed : {};
+        } catch (error) {
+            console.warn('Failed to read recent branch storage:', error);
+            return {};
+        }
+    }
+
+    function writeRecentBranchStorage(storage) {
+        try {
+            localStorage.setItem(RECENT_BRANCH_STORAGE_KEY, JSON.stringify(storage));
+        } catch (error) {
+            console.warn('Failed to persist recent branches:', error);
+        }
+    }
+
+    function getRepositoryStorageKey(repoPath) {
+        return repoPath && repoPath.length > 0 ? repoPath : DEFAULT_REPOSITORY_KEY;
+    }
+
+    /**
+     * 更新分支切换器标签
+     */
+    function updateBranchSwitcherLabel(branchValue, explicitLabel) {
+        if (!branchSwitcherLabel) {
+            return;
+        }
+
+        const label = explicitLabel || (describeBranchEntry(branchValue || 'all').label);
+        branchSwitcherLabel.textContent = label;
+        if (branchSwitcherToggle) {
+            branchSwitcherToggle.setAttribute('title', label);
+        }
+    }
+
+    /**
+     * 获取“所有分支”标签
+     */
+    function getAllBranchesLabel() {
+        return translate('branchTabs.all', translate('allBranches', 'All branches'));
+    }
+
+    /**
+     * 切换分支面板显示状态
+     */
+    function toggleBranchPanel(forceOpen) {
+        if (!branchSwitcher || !branchSwitcherToggle) {
+            return;
+        }
+        const isOpen = branchSwitcher.classList.contains('is-open');
+        const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
+        if (shouldOpen) {
+            openBranchPanel();
         } else {
-            // 如果当前分支不存在了，才重置为"All branches"
-            branchSelect.value = 'all';
-            setCurrentBranch('all');
+            closeBranchPanel();
+        }
+    }
+
+    function openBranchPanel() {
+        if (!branchSwitcher || !branchSwitcherToggle) {
+            return;
+        }
+        branchSwitcher.classList.add('is-open');
+        branchSwitcherToggle.setAttribute('aria-expanded', 'true');
+        if (branchSwitcherPanel) {
+            branchSwitcherPanel.setAttribute('data-open', 'true');
+        }
+    }
+
+    function closeBranchPanel() {
+        if (!branchSwitcher || !branchSwitcherToggle) {
+            return;
+        }
+        branchSwitcher.classList.remove('is-open');
+        branchSwitcherToggle.setAttribute('aria-expanded', 'false');
+        if (branchSwitcherPanel) {
+            branchSwitcherPanel.setAttribute('data-open', 'false');
         }
     }
 
@@ -1760,18 +2308,8 @@ import { translate } from './utils/i18n-utils.js';
         // 设置要跳转的提交
         setPendingJumpCommit(commitHash);
 
-        // 切换分支
-        setCurrentBranch(branchName);
-        branchSelect.value = branchName;
-
-        // 重新加载提交历史
-        setStates({
-            loadedCommits: 0,
-            commits: []
-        });
-        updateSelectedCommits([]);
-        updateMultiSelectInfo();
-        loadCommits(true);
+        const entry = describeBranchEntry(branchName);
+        handleBranchSelection(entry, { forceReload: true });
     };
 
     // ==================== 初始化 ====================

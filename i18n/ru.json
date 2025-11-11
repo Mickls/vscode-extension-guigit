@@ -10,6 +10,15 @@
     "noCommitsFound": "Коммиты не найдены",
     "noCommitsFoundForSearch": "Коммиты для \"{0}\" не найдены",
     "allBranches": "Все ветки",
+    "branchTabs": {
+      "recent": "Недавние",
+      "local": "Локальные",
+      "remote": "Удалённые",
+      "noRecent": "Недавних веток нет",
+      "noLocal": "Локальных веток нет",
+      "noRemote": "Удалённых веток нет",
+      "all": "Все ветки"
+    },
     "pullTooltip": "Pull (Ctrl+клик для дополнительных опций)",
     "pushTooltip": "Push (Ctrl+клик для дополнительных опций)",
     "fetchTooltip": "Fetch",

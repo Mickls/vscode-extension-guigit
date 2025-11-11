@@ -10,6 +10,15 @@
     "noCommitsFound": "未找到提交记录",
     "noCommitsFoundForSearch": "未找到与 \"{0}\" 匹配的提交",
     "allBranches": "所有分支",
+    "branchTabs": {
+      "recent": "最近",
+      "local": "本地",
+      "remote": "远程",
+      "noRecent": "暂无最近的分支",
+      "noLocal": "暂无本地分支",
+      "noRemote": "暂无远程分支",
+      "all": "所有分支"
+    },
     "pullTooltip": "拉取 (Ctrl+点击获取高级选项)",
     "pushTooltip": "推送 (Ctrl+点击获取高级选项)",
     "fetchTooltip": "抓取",

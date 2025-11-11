@@ -10,11 +10,16 @@
 const state = {
     // 数据状态
     commits: [],           // 提交记录列表
-    branches: [],          // 分支列表
+    branches: {            // 分支分组数据
+        locals: [],
+        remotes: []
+    },
     selectedCommits: [],   // 选中的提交记录
     currentCommit: null,   // 当前查看的提交
     currentBranch: '',     // 当前分支
-    
+    currentRepositoryPath: '', // 当前仓库路径
+    recentBranches: [],    // 最近切换的分支
+
     // 加载状态
     loadedCommits: 0,      // 已加载的提交数量
     totalCommits: 0,       // 总提交数量
@@ -220,10 +225,15 @@ export function resetCommitState() {
 export function resetAllState() {
     setStates({
         commits: [],
-        branches: [],
+        branches: {
+            locals: [],
+            remotes: []
+        },
         selectedCommits: [],
         currentCommit: null,
         currentBranch: '',
+        currentRepositoryPath: '',
+        recentBranches: [],
         loadedCommits: 0,
         totalCommits: 0,
         isLoading: false,
