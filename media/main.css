@@ -252,6 +252,8 @@ body {
   background: transparent;
   color: var(--vscode-foreground);
   cursor: pointer;
+  min-width: 0;
+  text-align: left;
 }
 
 .branch-item:hover {
@@ -268,16 +270,24 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .branch-item-name {
   font-size: 13px;
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .branch-item-meta {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .branch-remote-badge {
@@ -286,6 +296,7 @@ body {
   border-radius: 999px;
   background-color: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
+  flex-shrink: 0;
 }
 
 .branch-tabs-empty {
