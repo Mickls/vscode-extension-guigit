@@ -183,6 +183,32 @@ describe("CommitService", () => {
     expect(result.commits.map((commit) => commit.hash)).toEqual(["abc1234567890abcdef"]);
   });
 
+  it("trims git record separators from commit hashes", async () => {
+    const service = new CommitService({
+      cache: new CacheService(),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args[0] === "log") {
+          return [
+            commitLine({ hash: "abc1234567890abcdef", subject: "First" }),
+            commitLine({ hash: "def4567890abcdefabc", subject: "Second" })
+          ].join(`${record}\n`);
+        }
+
+        return "nobody\n";
+      }
+    });
+
+    const result = await service.loadHistory({
+      pageSize: 20,
+      repositoryRoot: "/workspace/repo"
+    });
+
+    expect(result.commits.map((commit) => commit.hash)).toEqual([
+      "abc1234567890abcdef",
+      "def4567890abcdefabc"
+    ]);
+  });
+
   it("caches total commit counts by repository and filters", async () => {
     const revListCalls: string[][] = [];
     const service = new CommitService({

@@ -165,7 +165,7 @@ function parseCommitLog(output: string): readonly ParsedCommit[] {
     .split(recordSeparator)
     .filter(Boolean)
     .map((line) => {
-      const fields = line.split(fieldSeparator);
+      const fields = line.trim().split(fieldSeparator);
       const hash = fields[0]!;
       const date = fields[1]!;
       const message = fields[2]!;
