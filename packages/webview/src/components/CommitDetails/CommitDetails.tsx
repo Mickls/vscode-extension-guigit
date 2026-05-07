@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { CommitDetailsViewModel } from "../../app/rpcContract.generated";
+import { FileChanges } from "../FileChanges/FileChanges";
 
 const sampleCommit: CommitDetailsViewModel = {
   author: "Mickls",
@@ -50,23 +51,7 @@ export function CommitDetails({ commit = sampleCommit }: CommitDetailsProps): Re
           {commit.body}
         </p>
       </section>
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold">Files Changed</h3>
-        <div className="rounded-[3px] border border-[var(--vscode-panel-border)]">
-          {commit.files.map((file) => (
-            <div
-              className="flex items-center justify-between border-b border-[var(--vscode-panel-border)] px-2 py-1.5 last:border-b-0"
-              key={file.path}
-            >
-              <span className="truncate">{file.path}</span>
-              <span className="shrink-0 text-[11px]">
-                <span className="text-[#28a745]">+{file.insertions}</span>{" "}
-                <span className="text-[#dc3545]">-{file.deletions}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
+      <FileChanges files={commit.files} mode="list" />
     </div>
   );
 }

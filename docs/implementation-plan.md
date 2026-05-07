@@ -258,11 +258,11 @@ gui-git-history/
 - Create: `packages/extension/src/backend/git/FileService.ts`
 - Create: `packages/webview/src/components/FileChanges/FileChanges.tsx`
 
-- [ ] Return commit metadata and file change list.
-- [ ] Support list and tree file view models.
-- [ ] Preserve file status, insertions, deletions, and binary indicators.
-- [ ] Store file view mode under `guigit.fileViewMode`.
-- [ ] Commit with `feat: add commit details and file changes`.
+- [x] Return commit metadata and file change list.
+- [x] Support list and tree file view models.
+- [x] Preserve file status, insertions, deletions, and binary indicators.
+- [x] Store file view mode under `guigit.fileViewMode`.
+- [x] Commit with `feat: add commit details and file changes`.
 
 ### Task 3.4: Git graph layout
 
