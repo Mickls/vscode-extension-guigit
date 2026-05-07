@@ -152,11 +152,11 @@ gui-git-history/
 - Create: `packages/webview/src/app/App.tsx`
 - Create: `packages/webview/src/styles/globals.wind.css`
 
-- [ ] Build a minimal Webview bundle that renders `GUI Git History`.
-- [ ] Use TypeScript files only.
-- [ ] Keep CSS limited to WindCSS/Tailwind entry and generated output; do not hand-write ordinary CSS modules.
-- [ ] Run `pnpm build`.
-- [ ] Commit with `feat: add webview shell`.
+- [x] Build a minimal Webview bundle that renders `GUI Git History`.
+- [x] Use TypeScript files only.
+- [x] Keep CSS limited to WindCSS/Tailwind entry and generated output; do not hand-write ordinary CSS modules.
+- [x] Run `pnpm build`.
+- [x] Commit with `feat: add webview shell`.
 
 ## Phase 1: Typed RPC Boundary
 
