@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { MouseEvent, ReactElement } from "react";
 import type { CommitListItemViewModel, GraphLayoutViewModel } from "../../app/rpcContract.generated";
 import { GitGraph } from "../GitGraph/GitGraph";
 
@@ -47,9 +47,14 @@ const sampleGraph: GraphLayoutViewModel = {
 export interface CommitListProps {
   commits?: readonly CommitListItemViewModel[];
   graph?: GraphLayoutViewModel;
+  onCommitContextMenu?: (event: MouseEvent<HTMLElement>, commit: CommitListItemViewModel) => void;
 }
 
-export function CommitList({ commits = sampleCommits, graph = sampleGraph }: CommitListProps): ReactElement {
+export function CommitList({
+  commits = sampleCommits,
+  graph = sampleGraph,
+  onCommitContextMenu
+}: CommitListProps): ReactElement {
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <div className="w-[120px] shrink-0 border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]">
@@ -61,6 +66,7 @@ export function CommitList({ commits = sampleCommits, graph = sampleGraph }: Com
             className="flex min-h-9 cursor-pointer select-none border-b border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
             data-testid="commit-row"
             key={commit.hash}
+            onContextMenu={(event) => onCommitContextMenu?.(event, commit)}
           >
             <div
               className={`grid min-w-[550px] flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] items-center gap-3 px-3 py-2 ${index === 0 ? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]" : "bg-[var(--vscode-editor-background)]"}`}

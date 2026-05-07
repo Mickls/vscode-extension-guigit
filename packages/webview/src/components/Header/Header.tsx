@@ -2,7 +2,12 @@ import type { ReactElement } from "react";
 
 const toolbarActions = ["Refresh", "Pull", "Push", "Fetch", "Settings"] as const;
 
-export function Header(): ReactElement {
+export interface HeaderProps {
+  onSettingsClick?: () => void;
+  settingsOpen?: boolean;
+}
+
+export function Header({ onSettingsClick, settingsOpen = false }: HeaderProps): ReactElement {
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] px-2">
       <button
@@ -27,8 +32,10 @@ export function Header(): ReactElement {
         {toolbarActions.map((action) => (
           <button
             aria-label={action}
+            aria-expanded={action === "Settings" ? settingsOpen : undefined}
             className="flex h-7 min-w-7 items-center justify-center rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             key={action}
+            onClick={action === "Settings" ? onSettingsClick : undefined}
             title={action}
             type="button"
           >

@@ -214,11 +214,11 @@ gui-git-history/
 - Create: `packages/webview/src/components/RemoteManager/RemoteManager.tsx`
 - Create: `packages/webview/src/components/CompareOverlay/CompareOverlay.tsx`
 
-- [ ] Context menu contains all old actions in the same order.
-- [ ] Settings menu contains reset stash, proxy, remote manager, and language actions.
-- [ ] Remote manager keeps the current table-style modal.
-- [ ] Compare overlay keeps the current full-panel behavior.
-- [ ] Commit with `feat: recreate menus and overlays`.
+- [x] Context menu contains all old actions in the same order.
+- [x] Settings menu contains reset stash, proxy, remote manager, and language actions.
+- [x] Remote manager keeps the current table-style modal.
+- [x] Compare overlay keeps the current full-panel behavior.
+- [x] Commit with `feat: recreate menus and overlays`.
 
 ## Phase 3: Read-Only Git Data
 
