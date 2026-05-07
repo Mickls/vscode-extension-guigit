@@ -52,6 +52,16 @@ export interface BranchViewModel {
   remote?: string;
 }
 
+export interface RemoteBranchGroupViewModel {
+  remote: string;
+  branches: readonly BranchViewModel[];
+}
+
+export interface BranchesViewModel {
+  locals: readonly BranchViewModel[];
+  remotes: readonly RemoteBranchGroupViewModel[];
+}
+
 export interface CommitListItemViewModel {
   hash: string;
   shortHash: string;
@@ -194,12 +204,12 @@ export type RpcRequest =
 export interface RpcPayloadByType {
   "history.load": {
     repositories: readonly RepositoryViewModel[];
-    branches: readonly BranchViewModel[];
+    branches: BranchesViewModel;
     commits: readonly CommitListItemViewModel[];
     hasMore: boolean;
     nextCursor?: string;
   };
-  "branches.list": { branches: readonly BranchViewModel[] };
+  "branches.list": { branches: BranchesViewModel };
   "commits.getDetails": { commit: CommitDetailsViewModel };
   "files.getChanges": { files: readonly FileChangeViewModel[]; mode: FileViewMode };
   "graph.getLayout": { graph: GraphLayoutViewModel };

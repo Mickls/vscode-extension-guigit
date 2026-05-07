@@ -230,12 +230,12 @@ gui-git-history/
 - Create: `packages/extension/src/backend/git/BranchService.ts`
 - Create: `packages/extension/src/state/WorkspaceStateService.ts`
 
-- [ ] Discover Git repositories in all workspace folders.
-- [ ] Include parent repository discovery for nested workspaces.
-- [ ] Sort repositories by workspace proximity.
-- [ ] Switch current repository when the active editor belongs to another repository.
-- [ ] Return local branches and remote branches grouped by remote.
-- [ ] Commit with `feat: add repository and branch services`.
+- [x] Discover Git repositories in all workspace folders.
+- [x] Include parent repository discovery for nested workspaces.
+- [x] Sort repositories by workspace proximity.
+- [x] Switch current repository when the active editor belongs to another repository.
+- [x] Return local branches and remote branches grouped by remote.
+- [x] Commit with `feat: add repository and branch services`.
 
 ### Task 3.2: Commit history and search
 

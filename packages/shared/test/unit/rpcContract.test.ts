@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allRpcRequestTypes,
   backendRpcHandlerTypes,
+  type BranchesViewModel,
   type RpcRequest,
   type RpcResponse
 } from "../../src/rpc/contract";
@@ -33,7 +34,10 @@ describe("RPC contract", () => {
       type: "history.load",
       payload: {
         repositories: [],
-        branches: [],
+        branches: {
+          locals: [],
+          remotes: []
+        },
         commits: [],
         hasMore: false
       }
@@ -51,5 +55,19 @@ describe("RPC contract", () => {
 
     expect(success.ok).toBe(true);
     expect(error.ok).toBe(false);
+  });
+
+  it("represents branches as local branches and remote groups", () => {
+    const branches = {
+      locals: [{ current: true, name: "main" }],
+      remotes: [
+        {
+          branches: [{ current: false, name: "origin/main", remote: "origin" }],
+          remote: "origin"
+        }
+      ]
+    } satisfies BranchesViewModel;
+
+    expect(branches.remotes[0]!.remote).toBe("origin");
   });
 });
