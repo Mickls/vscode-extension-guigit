@@ -5,9 +5,9 @@ import type { Logger } from "../../logging/LoggerService";
 const fieldSeparator = "\x1f";
 const recordSeparator = "\x1e";
 const prettyFormat = `%H%x1f%P%x1e`;
-const columnSpacing = 16;
+const graphLeft = 8;
+const graphRight = 108;
 const rowHeight = 36;
-const nodeOffsetX = 16;
 const nodeOffsetY = 18;
 const graphColors = ["#f56565", "#4299e1", "#48bb78", "#9f7aea", "#ffc107", "#dc3545", "#28a745", "#6f42c1"];
 
@@ -72,10 +72,12 @@ function parseGraphCommits(output: string): readonly ParsedGraphCommit[] {
 
 function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutViewModel {
   const displayedHashes = new Set(commits.map((commit) => commit.hash));
+  const commitByHash = new Map(commits.map((commit) => [commit.hash, commit]));
+  const mainline = identifyMainline(commits, commitByHash);
   const activeColumns: Array<string | undefined> = [];
-  const nodeByHash = new Map<string, GraphNodeViewModel>();
+  const positionedNodes: Array<Omit<GraphNodeViewModel, "x" | "y">> = [];
   const colorByHash = new Map<string, string>();
-  let nextColorIndex = 0;
+  let nextColorIndex = 1;
 
   const nextColor = () => {
     const color = graphColors[nextColorIndex % graphColors.length]!;
@@ -83,28 +85,35 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
     return color;
   };
 
-  const nodes: GraphNodeViewModel[] = [];
-
   for (let row = 0; row < commits.length; row += 1) {
     const commit = commits[row]!;
+    const mainlineCommit = mainline.has(commit.hash);
     const existingColumn = activeColumns.indexOf(commit.hash);
-    const column = existingColumn >= 0 ? existingColumn : findAvailableColumn(activeColumns, 0);
-    const color = colorByHash.get(commit.hash) ?? nextColor();
+    const column = mainlineCommit ? 0 : existingColumn >= 0 ? existingColumn : findAvailableColumn(activeColumns, 1);
+    const color = colorByHash.get(commit.hash) ?? (mainlineCommit ? graphColors[0]! : nextColor());
 
+    removeHashFromOtherColumns(activeColumns, commit.hash, column);
     colorByHash.set(commit.hash, color);
     activeColumns[column] = commit.hash;
 
-    const node = {
+    positionedNodes.push({
       color,
       column,
       hash: commit.hash,
       row
-    };
-    nodes.push(node);
-    nodeByHash.set(commit.hash, node);
+    });
 
-    updateActiveColumns(activeColumns, colorByHash, commit, column, displayedHashes, color, nextColor);
+    updateActiveColumns(activeColumns, colorByHash, commit, column, displayedHashes, mainline, color, nextColor);
   }
+
+  const maxColumn = Math.max(0, ...positionedNodes.map((node) => node.column));
+  const columnSpacing = maxColumn === 0 ? 0 : Math.max(5, Math.min(12, Math.floor((graphRight - graphLeft) / maxColumn)));
+  const nodes = positionedNodes.map((node) => ({
+    ...node,
+    x: graphPoint(node.column, node.row, columnSpacing).x,
+    y: graphPoint(node.column, node.row, columnSpacing).y
+  }));
+  const nodeByHash = new Map(nodes.map((node) => [node.hash, node]));
 
   return {
     edges: commits.flatMap((commit) => {
@@ -118,7 +127,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
           return {
             color: fromNode.color,
             fromHash: commit.hash,
-            points: edgePoints(fromNode.column, fromNode.row, toNode.column, toNode.row),
+            points: edgePoints(fromNode, toNode),
             toHash: parentHash
           };
         });
@@ -127,12 +136,29 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
   };
 }
 
+function identifyMainline(
+  commits: readonly ParsedGraphCommit[],
+  commitByHash: Map<string, ParsedGraphCommit>
+): ReadonlySet<string> {
+  const mainline = new Set<string>();
+  let current = commits[0];
+
+  while (current) {
+    mainline.add(current.hash);
+    const firstParent = current.parents[0];
+    current = firstParent ? commitByHash.get(firstParent) : undefined;
+  }
+
+  return mainline;
+}
+
 function updateActiveColumns(
   activeColumns: Array<string | undefined>,
   colorByHash: Map<string, string>,
   commit: ParsedGraphCommit,
   column: number,
   displayedHashes: Set<string>,
+  mainline: ReadonlySet<string>,
   color: string,
   nextColor: () => string
 ): void {
@@ -143,11 +169,11 @@ function updateActiveColumns(
   }
 
   const firstParent = visibleParents[0]!;
-  const firstParentColumn = activeColumns.indexOf(firstParent);
-  if (firstParentColumn >= 0 && firstParentColumn !== column) {
+  const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
+  if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
     activeColumns[column] = undefined;
   } else {
-    activeColumns[column] = firstParent;
+    activeColumns[firstParentColumn >= 0 ? firstParentColumn : column] = firstParent;
     colorByHash.set(firstParent, colorByHash.get(firstParent) ?? color);
   }
 
@@ -157,9 +183,17 @@ function updateActiveColumns(
       continue;
     }
 
-    const parentColumn = findAvailableColumn(activeColumns, column + 1);
+    const parentColumn = mainline.has(parentHash) ? 0 : findAvailableColumn(activeColumns, 1);
     activeColumns[parentColumn] = parentHash;
     colorByHash.set(parentHash, colorByHash.get(parentHash) ?? nextColor());
+  }
+}
+
+function removeHashFromOtherColumns(columns: Array<string | undefined>, hash: string, currentColumn: number): void {
+  for (let index = 0; index < columns.length; index += 1) {
+    if (index !== currentColumn && columns[index] === hash) {
+      columns[index] = undefined;
+    }
   }
 }
 
@@ -173,19 +207,20 @@ function findAvailableColumn(columns: readonly (string | undefined)[], startFrom
   return columns.length;
 }
 
-function edgePoints(fromColumn: number, fromRow: number, toColumn: number, toRow: number) {
-  const from = graphPoint(fromColumn, fromRow);
-  const to = graphPoint(toColumn, toRow);
-  if (fromColumn === toColumn) {
-    return [from, to];
+function edgePoints(from: GraphNodeViewModel, to: GraphNodeViewModel) {
+  const fromPoint = { x: from.x, y: from.y };
+  const toPoint = { x: to.x, y: to.y };
+  if (from.x === to.x) {
+    return [fromPoint, toPoint];
   }
 
-  return [from, { x: to.x, y: from.y }, to];
+  const midY = Math.floor((from.y + to.y) / 2);
+  return [fromPoint, { x: from.x, y: midY }, { x: to.x, y: midY }, toPoint];
 }
 
-function graphPoint(column: number, row: number) {
+function graphPoint(column: number, row: number, columnSpacing: number) {
   return {
-    x: column * columnSpacing + nodeOffsetX,
+    x: column * columnSpacing + graphLeft,
     y: row * rowHeight + nodeOffsetY
   };
 }

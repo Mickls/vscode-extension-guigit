@@ -42,7 +42,11 @@ export function CommitList({
       onScroll={handleScroll}
     >
       {graphVisible ? (
-        <div className="w-[120px] shrink-0 border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]">
+        <div
+          className="w-[120px] shrink-0 border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]"
+          data-testid="graph-strip"
+          style={{ height: `${Math.max(commits.length, 1) * 36}px` }}
+        >
           <GitGraph graph={graph} onNodeSelect={onGraphNodeSelect} rowCount={commits.length} />
         </div>
       ) : null}

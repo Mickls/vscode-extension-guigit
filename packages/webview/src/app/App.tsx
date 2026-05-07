@@ -54,6 +54,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const selectedRepositoryIdRef = useRef<string | undefined>(undefined);
   const loadingMoreRef = useRef(false);
   const selectedCommitHashRef = useRef<string | undefined>(undefined);
+  const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -119,7 +120,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
 
         if (repositoryId && nextCommits.length > 0) {
-          requestGraphLayout(
+          latestGraphRequestIdRef.current = requestGraphLayout(
             client,
             repositoryId,
             nextCommits.map((historyCommit) => historyCommit.hash)
@@ -132,7 +133,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (response.type === "graph.getLayout") {
-        setGraph(response.payload.graph);
+        if (response.id === latestGraphRequestIdRef.current) {
+          setGraph(response.payload.graph);
+        }
       }
     };
 
@@ -284,13 +287,15 @@ function requestHistory(
   });
 }
 
-function requestGraphLayout(client: RpcClient | undefined, repositoryId: string, hashes: readonly string[]): void {
+function requestGraphLayout(client: RpcClient | undefined, repositoryId: string, hashes: readonly string[]): string {
+  const id = crypto.randomUUID();
   client?.post({
     hashes,
-    id: crypto.randomUUID(),
+    id,
     repositoryId,
     type: "graph.getLayout"
   });
+  return id;
 }
 
 function isBackendNotification(message: BackendNotification | RpcResponse): message is BackendNotification {

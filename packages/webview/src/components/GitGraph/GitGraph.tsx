@@ -47,8 +47,8 @@ export function GitGraph({ graph, onNodeSelect, rowCount = 0 }: GitGraphProps): 
           tabIndex={0}
         >
           <circle
-            cx={node.column * 16 + 16}
-            cy={node.row * 36 + 18}
+            cx={node.x}
+            cy={node.y}
             fill={node.color}
             r={hoveredHash === node.hash ? "6" : "4"}
             stroke="var(--vscode-editor-background)"

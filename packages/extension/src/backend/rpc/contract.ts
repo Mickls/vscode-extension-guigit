@@ -109,6 +109,8 @@ export interface GraphNodeViewModel {
   hash: string;
   row: number;
   column: number;
+  x: number;
+  y: number;
   color: string;
 }
 

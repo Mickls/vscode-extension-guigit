@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { CommitListItemViewModel } from "./rpcContract.generated";
+import type { CommitListItemViewModel, GraphNodeViewModel } from "./rpcContract.generated";
 import type { RpcClient, RpcRequest, RpcResponse } from "./rpcClient";
 
 describe("App", () => {
@@ -188,13 +188,17 @@ describe("App", () => {
                     color: "#f56565",
                     column: 0,
                     hash: "abc1234567890abcdef",
-                    row: 0
+                    row: 0,
+                    x: 8,
+                    y: 18
                   },
                   {
                     color: "#f56565",
                     column: 0,
                     hash: "def4567890abcdefabc",
-                    row: 1
+                    row: 1,
+                    x: 8,
+                    y: 54
                   }
                 ]
               }
@@ -216,6 +220,72 @@ describe("App", () => {
         type: "commits.getDetails"
       })
     );
+  });
+
+  it("ignores stale graph responses after newer history pages request a new layout", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "abc1234567890abcdef", message: "First page commit" })],
+      hasMore: true,
+      nextCursor: "1"
+    });
+    await screen.findByText("First page commit");
+
+    const firstGraphRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "graph.getLayout")![0];
+    const scrollContainer = screen.getByTestId("commit-scroll-container");
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 200 },
+      scrollTop: { configurable: true, value: 100 }
+    });
+    fireEvent.scroll(scrollContainer);
+
+    const nextPageRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "history.load" && request.cursor === "1"
+    )![0];
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "def4567890abcdefabc", message: "Second page commit" })],
+      hasMore: false,
+      requestId: nextPageRequest.id
+    });
+
+    const graphRequests = rpcClient.post.mock.calls.filter(([request]) => request.type === "graph.getLayout");
+    const latestGraphRequest = graphRequests.at(-1)![0];
+
+    dispatchGraphResponse(firstGraphRequest.id, [
+      {
+        color: "#f56565",
+        column: 0,
+        hash: "abc1234567890abcdef",
+        row: 2,
+        x: 8,
+        y: 90
+      }
+    ]);
+    dispatchGraphResponse(latestGraphRequest.id, [
+      {
+        color: "#f56565",
+        column: 0,
+        hash: "abc1234567890abcdef",
+        row: 0,
+        x: 8,
+        y: 18
+      },
+      {
+        color: "#4299e1",
+        column: 1,
+        hash: "def4567890abcdefabc",
+        row: 1,
+        x: 18,
+        y: 54
+      }
+    ]);
+
+    const graph = screen.getByRole("img", { name: "Git graph" });
+    expect(graph.querySelector('[data-hash="abc1234567890abcdef"] circle')).toHaveAttribute("cy", "18");
+    expect(graph.querySelectorAll("circle")).toHaveLength(2);
   });
 
   it("toggles the graph strip without dropping commit rows", async () => {
@@ -444,6 +514,26 @@ function dispatchDetailsResponse(id: string, commit: { body: string; hash: strin
               hash: commit.hash,
               message: commit.message,
               refs: []
+            }
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchGraphResponse(id: string, nodes: readonly GraphNodeViewModel[]): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type: "graph.getLayout",
+          payload: {
+            graph: {
+              edges: [],
+              nodes
             }
           }
         } satisfies RpcResponse

@@ -48,9 +48,10 @@ describe("GraphService", () => {
       color: "#f56565",
       fromHash: "merge",
       points: [
-        { x: 16, y: 18 },
-        { x: 32, y: 18 },
-        { x: 32, y: 90 }
+        { x: 8, y: 18 },
+        { x: 8, y: 54 },
+        { x: 20, y: 54 },
+        { x: 20, y: 90 }
       ],
       toHash: "merged-parent"
     });
@@ -67,5 +68,79 @@ describe("GraphService", () => {
       edges: [],
       nodes: []
     });
+  });
+
+  it("keeps the first-parent mainline on column zero through interleaved branches", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "main-5\x1fmain-4 feature-2",
+          "feature-2\x1ffeature-1",
+          "main-4\x1fmain-3",
+          "feature-1\x1fmain-2",
+          "main-3\x1fmain-2",
+          "main-2\x1fmain-1",
+          "main-1\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "main-5",
+      "feature-2",
+      "main-4",
+      "feature-1",
+      "main-3",
+      "main-2",
+      "main-1"
+    ]);
+
+    expect(
+      graph.nodes
+        .filter((node) => node.hash.startsWith("main-"))
+        .map((node) => ({ column: node.column, hash: node.hash, x: node.x }))
+    ).toEqual([
+      { column: 0, hash: "main-5", x: 8 },
+      { column: 0, hash: "main-4", x: 8 },
+      { column: 0, hash: "main-3", x: 8 },
+      { column: 0, hash: "main-2", x: 8 },
+      { column: 0, hash: "main-1", x: 8 }
+    ]);
+  });
+
+  it("compresses many active columns inside the graph strip", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "merge\x1fmain branch-a branch-b branch-c branch-d branch-e branch-f branch-g branch-h branch-i",
+          "main\x1fbase",
+          "branch-a\x1fbase",
+          "branch-b\x1fbase",
+          "branch-c\x1fbase",
+          "branch-d\x1fbase",
+          "branch-e\x1fbase",
+          "branch-f\x1fbase",
+          "branch-g\x1fbase",
+          "branch-h\x1fbase",
+          "branch-i\x1fbase",
+          "base\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "merge",
+      "main",
+      "branch-a",
+      "branch-b",
+      "branch-c",
+      "branch-d",
+      "branch-e",
+      "branch-f",
+      "branch-g",
+      "branch-h",
+      "branch-i",
+      "base"
+    ]);
+
+    expect(Math.max(...graph.nodes.map((node) => node.x))).toBeLessThanOrEqual(108);
   });
 });

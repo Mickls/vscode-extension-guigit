@@ -25,13 +25,17 @@ const graph = {
       color: "#f56565",
       column: 0,
       hash: "first",
-      row: 0
+      row: 0,
+      x: 20,
+      y: 22
     },
     {
       color: "#f56565",
-      column: 0,
+      column: 8,
       hash: "second",
-      row: 1
+      row: 1,
+      x: 72,
+      y: 58
     }
   ]
 } satisfies GraphLayoutViewModel;
@@ -46,7 +50,8 @@ describe("GitGraph", () => {
 
     const svg = screen.getByRole("img", { name: "Git graph" });
     expect(svg.querySelector("polyline")).toHaveAttribute("points", "16,18 16,54");
-    expect(svg.querySelector('[data-hash="second"] circle')).toHaveAttribute("cy", "54");
+    expect(svg.querySelector('[data-hash="second"] circle')).toHaveAttribute("cx", "72");
+    expect(svg.querySelector('[data-hash="second"] circle')).toHaveAttribute("cy", "58");
   });
 
   it("highlights hovered nodes and reports node clicks", async () => {
