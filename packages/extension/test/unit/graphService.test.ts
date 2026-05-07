@@ -165,7 +165,7 @@ describe("GraphService", () => {
     ]);
   });
 
-  it("routes hidden shared parents away from unrelated adjacent rows", async () => {
+  it("draws hidden parents as local stubs instead of routing them to shared empty lanes", async () => {
     const service = new GraphService({
       gitRaw: async () =>
         [
@@ -186,13 +186,11 @@ describe("GraphService", () => {
     ]);
     expect(graph.edges.find((edge) => edge.fromHash === "side-b" && edge.toHash === "hidden-shared")?.points).toEqual([
       { x: 32, y: 90 },
-      { x: 20, y: 90 },
-      { x: 20, y: 144 }
+      { x: 32, y: 108 }
     ]);
     expect(graph.edges.find((edge) => edge.fromHash === "main" && edge.toHash === "unrelated-hidden")?.points).toEqual([
       { x: 8, y: 126 },
-      { x: 32, y: 126 },
-      { x: 32, y: 144 }
+      { x: 8, y: 144 }
     ]);
   });
 

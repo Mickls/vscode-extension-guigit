@@ -284,12 +284,12 @@ function edgePoints(
 ) {
   const fromPoint = { x: from.x, y: from.y };
   const toPoint = { x: to.x, y: to.y };
-  if (from.x === to.x) {
-    return [fromPoint, toPoint];
+  if (hiddenParent) {
+    return [fromPoint, { x: from.x, y: from.y + nodeOffsetY }];
   }
 
-  if (hiddenParent) {
-    return [fromPoint, { x: to.x, y: from.y }, toPoint];
+  if (from.x === to.x) {
+    return [fromPoint, toPoint];
   }
 
   return parentIndex === 0
