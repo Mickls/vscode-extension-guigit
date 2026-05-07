@@ -26,9 +26,15 @@ const emptyGraph: GraphLayoutViewModel = {
 
 const emptyRemotes: readonly RemoteViewModel[] = [];
 const emptyCompareFiles: readonly FileChangeViewModel[] = [];
+const pageSize = 50;
 
 export interface AppProps {
   rpcClient?: RpcClient;
+}
+
+interface HistoryRequestMeta {
+  append: boolean;
+  repositoryId?: string;
 }
 
 export function App({ rpcClient }: AppProps): ReactElement {
@@ -41,6 +47,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
+  const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
+  const hasMoreRef = useRef(false);
+  const nextCursorRef = useRef<string | undefined>(undefined);
+  const pendingHistoryRequestsRef = useRef(new Map<string, HistoryRequestMeta>());
+  const selectedRepositoryIdRef = useRef<string | undefined>(undefined);
+  const loadingMoreRef = useRef(false);
   const selectedCommitHashRef = useRef<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -51,7 +63,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const client = useMemo(() => rpcClient, [rpcClient]);
 
   useEffect(() => {
-    requestHistory(client);
+    requestHistory(client, pendingHistoryRequestsRef.current);
   }, [client]);
 
   useEffect(() => {
@@ -59,11 +71,16 @@ export function App({ rpcClient }: AppProps): ReactElement {
       const response = event.data;
       if (isBackendNotification(response)) {
         if (response.type === "history.changed") {
-          requestHistory(client);
+          requestHistory(client, pendingHistoryRequestsRef.current, {
+            repositoryId: selectedRepositoryIdRef.current
+          });
         }
 
         if (response.type === "history.revealCommit") {
-          requestHistory(client, response.hash);
+          requestHistory(client, pendingHistoryRequestsRef.current, {
+            repositoryId: selectedRepositoryIdRef.current,
+            search: response.hash
+          });
         }
 
         return;
@@ -74,25 +91,38 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (response.type === "history.load") {
-        setCommits(response.payload.commits);
+        const historyRequest = pendingHistoryRequestsRef.current.get(response.id);
+        pendingHistoryRequestsRef.current.delete(response.id);
+        loadingMoreRef.current = false;
+
+        const nextCommits = historyRequest?.append
+          ? [...commitsRef.current, ...response.payload.commits]
+          : response.payload.commits;
+        const repositoryId = historyRequest?.repositoryId ?? response.payload.repositories[0]?.id;
+        const commit = nextCommits[0];
+        commitsRef.current = nextCommits;
+        hasMoreRef.current = response.payload.hasMore;
+        nextCursorRef.current = response.payload.nextCursor;
+        selectedRepositoryIdRef.current = repositoryId;
+        setCommits(nextCommits);
         setGraph(emptyGraph);
-
-        const repositoryId = response.payload.repositories[0]?.id;
-        const commit = response.payload.commits[0];
         setSelectedRepositoryId(repositoryId);
-        setSelectedCommitHash(commit?.hash);
-        selectedCommitHashRef.current = commit?.hash;
-        setCommitDetails(undefined);
 
-        if (repositoryId && commit) {
+        if (!historyRequest?.append) {
+          setSelectedCommitHash(commit?.hash);
+          selectedCommitHashRef.current = commit?.hash;
+          setCommitDetails(undefined);
+        }
+
+        if (repositoryId && commit && !historyRequest?.append) {
           requestCommitDetails(client, repositoryId, commit.hash);
         }
 
-        if (repositoryId && response.payload.commits.length > 0) {
+        if (repositoryId && nextCommits.length > 0) {
           requestGraphLayout(
             client,
             repositoryId,
-            response.payload.commits.map((historyCommit) => historyCommit.hash)
+            nextCommits.map((historyCommit) => historyCommit.hash)
           );
         }
       }
@@ -119,6 +149,19 @@ export function App({ rpcClient }: AppProps): ReactElement {
     if (selectedRepositoryId) {
       requestCommitDetails(client, selectedRepositoryId, commit.hash);
     }
+  };
+
+  const loadMoreCommits = () => {
+    if (!selectedRepositoryIdRef.current || !hasMoreRef.current || !nextCursorRef.current || loadingMoreRef.current) {
+      return;
+    }
+
+    loadingMoreRef.current = true;
+    requestHistory(client, pendingHistoryRequestsRef.current, {
+      append: true,
+      cursor: nextCursorRef.current,
+      repositoryId: selectedRepositoryIdRef.current
+    });
   };
 
   const selectGraphNode = (hash: string) => {
@@ -157,7 +200,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   };
 
   return (
-    <main className="flex min-h-screen flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
+    <main className="flex h-screen overflow-hidden flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
       <Header
         graphVisible={graphVisible}
         onGraphToggle={() => setGraphVisible((visible) => !visible)}
@@ -176,6 +219,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
             onCommitContextMenu={openCommitContextMenu}
             onCommitSelect={selectCommit}
             onGraphNodeSelect={selectGraphNode}
+            onLoadMore={loadMoreCommits}
             selectedHash={selectedCommitHash}
           />
         }
@@ -215,11 +259,27 @@ function requestCommitDetails(client: RpcClient | undefined, repositoryId: strin
   });
 }
 
-function requestHistory(client: RpcClient | undefined, search?: string): void {
+function requestHistory(
+  client: RpcClient | undefined,
+  pendingRequests: Map<string, HistoryRequestMeta>,
+  options: {
+    append?: boolean;
+    cursor?: string;
+    repositoryId?: string;
+    search?: string;
+  } = {}
+): void {
+  const id = crypto.randomUUID();
+  pendingRequests.set(id, {
+    append: options.append ?? false,
+    repositoryId: options.repositoryId
+  });
   client?.post({
-    id: crypto.randomUUID(),
-    pageSize: 50,
-    search,
+    cursor: options.cursor,
+    id,
+    pageSize,
+    repositoryId: options.repositoryId,
+    search: options.search,
     type: "history.load"
   });
 }

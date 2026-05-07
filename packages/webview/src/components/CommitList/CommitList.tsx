@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactElement } from "react";
+import type { UIEvent, MouseEvent, ReactElement } from "react";
 import type { CommitListItemViewModel, GraphLayoutViewModel } from "../../app/rpcContract.generated";
 import { GitGraph } from "../GitGraph/GitGraph";
 
@@ -12,6 +12,7 @@ export interface CommitListProps {
   graph?: GraphLayoutViewModel;
   graphVisible?: boolean;
   onGraphNodeSelect?: (hash: string) => void;
+  onLoadMore?: () => void;
   onCommitSelect?: (commit: CommitListItemViewModel) => void;
   onCommitContextMenu?: (event: MouseEvent<HTMLElement>, commit: CommitListItemViewModel) => void;
   selectedHash?: string;
@@ -22,12 +23,24 @@ export function CommitList({
   graph = emptyGraph,
   graphVisible = true,
   onGraphNodeSelect,
+  onLoadMore,
   onCommitContextMenu,
   onCommitSelect,
   selectedHash
 }: CommitListProps): ReactElement {
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    if (element.scrollTop + element.clientHeight >= element.scrollHeight - 24) {
+      onLoadMore?.();
+    }
+  };
+
   return (
-    <div className="flex min-h-0 flex-1 overflow-y-auto" data-testid="commit-scroll-container">
+    <div
+      className="flex min-h-0 flex-1 overflow-y-auto"
+      data-testid="commit-scroll-container"
+      onScroll={handleScroll}
+    >
       {graphVisible ? (
         <div className="w-[120px] shrink-0 border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]">
           <GitGraph graph={graph} onNodeSelect={onGraphNodeSelect} rowCount={commits.length} />

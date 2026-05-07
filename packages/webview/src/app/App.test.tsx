@@ -1,11 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import type { CommitListItemViewModel } from "./rpcContract.generated";
 import type { RpcClient, RpcRequest, RpcResponse } from "./rpcClient";
 
 describe("App", () => {
@@ -232,6 +233,53 @@ describe("App", () => {
     expect(screen.getByText("Second real commit")).toBeInTheDocument();
   });
 
+  it("loads the next commit page when the commit list scroll reaches the bottom", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "abc1234567890abcdef", message: "First page commit" })],
+      hasMore: true,
+      nextCursor: "1"
+    });
+    await screen.findByText("First page commit");
+
+    const scrollContainer = screen.getByTestId("commit-scroll-container");
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 200 },
+      scrollTop: { configurable: true, value: 100 }
+    });
+    fireEvent.scroll(scrollContainer);
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cursor: "1",
+        pageSize: 50,
+        repositoryId: "/repo",
+        type: "history.load"
+      })
+    );
+
+    const nextPageRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "history.load" && request.cursor === "1"
+    )![0];
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "def4567890abcdefabc", message: "Second page commit" })],
+      hasMore: false,
+      requestId: nextPageRequest.id
+    });
+
+    expect(await screen.findByText("Second page commit")).toBeInTheDocument();
+    expect(screen.getByText("First page commit")).toBeInTheDocument();
+  });
+
+  it("keeps the app shell viewport-bound so panels scroll without hiding the header", () => {
+    render(<App />);
+
+    expect(screen.getByRole("main")).toHaveClass("h-screen", "overflow-hidden");
+  });
+
   it("reloads history when the backend reports repository history changes", () => {
     const rpcClient = createTestRpcClient();
 
@@ -304,13 +352,23 @@ function createTestRpcClient(): RpcClient & { post: ReturnType<typeof vi.fn<(req
   return { post: vi.fn<(request: RpcRequest) => void>() };
 }
 
-function dispatchHistoryResponse(rpcClient: ReturnType<typeof createTestRpcClient>): void {
+interface HistoryResponseOptions {
+  commits?: readonly ReturnType<typeof createCommit>[];
+  hasMore?: boolean;
+  nextCursor?: string;
+  requestId?: string;
+}
+
+function dispatchHistoryResponse(
+  rpcClient: ReturnType<typeof createTestRpcClient>,
+  options: HistoryResponseOptions = {}
+): void {
   const historyRequest = rpcClient.post.mock.calls[0]![0];
   act(() => {
     window.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          id: historyRequest.id,
+          id: options.requestId ?? historyRequest.id,
           ok: true,
           type: "history.load",
           payload: {
@@ -318,7 +376,7 @@ function dispatchHistoryResponse(rpcClient: ReturnType<typeof createTestRpcClien
               locals: [],
               remotes: []
             },
-            commits: [
+            commits: options.commits ?? [
               {
                 author: "Ada",
                 canEditMessage: true,
@@ -340,13 +398,31 @@ function dispatchHistoryResponse(rpcClient: ReturnType<typeof createTestRpcClien
                 shortHash: "def4567"
               }
             ],
-            hasMore: false,
+            hasMore: options.hasMore ?? false,
+            nextCursor: options.nextCursor,
             repositories: [{ id: "/repo", name: "repo", rootPath: "/repo" }]
           }
         } satisfies RpcResponse
       })
     );
   });
+}
+
+function createCommit(input: {
+  hash: string;
+  message: string;
+  parents?: readonly string[];
+}): CommitListItemViewModel {
+  return {
+    author: "Ada",
+    canEditMessage: true,
+    date: "2026-05-07 10:00:00 +0800",
+    hash: input.hash,
+    message: input.message,
+    parents: input.parents ?? [],
+    refs: [],
+    shortHash: input.hash.slice(0, 7)
+  };
 }
 
 function dispatchDetailsResponse(id: string, commit: { body: string; hash: string; message: string }): void {
