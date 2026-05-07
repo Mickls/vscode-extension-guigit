@@ -7,6 +7,7 @@ import type {
   RpcPayloadByType
 } from "../rpc/contract";
 import type { CacheService } from "../../state/CacheService";
+import type { Logger } from "../../logging/LoggerService";
 
 const fieldSeparator = "\x1f";
 const commitFormat = `%H${fieldSeparator}%ai${fieldSeparator}%s${fieldSeparator}%an${fieldSeparator}%ae${fieldSeparator}%D${fieldSeparator}%b`;
@@ -20,6 +21,7 @@ export interface FileServiceInput {
   cache: CacheService;
   configuration: FileServiceConfiguration;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  logger?: Pick<Logger, "debug">;
 }
 
 interface CommitInfo {
@@ -55,16 +57,28 @@ export class FileService {
   private readonly cache: CacheService;
   private readonly configuration: FileServiceConfiguration;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  private readonly logger: Pick<Logger, "debug"> | undefined;
 
   public constructor(input: FileServiceInput) {
     this.cache = input.cache;
     this.configuration = input.configuration;
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.logger = input.logger;
   }
 
   public async getCommitDetails(repositoryRoot: string, hash: string): Promise<CommitDetailsViewModel> {
+    this.logger?.debug("git.commitDetails.load", {
+      hash,
+      repositoryRoot
+    });
+
     const cached = this.cache.getCommitDetails(repositoryRoot, hash);
     if (cached) {
+      this.logger?.debug("git.commitDetails.loaded", {
+        fileCount: cached.files.length,
+        hash: cached.hash,
+        repositoryRoot
+      });
       return cached;
     }
 
@@ -84,6 +98,11 @@ export class FileService {
     };
 
     this.cache.setCommitDetails(repositoryRoot, hash, details);
+    this.logger?.debug("git.commitDetails.loaded", {
+      fileCount: details.files.length,
+      hash: details.hash,
+      repositoryRoot
+    });
     return details;
   }
 

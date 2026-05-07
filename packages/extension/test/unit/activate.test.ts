@@ -7,6 +7,13 @@ const vscodeMocks = vi.hoisted(() => {
 
   return {
     providerDisposable,
+    outputChannel: {
+      appendLine: vi.fn()
+    },
+    createOutputChannel: vi.fn(() => ({
+      appendLine: vi.fn(),
+      dispose: vi.fn()
+    })),
     registerWebviewViewProvider: vi.fn(() => providerDisposable)
   };
 });
@@ -25,6 +32,7 @@ vi.mock("vscode", () => ({
   },
   window: {
     activeTextEditor: undefined,
+    createOutputChannel: vscodeMocks.createOutputChannel,
     registerWebviewViewProvider: vscodeMocks.registerWebviewViewProvider
   },
   workspace: {
@@ -38,6 +46,7 @@ vi.mock("vscode", () => ({
 
 describe("activate", () => {
   beforeEach(() => {
+    vscodeMocks.createOutputChannel.mockClear();
     vscodeMocks.registerWebviewViewProvider.mockClear();
   });
 
@@ -55,6 +64,7 @@ describe("activate", () => {
       GitHistoryViewProvider.viewType,
       expect.any(GitHistoryViewProvider)
     );
+    expect(vscodeMocks.createOutputChannel).toHaveBeenCalledWith("GUI Git History");
     expect(subscriptions).toContain(vscodeMocks.providerDisposable);
   });
 });

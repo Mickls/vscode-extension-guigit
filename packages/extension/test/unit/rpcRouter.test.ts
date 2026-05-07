@@ -38,6 +38,41 @@ describe("RPC router", () => {
     });
   });
 
+  it("logs request, response, and backend errors", async () => {
+    const events: Array<{ level: string; message: string; context?: unknown }> = [];
+    const logger = {
+      debug: (message: string, context?: unknown) => events.push({ context, level: "debug", message }),
+      error: (message: string, context?: unknown) => events.push({ context, level: "error", message })
+    };
+    const router = createRpcRouter(
+      {
+        "history.load": async () => {
+          throw new Error("load failed");
+        }
+      },
+      logger
+    );
+
+    await router.dispatch({
+      id: "request-1",
+      pageSize: 50,
+      type: "history.load"
+    });
+
+    expect(events).toEqual([
+      {
+        context: { id: "request-1", type: "history.load" },
+        level: "debug",
+        message: "rpc.request"
+      },
+      {
+        context: { id: "request-1", message: "load failed", type: "history.load" },
+        level: "error",
+        message: "rpc.error"
+      }
+    ]);
+  });
+
   it("returns an unknown request error for an unregistered request type", async () => {
     const router = createRpcRouter({});
 

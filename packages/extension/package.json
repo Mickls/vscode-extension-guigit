@@ -111,6 +111,23 @@
           ],
           "default": "tree",
           "description": "Default file change view mode in commit details"
+        },
+        "guigit.logLevel": {
+          "type": "string",
+          "enum": [
+            "error",
+            "info",
+            "debug",
+            "off"
+          ],
+          "default": "info",
+          "description": "Logging level for GUI Git History diagnostics",
+          "enumDescriptions": [
+            "Only log errors",
+            "Log important lifecycle and operation messages",
+            "Log detailed RPC and Git diagnostics",
+            "Disable extension logging"
+          ]
         }
       }
     },

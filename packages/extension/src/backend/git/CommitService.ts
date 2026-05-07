@@ -1,6 +1,7 @@
 import { simpleGit } from "simple-git";
 import type { CommitListItemViewModel, RefViewModel } from "../rpc/contract";
 import type { CacheService } from "../../state/CacheService";
+import type { Logger } from "../../logging/LoggerService";
 
 const fieldSeparator = "\x1f";
 const recordSeparator = "\x1e";
@@ -9,6 +10,7 @@ const prettyFormat = `%H${fieldSeparator}%ai${fieldSeparator}%s${fieldSeparator}
 export interface CommitServiceInput {
   cache: CacheService;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  logger?: Pick<Logger, "debug">;
 }
 
 export interface CommitHistoryInput {
@@ -52,10 +54,12 @@ interface EditableContext {
 export class CommitService {
   private readonly cache: CacheService;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  private readonly logger: Pick<Logger, "debug"> | undefined;
 
   public constructor(input: CommitServiceInput) {
     this.cache = input.cache;
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.logger = input.logger;
   }
 
   public async loadHistory(input: CommitHistoryInput): Promise<CommitHistoryResult> {
@@ -97,17 +101,38 @@ export class CommitService {
 
   private async loadMatchingCommits(input: CommitHistoryInput, skip: number): Promise<readonly ParsedCommit[]> {
     if (input.search && isHashPrefix(input.search)) {
-      const hashMatches = parseCommitLog(
-        await this.gitRaw(input.repositoryRoot, buildLogArgs(input, undefined, undefined))
-      ).filter((commit) => commit.hash.toLowerCase().startsWith(input.search!.toLowerCase()));
+      const args = buildLogArgs(input, undefined, undefined);
+      this.logger?.debug("git.history.load", {
+        args,
+        repositoryRoot: input.repositoryRoot
+      });
+      const hashMatches = parseCommitLog(await this.gitRaw(input.repositoryRoot, args)).filter((commit) =>
+        commit.hash.toLowerCase().startsWith(input.search!.toLowerCase())
+      );
 
       if (hashMatches.length > 0) {
-        return hashMatches.slice(skip, skip + input.pageSize + 1);
+        const commits = hashMatches.slice(skip, skip + input.pageSize + 1);
+        this.logHistoryLoaded(input.repositoryRoot, commits.length, commits.length > input.pageSize);
+        return commits;
       }
     }
 
-    const result = await this.gitRaw(input.repositoryRoot, buildLogArgs(input, input.pageSize + 1, skip, input.search));
-    return parseCommitLog(result);
+    const args = buildLogArgs(input, input.pageSize + 1, skip, input.search);
+    this.logger?.debug("git.history.load", {
+      args,
+      repositoryRoot: input.repositoryRoot
+    });
+    const commits = parseCommitLog(await this.gitRaw(input.repositoryRoot, args));
+    this.logHistoryLoaded(input.repositoryRoot, commits.length, commits.length > input.pageSize);
+    return commits;
+  }
+
+  private logHistoryLoaded(repositoryRoot: string, commitCount: number, hasMore: boolean): void {
+    this.logger?.debug("git.history.loaded", {
+      commitCount,
+      hasMore,
+      repositoryRoot
+    });
   }
 
   private async getEditableContext(repositoryRoot: string): Promise<EditableContext | undefined> {

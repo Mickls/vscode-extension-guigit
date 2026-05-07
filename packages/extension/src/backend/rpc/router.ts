@@ -1,5 +1,6 @@
 import type { RpcPayloadByType, RpcRequest, RpcRequestType, RpcResponse } from "./contract";
 import { backendErrorResponse, unknownRequestResponse } from "./errors";
+import type { Logger } from "../../logging/LoggerService";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -15,25 +16,46 @@ export interface RpcRouter {
   dispatch(request: RpcRequest): Promise<RpcResponse>;
 }
 
-export function createRpcRouter(handlers: RpcHandlerMap): RpcRouter {
+export function createRpcRouter(handlers: RpcHandlerMap, logger?: Pick<Logger, "debug" | "error">): RpcRouter {
   return {
     async dispatch(request) {
+      logger?.debug("rpc.request", {
+        id: request.id,
+        type: request.type
+      });
+
       const handler = handlers[request.type] as
         | ((request: RpcRequest) => MaybePromise<RpcPayloadByType[typeof request.type]>)
         | undefined;
 
       if (!handler) {
+        logger?.error("rpc.unknownRequest", {
+          id: request.id,
+          type: request.type
+        });
         return unknownRequestResponse(request);
       }
 
       try {
-        return {
+        const response = {
           id: request.id,
           ok: true,
           type: request.type,
           payload: await handler(request)
         } as RpcResponse;
+
+        logger?.debug("rpc.response", {
+          id: request.id,
+          type: request.type
+        });
+
+        return response;
       } catch (error) {
+        logger?.error("rpc.error", {
+          id: request.id,
+          message: (error as Error).message,
+          type: request.type
+        });
         return backendErrorResponse(request, error as Error);
       }
     }

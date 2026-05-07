@@ -119,6 +119,25 @@ Use **Run Extension** when you want F5 to build first and then open an Extension
 
 Use **Run Extension (watch output)** when `pnpm dev` is already running in a terminal. This avoids a full pre-launch build and launches against the current watched output.
 
+### Extension Logs
+
+The extension writes diagnostics to the **GUI Git History** output channel.
+
+Use `guigit.logLevel` to control verbosity:
+
+- `error`: backend failures only.
+- `info`: lifecycle and important operation messages.
+- `debug`: RPC request/response summaries plus Git history/details diagnostics.
+- `off`: disable extension logging.
+
+When investigating UI/backend integration issues, set:
+
+```json
+"guigit.logLevel": "debug"
+```
+
+Then open **Output: GUI Git History** in the Extension Development Host and include the relevant lines when reporting a failure.
+
 ## RPC Contract Maintenance
 
 The RPC contract has one source file:

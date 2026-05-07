@@ -155,6 +155,44 @@ describe("FileService", () => {
     expect(service.getFileViewMode()).toBe("list");
     expect(updates).toEqual([{ key: "guigit.fileViewMode", value: "tree" }]);
   });
+
+  it("logs commit details loading and result metadata", async () => {
+    const events: Array<{ message: string; context?: unknown }> = [];
+    const service = new FileService({
+      cache: new CacheService(),
+      configuration: createConfiguration("list"),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args[0] === "show" && args.includes("--no-patch")) {
+          return ["abc1234567890abcdef", "Today", "Message", "Ada", "ada@example.com", "", ""].join("\x1f");
+        }
+
+        return "";
+      },
+      logger: {
+        debug: (message, context) => events.push({ context, message })
+      }
+    });
+
+    await service.getCommitDetails("/workspace/repo", "abc1234");
+
+    expect(events).toEqual([
+      {
+        context: {
+          hash: "abc1234",
+          repositoryRoot: "/workspace/repo"
+        },
+        message: "git.commitDetails.load"
+      },
+      {
+        context: {
+          fileCount: 0,
+          hash: "abc1234567890abcdef",
+          repositoryRoot: "/workspace/repo"
+        },
+        message: "git.commitDetails.loaded"
+      }
+    ]);
+  });
 });
 
 function createConfiguration(mode: FileViewMode) {

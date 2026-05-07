@@ -209,6 +209,48 @@ describe("CommitService", () => {
     ]);
   });
 
+  it("logs history load parameters and result count", async () => {
+    const events: Array<{ message: string; context?: unknown }> = [];
+    const service = new CommitService({
+      cache: new CacheService(),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args[0] === "log") {
+          return commitLine({ hash: "abc1234567890abcdef", subject: "Logged" });
+        }
+
+        return "nobody\n";
+      },
+      logger: {
+        debug: (message, context) => events.push({ context, message })
+      }
+    });
+
+    await service.loadHistory({
+      branch: "main",
+      pageSize: 20,
+      repositoryRoot: "/workspace/repo",
+      search: "Logged"
+    });
+
+    expect(events).toEqual([
+      {
+        context: {
+          args: expect.arrayContaining(["log", "main", "--grep=Logged"]),
+          repositoryRoot: "/workspace/repo"
+        },
+        message: "git.history.load"
+      },
+      {
+        context: {
+          commitCount: 1,
+          hasMore: false,
+          repositoryRoot: "/workspace/repo"
+        },
+        message: "git.history.loaded"
+      }
+    ]);
+  });
+
   it("caches total commit counts by repository and filters", async () => {
     const revListCalls: string[][] = [];
     const service = new CommitService({
