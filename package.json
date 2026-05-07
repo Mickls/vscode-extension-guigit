@@ -4,6 +4,11 @@
   "private": true,
   "packageManager": "pnpm@11.0.6",
   "scripts": {
+    "dev": "pnpm -r --parallel --stream dev",
+    "watch": "pnpm dev",
+    "dev:shared": "pnpm --filter @gui-git-history/shared dev",
+    "dev:extension": "pnpm --filter vscode-extension-guigit dev",
+    "dev:webview": "pnpm --filter @gui-git-history/webview dev",
     "rpc:generate": "pnpm --filter @gui-git-history/shared build && node scripts/generate-rpc-contract.mjs",
     "rpc:check": "pnpm --filter @gui-git-history/shared build && node scripts/generate-rpc-contract.mjs --check",
     "typecheck": "pnpm rpc:check && pnpm -r typecheck",

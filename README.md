@@ -66,6 +66,10 @@ Backend owns Git, VS Code, configuration, persistence, graph layout, filtering, 
 
 ```sh
 pnpm install
+pnpm dev
+pnpm dev:extension
+pnpm dev:webview
+pnpm dev:shared
 pnpm rpc:generate
 pnpm rpc:check
 pnpm typecheck
@@ -76,6 +80,36 @@ pnpm package
 ```
 
 `pnpm package` creates the VSIX from `packages/extension` and must keep the extension id as `Mickls.vscode-extension-guigit`.
+
+## Development Loop
+
+Use this for normal extension development:
+
+```sh
+pnpm dev
+```
+
+It runs these watchers in parallel:
+
+- `pnpm dev:shared`: watches `packages/shared/src/rpc` and regenerates RPC files.
+- `pnpm dev:extension`: runs TypeScript watch for the extension host and writes `packages/extension/out`.
+- `pnpm dev:webview`: runs Vite build watch and writes `packages/webview/dist`.
+
+Use the focused commands when you are only changing one side:
+
+```sh
+pnpm dev:extension
+pnpm dev:webview
+pnpm dev:shared
+```
+
+For browser-only webview work, use the Vite development server:
+
+```sh
+pnpm --filter @gui-git-history/webview serve
+```
+
+That server is only for UI development. The VS Code extension path still consumes built webview assets from `packages/webview/dist`.
 
 ## RPC Contract Maintenance
 
