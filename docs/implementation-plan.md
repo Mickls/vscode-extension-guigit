@@ -199,11 +199,11 @@ gui-git-history/
 - Create: `packages/webview/src/components/CommitDetails/CommitDetails.tsx`
 - Create: `packages/webview/src/components/Layout/SplitPanels.tsx`
 
-- [ ] Recreate top toolbar, left panel, graph strip, commit list, resizer, and right details panel.
-- [ ] Preserve current density, row height, panel collapse behavior, and VS Code theme variable usage.
-- [ ] Implement resizer and collapse as UI-only state.
-- [ ] Add component tests for collapsed and expanded panel states.
-- [ ] Commit with `feat: recreate git history layout`.
+- [x] Recreate top toolbar, left panel, graph strip, commit list, resizer, and right details panel.
+- [x] Preserve current density, row height, panel collapse behavior, and VS Code theme variable usage.
+- [x] Implement resizer and collapse as UI-only state.
+- [x] Add component tests for collapsed and expanded panel states.
+- [x] Commit with `feat: recreate git history layout`.
 
 ### Task 2.2: Recreate menus and modals
 

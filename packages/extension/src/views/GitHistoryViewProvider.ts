@@ -38,6 +38,6 @@ export class GitHistoryViewProvider implements WebviewViewProvider {
   }
 
   private webviewDistUri(): Uri {
-    return Uri.joinPath(this.context.extensionUri, "..", "webview", "dist");
+    return Uri.joinPath(this.context.extensionUri, "webview-dist");
   }
 }

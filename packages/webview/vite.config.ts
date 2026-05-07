@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     emptyOutDir: true,
-    outDir: "dist",
+    outDir: "../extension/webview-dist",
     rollupOptions: {
       output: {
         assetFileNames: "assets/[name][extname]",

@@ -7,3 +7,4 @@ coverage/
 *.tsbuildinfo
 .vscode-test/
 .pnpm-store/
+webview-dist/

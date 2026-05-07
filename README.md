@@ -93,7 +93,7 @@ It runs these watchers in parallel:
 
 - `pnpm dev:shared`: watches `packages/shared/src/rpc` and regenerates RPC files.
 - `pnpm dev:extension`: runs TypeScript watch for the extension host and writes `packages/extension/out`.
-- `pnpm dev:webview`: runs Vite build watch and writes `packages/webview/dist`.
+- `pnpm dev:webview`: runs Vite build watch and writes `packages/extension/webview-dist`.
 
 Use the focused commands when you are only changing one side:
 
@@ -109,7 +109,7 @@ For browser-only webview work, use the Vite development server:
 pnpm --filter @gui-git-history/webview serve
 ```
 
-That server is only for UI development. The VS Code extension path still consumes built webview assets from `packages/webview/dist`.
+That server is only for UI development. The VS Code extension path still consumes built webview assets from `packages/extension/webview-dist`.
 
 ## Debugging In VS Code
 
@@ -172,6 +172,7 @@ Important packaging files:
 - `packages/extension/package.json`
 - `packages/extension/.vscodeignore`
 - `packages/extension/assets/gui-git-history-high-resolution-logo-transparent.png`
+- `packages/extension/webview-dist`
 
 VSIX output is written to:
 
