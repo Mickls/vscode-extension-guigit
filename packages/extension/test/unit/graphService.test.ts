@@ -49,12 +49,72 @@ describe("GraphService", () => {
       fromHash: "merge",
       points: [
         { x: 8, y: 18 },
-        { x: 8, y: 54 },
-        { x: 20, y: 54 },
+        { x: 20, y: 18 },
         { x: 20, y: 90 }
       ],
       toHash: "merged-parent"
     });
+  });
+
+  it("continues lanes to the loaded window boundary for parents that are not loaded yet", async () => {
+    const service = new GraphService({
+      gitRaw: async () => "child\x1fparent"
+    });
+
+    const graph = await service.getLayout("/workspace/repo", ["child"]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "child", row: 0 }
+    ]);
+    expect(graph.edges).toEqual([
+      {
+        color: "#f56565",
+        fromHash: "child",
+        points: [
+          { x: 8, y: 18 },
+          { x: 8, y: 36 }
+        ],
+        toHash: "parent"
+      }
+    ]);
+  });
+
+  it("routes first-parent branch edges from the parent row and merge edges from the merge row", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "merge\x1fmain-tip branch-tip",
+          "branch-tip\x1fbranch-base main-side",
+          "main-side\x1fmain-base",
+          "main-tip\x1fmain-base",
+          "branch-base\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "merge",
+      "branch-tip",
+      "main-side",
+      "main-tip",
+      "branch-base"
+    ]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "merge", row: 0 },
+      { column: 1, hash: "branch-tip", row: 1 },
+      { column: 2, hash: "main-side", row: 2 },
+      { column: 0, hash: "main-tip", row: 3 },
+      { column: 1, hash: "branch-base", row: 4 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-tip" && edge.toHash === "branch-base")?.points).toEqual([
+      { x: 20, y: 54 },
+      { x: 20, y: 162 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-tip" && edge.toHash === "main-side")?.points).toEqual([
+      { x: 20, y: 54 },
+      { x: 32, y: 54 },
+      { x: 32, y: 90 }
+    ]);
   });
 
   it("keeps graph rows aligned to the requested commit order", async () => {

@@ -53,14 +53,14 @@ export function CommitList({
       <div className="min-w-0 flex-1">
         {commits.map((commit, index) => (
           <article
-            className="flex min-h-9 cursor-pointer select-none border-b border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
+            className="flex h-9 cursor-pointer select-none border-b border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
             data-testid="commit-row"
             key={commit.hash}
             onContextMenu={(event) => onCommitContextMenu?.(event, commit)}
             onClick={() => onCommitSelect?.(commit)}
           >
             <div
-              className={`grid min-w-[550px] flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] items-center gap-3 px-3 py-2 ${selectedHash === commit.hash || (!selectedHash && index === 0) ? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]" : "bg-[var(--vscode-editor-background)]"}`}
+              className={`grid h-full min-w-[550px] flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] items-center gap-3 px-3 ${selectedHash === commit.hash || (!selectedHash && index === 0) ? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]" : "bg-[var(--vscode-editor-background)]"}`}
             >
               <span className="truncate font-mono text-[11px] text-[var(--vscode-descriptionForeground)]">
                 {commit.shortHash}

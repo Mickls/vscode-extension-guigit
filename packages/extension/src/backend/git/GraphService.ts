@@ -76,11 +76,11 @@ function parseGraphCommits(output: string): readonly ParsedGraphCommit[] {
 }
 
 function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutViewModel {
-  const displayedHashes = new Set(commits.map((commit) => commit.hash));
   const commitByHash = new Map(commits.map((commit) => [commit.hash, commit]));
   const mainline = identifyMainline(commits, commitByHash);
   const activeColumns: Array<string | undefined> = [];
   const positionedNodes: Array<Omit<GraphNodeViewModel, "x" | "y">> = [];
+  const columnByHash = new Map<string, number>();
   const colorByHash = new Map<string, string>();
   let nextColorIndex = 1;
 
@@ -99,6 +99,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
 
     removeHashFromOtherColumns(activeColumns, commit.hash, column);
     colorByHash.set(commit.hash, color);
+    columnByHash.set(commit.hash, column);
     activeColumns[column] = commit.hash;
 
     positionedNodes.push({
@@ -108,10 +109,10 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       row
     });
 
-    updateActiveColumns(activeColumns, colorByHash, commit, column, displayedHashes, mainline, color, nextColor);
+    updateActiveColumns(activeColumns, columnByHash, colorByHash, commit, column, mainline, color, nextColor);
   }
 
-  const maxColumn = Math.max(0, ...positionedNodes.map((node) => node.column));
+  const maxColumn = Math.max(0, ...positionedNodes.map((node) => node.column), ...columnByHash.values());
   const columnSpacing = maxColumn === 0 ? 0 : Math.min(12, (graphRight - graphLeft) / maxColumn);
   const nodes = positionedNodes.map((node) => ({
     ...node,
@@ -124,18 +125,28 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
     edges: commits.flatMap((commit) => {
       const fromNode = nodeByHash.get(commit.hash)!;
 
-      return commit.parents
-        .filter((parentHash) => displayedHashes.has(parentHash))
-        .map((parentHash, parentIndex) => {
-          const toNode = nodeByHash.get(parentHash)!;
+      return commit.parents.flatMap((parentHash, parentIndex) => {
+        const toNode = nodeByHash.get(parentHash);
+        const parentColumn = columnByHash.get(parentHash);
+        if (toNode === undefined && parentColumn === undefined) {
+          return [];
+        }
 
-          return {
-            color: parentIndex === 0 ? fromNode.color : toNode.color,
+        const toPoint =
+          toNode ?? ({
+            x: graphX(parentColumn!, columnSpacing),
+            y: commits.length * rowHeight
+          } satisfies Pick<GraphNodeViewModel, "x" | "y">);
+
+        return [
+          {
+            color: parentIndex === 0 ? fromNode.color : (toNode?.color ?? colorByHash.get(parentHash)!),
             fromHash: commit.hash,
-            points: edgePoints(fromNode, toNode),
+            points: edgePoints(fromNode, toPoint, parentIndex),
             toHash: parentHash
-          };
-        });
+          }
+        ];
+      });
     }),
     nodes
   };
@@ -159,37 +170,40 @@ function identifyMainline(
 
 function updateActiveColumns(
   activeColumns: Array<string | undefined>,
+  columnByHash: Map<string, number>,
   colorByHash: Map<string, string>,
   commit: ParsedGraphCommit,
   column: number,
-  displayedHashes: Set<string>,
   mainline: ReadonlySet<string>,
   color: string,
   nextColor: () => string
 ): void {
-  const visibleParents = commit.parents.filter((parentHash) => displayedHashes.has(parentHash));
-  if (visibleParents.length === 0) {
+  if (commit.parents.length === 0) {
     activeColumns[column] = undefined;
     return;
   }
 
-  const firstParent = visibleParents[0]!;
+  const firstParent = commit.parents[0]!;
   const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
   if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
     activeColumns[column] = undefined;
   } else {
-    activeColumns[firstParentColumn >= 0 ? firstParentColumn : column] = firstParent;
+    const parentColumn = firstParentColumn >= 0 ? firstParentColumn : column;
+    activeColumns[parentColumn] = firstParent;
+    columnByHash.set(firstParent, parentColumn);
     colorByHash.set(firstParent, mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color);
   }
 
-  for (const parentHash of visibleParents.slice(1)) {
+  for (const parentHash of commit.parents.slice(1)) {
     const existingColumn = activeColumns.indexOf(parentHash);
     if (existingColumn >= 0) {
+      columnByHash.set(parentHash, existingColumn);
       continue;
     }
 
     const parentColumn = mainline.has(parentHash) ? 0 : findAvailableColumn(activeColumns, 1);
     activeColumns[parentColumn] = parentHash;
+    columnByHash.set(parentHash, parentColumn);
     colorByHash.set(parentHash, mainline.has(parentHash) ? graphColors[0]! : colorByHash.get(parentHash) ?? nextColor());
   }
 }
@@ -212,20 +226,25 @@ function findAvailableColumn(columns: readonly (string | undefined)[], startFrom
   return columns.length;
 }
 
-function edgePoints(from: GraphNodeViewModel, to: GraphNodeViewModel) {
+function edgePoints(from: Pick<GraphNodeViewModel, "x" | "y">, to: Pick<GraphNodeViewModel, "x" | "y">, parentIndex: number) {
   const fromPoint = { x: from.x, y: from.y };
   const toPoint = { x: to.x, y: to.y };
   if (from.x === to.x) {
     return [fromPoint, toPoint];
   }
 
-  const midY = Math.floor((from.y + to.y) / 2);
-  return [fromPoint, { x: from.x, y: midY }, { x: to.x, y: midY }, toPoint];
+  return parentIndex === 0
+    ? [fromPoint, { x: from.x, y: to.y }, toPoint]
+    : [fromPoint, { x: to.x, y: from.y }, toPoint];
 }
 
 function graphPoint(column: number, row: number, columnSpacing: number) {
   return {
-    x: column * columnSpacing + graphLeft,
+    x: graphX(column, columnSpacing),
     y: row * rowHeight + nodeOffsetY
   };
+}
+
+function graphX(column: number, columnSpacing: number): number {
+  return column * columnSpacing + graphLeft;
 }
