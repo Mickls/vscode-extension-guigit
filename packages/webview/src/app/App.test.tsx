@@ -288,6 +288,49 @@ describe("App", () => {
     expect(graph.querySelectorAll("circle")).toHaveLength(2);
   });
 
+  it("keeps the current graph visible while a newer history page is waiting for layout", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "abc1234567890abcdef", message: "First page commit" })],
+      hasMore: true,
+      nextCursor: "1"
+    });
+    await screen.findByText("First page commit");
+
+    const firstGraphRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "graph.getLayout")![0];
+    dispatchGraphResponse(firstGraphRequest.id, [
+      {
+        color: "#f56565",
+        column: 0,
+        hash: "abc1234567890abcdef",
+        row: 0,
+        x: 8,
+        y: 18
+      }
+    ]);
+    expect(screen.getByRole("img", { name: "Git graph" }).querySelectorAll("circle")).toHaveLength(1);
+
+    const scrollContainer = screen.getByTestId("commit-scroll-container");
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 200 },
+      scrollTop: { configurable: true, value: 100 }
+    });
+    fireEvent.scroll(scrollContainer);
+    const nextPageRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "history.load" && request.cursor === "1"
+    )![0];
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "def4567890abcdefabc", message: "Second page commit" })],
+      hasMore: false,
+      requestId: nextPageRequest.id
+    });
+
+    expect(screen.getByRole("img", { name: "Git graph" }).querySelectorAll("circle")).toHaveLength(1);
+  });
+
   it("toggles the graph strip without dropping commit rows", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

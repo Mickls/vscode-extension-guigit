@@ -45,7 +45,7 @@ describe("GraphService", () => {
       { column: 0, hash: "base", row: 3 }
     ]);
     expect(graph.edges).toContainEqual({
-      color: "#f56565",
+      color: "#4299e1",
       fromHash: "merge",
       points: [
         { x: 8, y: 18 },
@@ -55,6 +55,44 @@ describe("GraphService", () => {
       ],
       toHash: "merged-parent"
     });
+  });
+
+  it("keeps graph rows aligned to the requested commit order", async () => {
+    const service = new GraphService({
+      gitRaw: async () => ["third\x1fsecond", "first\x1f", "second\x1ffirst"].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", ["first", "second", "third"]);
+
+    expect(graph.nodes.map((node) => ({ hash: node.hash, row: node.row, y: node.y }))).toEqual([
+      { hash: "first", row: 0, y: 18 },
+      { hash: "second", row: 1, y: 54 },
+      { hash: "third", row: 2, y: 90 }
+    ]);
+  });
+
+  it("uses stable mainline color and branch colors for merge edges", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "main-3\x1fmain-2 branch-2",
+          "branch-2\x1fbranch-1",
+          "main-2\x1fmain-1",
+          "branch-1\x1fmain-1",
+          "main-1\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", ["main-3", "branch-2", "main-2", "branch-1", "main-1"]);
+
+    expect(graph.nodes.filter((node) => node.hash.startsWith("main-")).map((node) => node.color)).toEqual([
+      "#f56565",
+      "#f56565",
+      "#f56565"
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "main-3" && edge.toHash === "branch-2")?.color).toBe(
+      graph.nodes.find((node) => node.hash === "branch-2")?.color
+    );
   });
 
   it("returns an empty layout without calling git for an empty hash list", async () => {
@@ -108,38 +146,19 @@ describe("GraphService", () => {
   });
 
   it("compresses many active columns inside the graph strip", async () => {
+    const branchCount = 40;
+    const branchNames = Array.from({ length: branchCount }, (_value, index) => `branch-${index + 1}`);
     const service = new GraphService({
       gitRaw: async () =>
         [
-          "merge\x1fmain branch-a branch-b branch-c branch-d branch-e branch-f branch-g branch-h branch-i",
+          `merge\x1fmain ${branchNames.join(" ")}`,
           "main\x1fbase",
-          "branch-a\x1fbase",
-          "branch-b\x1fbase",
-          "branch-c\x1fbase",
-          "branch-d\x1fbase",
-          "branch-e\x1fbase",
-          "branch-f\x1fbase",
-          "branch-g\x1fbase",
-          "branch-h\x1fbase",
-          "branch-i\x1fbase",
+          ...branchNames.map((branchName) => `${branchName}\x1fbase`),
           "base\x1f"
         ].join("\x1e")
     });
 
-    const graph = await service.getLayout("/workspace/repo", [
-      "merge",
-      "main",
-      "branch-a",
-      "branch-b",
-      "branch-c",
-      "branch-d",
-      "branch-e",
-      "branch-f",
-      "branch-g",
-      "branch-h",
-      "branch-i",
-      "base"
-    ]);
+    const graph = await service.getLayout("/workspace/repo", ["merge", "main", ...branchNames, "base"]);
 
     expect(Math.max(...graph.nodes.map((node) => node.x))).toBeLessThanOrEqual(108);
   });

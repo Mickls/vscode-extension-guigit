@@ -106,7 +106,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
         nextCursorRef.current = response.payload.nextCursor;
         selectedRepositoryIdRef.current = repositoryId;
         setCommits(nextCommits);
-        setGraph(emptyGraph);
+        if (nextCommits.length === 0) {
+          setGraph(emptyGraph);
+        }
         setSelectedRepositoryId(repositoryId);
 
         if (!historyRequest?.append) {

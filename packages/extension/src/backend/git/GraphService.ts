@@ -44,7 +44,12 @@ export class GraphService {
       repositoryRoot
     });
 
-    const commits = parseGraphCommits(await this.gitRaw(repositoryRoot, args));
+    const parsedCommits = parseGraphCommits(await this.gitRaw(repositoryRoot, args));
+    const parsedCommitByHash = new Map(parsedCommits.map((commit) => [commit.hash, commit]));
+    const commits = hashes.flatMap((hash) => {
+      const commit = parsedCommitByHash.get(hash);
+      return commit ? [commit] : [];
+    });
     const graph = computeGraphLayout(commits);
     this.logger?.debug("git.graph.loaded", {
       edgeCount: graph.edges.length,
@@ -90,7 +95,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
     const mainlineCommit = mainline.has(commit.hash);
     const existingColumn = activeColumns.indexOf(commit.hash);
     const column = mainlineCommit ? 0 : existingColumn >= 0 ? existingColumn : findAvailableColumn(activeColumns, 1);
-    const color = colorByHash.get(commit.hash) ?? (mainlineCommit ? graphColors[0]! : nextColor());
+    const color = mainlineCommit ? graphColors[0]! : colorByHash.get(commit.hash) ?? nextColor();
 
     removeHashFromOtherColumns(activeColumns, commit.hash, column);
     colorByHash.set(commit.hash, color);
@@ -107,7 +112,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
   }
 
   const maxColumn = Math.max(0, ...positionedNodes.map((node) => node.column));
-  const columnSpacing = maxColumn === 0 ? 0 : Math.max(5, Math.min(12, Math.floor((graphRight - graphLeft) / maxColumn)));
+  const columnSpacing = maxColumn === 0 ? 0 : Math.min(12, (graphRight - graphLeft) / maxColumn);
   const nodes = positionedNodes.map((node) => ({
     ...node,
     x: graphPoint(node.column, node.row, columnSpacing).x,
@@ -121,11 +126,11 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
 
       return commit.parents
         .filter((parentHash) => displayedHashes.has(parentHash))
-        .map((parentHash) => {
+        .map((parentHash, parentIndex) => {
           const toNode = nodeByHash.get(parentHash)!;
 
           return {
-            color: fromNode.color,
+            color: parentIndex === 0 ? fromNode.color : toNode.color,
             fromHash: commit.hash,
             points: edgePoints(fromNode, toNode),
             toHash: parentHash
@@ -174,7 +179,7 @@ function updateActiveColumns(
     activeColumns[column] = undefined;
   } else {
     activeColumns[firstParentColumn >= 0 ? firstParentColumn : column] = firstParent;
-    colorByHash.set(firstParent, colorByHash.get(firstParent) ?? color);
+    colorByHash.set(firstParent, mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color);
   }
 
   for (const parentHash of visibleParents.slice(1)) {
@@ -185,7 +190,7 @@ function updateActiveColumns(
 
     const parentColumn = mainline.has(parentHash) ? 0 : findAvailableColumn(activeColumns, 1);
     activeColumns[parentColumn] = parentHash;
-    colorByHash.set(parentHash, colorByHash.get(parentHash) ?? nextColor());
+    colorByHash.set(parentHash, mainline.has(parentHash) ? graphColors[0]! : colorByHash.get(parentHash) ?? nextColor());
   }
 }
 
