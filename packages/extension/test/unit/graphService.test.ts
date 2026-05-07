@@ -195,6 +195,90 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("keeps visible shared-parent branches on separate lanes until they merge", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "head\x1fmain branch-a",
+          "branch-a\x1fshared-parent",
+          "main\x1fmerge",
+          "merge\x1fmain-parent branch-b",
+          "branch-b\x1fshared-parent",
+          "shared-parent\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "head",
+      "branch-a",
+      "main",
+      "merge",
+      "branch-b",
+      "shared-parent"
+    ]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "head", row: 0 },
+      { column: 1, hash: "branch-a", row: 1 },
+      { column: 0, hash: "main", row: 2 },
+      { column: 0, hash: "merge", row: 3 },
+      { column: 2, hash: "branch-b", row: 4 },
+      { column: 2, hash: "shared-parent", row: 5 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-a" && edge.toHash === "shared-parent")?.points).toEqual([
+      { x: 20, y: 54 },
+      { x: 20, y: 198 },
+      { x: 32, y: 198 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-b" && edge.toHash === "shared-parent")?.points).toEqual([
+      { x: 32, y: 162 },
+      { x: 32, y: 198 }
+    ]);
+  });
+
+  it("moves continuations inward when an inner lane has been released", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "head\x1fmain branch-a",
+          "branch-a\x1fshared-parent",
+          "main\x1fmerge",
+          "merge\x1fmain-parent branch-b",
+          "branch-b\x1fshared-parent",
+          "shared-parent\x1fbase",
+          "side\x1fside-parent",
+          "base\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "head",
+      "branch-a",
+      "main",
+      "merge",
+      "branch-b",
+      "shared-parent",
+      "side",
+      "base"
+    ]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "head", row: 0 },
+      { column: 1, hash: "branch-a", row: 1 },
+      { column: 0, hash: "main", row: 2 },
+      { column: 0, hash: "merge", row: 3 },
+      { column: 2, hash: "branch-b", row: 4 },
+      { column: 2, hash: "shared-parent", row: 5 },
+      { column: 2, hash: "side", row: 6 },
+      { column: 1, hash: "base", row: 7 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "shared-parent" && edge.toHash === "base")?.points).toEqual([
+      { x: 32, y: 198 },
+      { x: 20, y: 198 },
+      { x: 20, y: 270 }
+    ]);
+  });
+
   it("keeps graph rows aligned to the requested commit order", async () => {
     const service = new GraphService({
       gitRaw: async () => ["third\x1fsecond", "first\x1f", "second\x1ffirst"].join("\x1e")

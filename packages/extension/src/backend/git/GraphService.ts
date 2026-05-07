@@ -112,6 +112,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       row
     });
 
+    releaseEdgesTargeting(activeColumns, commit.hash);
     updateActiveColumns(
       activeColumns,
       columnByHash,
@@ -246,16 +247,22 @@ function updateActiveColumns(
       if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
         activeColumns[column] = undefined;
       } else {
-        const parentColumn = firstParentColumn >= 0 ? firstParentColumn : column;
+        const parentColumn =
+          firstParentColumn >= 0 ? firstParentColumn : (findAvailableInnerColumn(activeColumns, column) ?? column);
         activeColumns[parentColumn] = firstParent;
         columnByHash.set(firstParent, parentColumn);
         colorByHash.set(
           firstParent,
           mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color
         );
+        if (parentColumn !== column) {
+          activeColumns[column] = undefined;
+        }
       }
     } else {
-      releaseCurrentColumn = true;
+      const edgeKey = graphEdgeKey(commit.hash, firstParent);
+      activeColumns[column] = edgeKey;
+      releaseCurrentColumn = false;
     }
   }
 
@@ -291,12 +298,30 @@ function graphEdgeKey(fromHash: string, toHash: string): string {
   return `${fromHash}\0${toHash}`;
 }
 
+function releaseEdgesTargeting(columns: Array<string | undefined>, hash: string): void {
+  for (let index = 0; index < columns.length; index += 1) {
+    if (columns[index]?.endsWith(`\0${hash}`)) {
+      columns[index] = undefined;
+    }
+  }
+}
+
 function removeHashFromOtherColumns(columns: Array<string | undefined>, hash: string, currentColumn: number): void {
   for (let index = 0; index < columns.length; index += 1) {
     if (index !== currentColumn && columns[index] === hash) {
       columns[index] = undefined;
     }
   }
+}
+
+function findAvailableInnerColumn(columns: readonly (string | undefined)[], currentColumn: number): number | undefined {
+  for (let index = 1; index < currentColumn; index += 1) {
+    if (columns[index] === undefined) {
+      return index;
+    }
+  }
+
+  return undefined;
 }
 
 function findAvailableColumn(columns: readonly (string | undefined)[], startFrom: number): number {
@@ -325,9 +350,13 @@ function edgePoints(
     return [fromPoint, toPoint];
   }
 
-  return parentIndex === 0
-    ? [fromPoint, { x: from.x, y: to.y }, toPoint]
-    : [fromPoint, { x: to.x, y: from.y }, toPoint];
+  if (parentIndex === 0) {
+    return to.x < from.x
+      ? [fromPoint, { x: to.x, y: from.y }, toPoint]
+      : [fromPoint, { x: from.x, y: to.y }, toPoint];
+  }
+
+  return [fromPoint, { x: to.x, y: from.y }, toPoint];
 }
 
 function graphPoint(column: number, row: number, columnSpacing: number) {
