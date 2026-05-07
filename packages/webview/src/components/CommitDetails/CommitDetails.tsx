@@ -2,36 +2,6 @@ import type { ReactElement } from "react";
 import type { CommitDetailsViewModel } from "../../app/rpcContract.generated";
 import { FileChanges } from "../FileChanges/FileChanges";
 
-export const sampleCommit: CommitDetailsViewModel = {
-  author: "Mickls",
-  body: "Keep Marketplace identity compatible while the rewrite moves into the new workspace.",
-  canEditMessage: true,
-  date: "Today",
-  email: "mickls@example.com",
-  files: [
-    {
-      binary: false,
-      deletions: 2,
-      insertions: 12,
-      path: "packages/extension/package.json",
-      status: "modified"
-    },
-    {
-      binary: false,
-      deletions: 0,
-      insertions: 8,
-      path: "docs/implementation-plan.md",
-      status: "modified"
-    }
-  ],
-  hash: "8f9d5c2b4a1e0d7c6b5a49382716151413121110",
-  message: "Preserve extension identity",
-  refs: [
-    { name: "HEAD", type: "head" },
-    { name: "main", type: "local" }
-  ]
-};
-
 export interface CommitDetailsProps {
   commit?: CommitDetailsViewModel;
 }

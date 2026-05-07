@@ -2,48 +2,9 @@ import type { MouseEvent, ReactElement } from "react";
 import type { CommitListItemViewModel, GraphLayoutViewModel } from "../../app/rpcContract.generated";
 import { GitGraph } from "../GitGraph/GitGraph";
 
-const sampleCommits: readonly CommitListItemViewModel[] = [
-  {
-    hash: "8f9d5c2b4a1e0d7c6b5a49382716151413121110",
-    shortHash: "8f9d5c2",
-    message: "Preserve extension identity",
-    author: "Mickls",
-    date: "Today",
-    refs: [
-      { name: "HEAD", type: "head" },
-      { name: "main", type: "local" }
-    ],
-    parents: ["7fd6979"],
-    canEditMessage: true
-  },
-  {
-    hash: "72ea7564a1e0d7c6b5a49382716151413121110",
-    shortHash: "72ea756",
-    message: "Add webview shell",
-    author: "Codex",
-    date: "Yesterday",
-    refs: [{ name: "origin/main", type: "remote" }],
-    parents: ["ee55e12"],
-    canEditMessage: false
-  }
-];
-
-const sampleGraph: GraphLayoutViewModel = {
-  nodes: [
-    { hash: sampleCommits[0]!.hash, row: 0, column: 0, color: "#f56565" },
-    { hash: sampleCommits[1]!.hash, row: 1, column: 0, color: "#4299e1" }
-  ],
-  edges: [
-    {
-      fromHash: sampleCommits[0]!.hash,
-      toHash: sampleCommits[1]!.hash,
-      color: "#9f7aea",
-      points: [
-        { x: 16, y: 18 },
-        { x: 16, y: 54 }
-      ]
-    }
-  ]
+const emptyGraph: GraphLayoutViewModel = {
+  edges: [],
+  nodes: []
 };
 
 export interface CommitListProps {
@@ -55,8 +16,8 @@ export interface CommitListProps {
 }
 
 export function CommitList({
-  commits = sampleCommits,
-  graph = sampleGraph,
+  commits = [],
+  graph = emptyGraph,
   onCommitContextMenu,
   onCommitSelect,
   selectedHash

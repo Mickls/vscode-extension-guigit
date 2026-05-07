@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactElement } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CommitDetailsViewModel,
   CommitListItemViewModel,
@@ -38,6 +38,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
+  const selectedCommitHashRef = useRef<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -68,6 +69,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         const commit = response.payload.commits[0];
         setSelectedRepositoryId(repositoryId);
         setSelectedCommitHash(commit?.hash);
+        selectedCommitHashRef.current = commit?.hash;
         setCommitDetails(undefined);
 
         if (repositoryId && commit) {
@@ -75,7 +77,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
       }
 
-      if (response.type === "commits.getDetails") {
+      if (response.type === "commits.getDetails" && response.payload.commit.hash === selectedCommitHashRef.current) {
         setCommitDetails(response.payload.commit);
       }
     };
@@ -87,6 +89,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
   const selectCommit = (commit: CommitListItemViewModel) => {
     setSelectedCommitHash(commit.hash);
+    selectedCommitHashRef.current = commit.hash;
     setCommitDetails(undefined);
 
     if (selectedRepositoryId) {
@@ -98,6 +101,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
     event.preventDefault();
     setSettingsMenuOpen(false);
     setSelectedCommitHash(commit.hash);
+    selectedCommitHashRef.current = commit.hash;
     setContextMenu({
       visible: true,
       x: event.clientX,
