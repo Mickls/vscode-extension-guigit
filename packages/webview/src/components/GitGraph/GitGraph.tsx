@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactElement } from "react";
 import { useState } from "react";
-import type { GraphLayoutViewModel } from "../../app/rpcContract.generated";
+import type { GraphLayoutViewModel, GraphPointViewModel } from "../../app/rpcContract.generated";
 
 export interface GitGraphProps {
   graph?: GraphLayoutViewModel;
@@ -10,10 +10,13 @@ export interface GitGraphProps {
 
 const rowHeight = 36;
 const minimumHeight = 36;
+const defaultWidth = 120;
+const curveRadius = 8;
 
 export function GitGraph({ graph, onNodeSelect, rowCount = 0 }: GitGraphProps): ReactElement {
   const [hoveredHash, setHoveredHash] = useState<string | undefined>();
   const height = Math.max(rowCount * rowHeight, minimumHeight);
+  const width = graph?.width ?? defaultWidth;
 
   const handleNodeKeyDown = (event: KeyboardEvent<SVGGElement>, hash: string) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -23,12 +26,14 @@ export function GitGraph({ graph, onNodeSelect, rowCount = 0 }: GitGraphProps): 
   };
 
   return (
-    <svg aria-label="Git graph" className="block w-full" height={height} role="img" viewBox={`0 0 120 ${height}`}>
+    <svg aria-label="Git graph" className="block" height={height} role="img" viewBox={`0 0 ${width} ${height}`} width={width}>
       {graph?.edges.map((edge) => (
-        <polyline
+        <path
+          d={toRoundedPath(edge.points)}
           fill="none"
           key={`${edge.fromHash}-${edge.toHash}`}
-          points={edge.points.map((point) => `${point.x},${point.y}`).join(" ")}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           stroke={edge.color}
           strokeWidth="2"
         />
@@ -58,4 +63,49 @@ export function GitGraph({ graph, onNodeSelect, rowCount = 0 }: GitGraphProps): 
       ))}
     </svg>
   );
+}
+
+function toRoundedPath(points: readonly GraphPointViewModel[]): string {
+  const commands = [`M ${formatPoint(points[0]!)}`];
+
+  for (let index = 1; index < points.length; index += 1) {
+    const point = points[index]!;
+    const nextPoint = points[index + 1];
+    if (nextPoint === undefined) {
+      commands.push(`L ${formatPoint(point)}`);
+      continue;
+    }
+
+    const previousPoint = points[index - 1]!;
+    const beforeCurve = pointAlongSegment(point, previousPoint, curveRadius);
+    const afterCurve = pointAlongSegment(point, nextPoint, curveRadius);
+    commands.push(`L ${formatPoint(beforeCurve)}`);
+    commands.push(`Q ${formatPoint(point)} ${formatPoint(afterCurve)}`);
+  }
+
+  return commands.join(" ");
+}
+
+function pointAlongSegment(
+  from: GraphPointViewModel,
+  to: GraphPointViewModel,
+  distance: number
+): GraphPointViewModel {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  const clampedDistance = Math.min(distance, length / 2);
+
+  return {
+    x: from.x + (dx / length) * clampedDistance,
+    y: from.y + (dy / length) * clampedDistance
+  };
+}
+
+function formatPoint(point: GraphPointViewModel): string {
+  return `${formatNumber(point.x)} ${formatNumber(point.y)}`;
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? value.toString() : value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }

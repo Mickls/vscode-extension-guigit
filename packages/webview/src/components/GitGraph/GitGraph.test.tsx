@@ -15,6 +15,7 @@ const graph = {
       fromHash: "first",
       points: [
         { x: 16, y: 18 },
+        { x: 44, y: 18 },
         { x: 16, y: 54 }
       ],
       toHash: "second"
@@ -37,7 +38,8 @@ const graph = {
       x: 72,
       y: 58
     }
-  ]
+  ],
+  width: 160
 } satisfies GraphLayoutViewModel;
 
 describe("GitGraph", () => {
@@ -49,7 +51,10 @@ describe("GitGraph", () => {
     render(<GitGraph graph={graph} rowCount={2} />);
 
     const svg = screen.getByRole("img", { name: "Git graph" });
-    expect(svg.querySelector("polyline")).toHaveAttribute("points", "16,18 16,54");
+    expect(svg).toHaveAttribute("width", "160");
+    expect(svg).toHaveAttribute("viewBox", "0 0 160 72");
+    expect(svg.querySelector("polyline")).not.toBeInTheDocument();
+    expect(svg.querySelector("path")).toHaveAttribute("d", "M 16 18 L 36 18 Q 44 18 39.088 24.315 L 16 54");
     expect(svg.querySelector('[data-hash="second"] circle')).toHaveAttribute("cx", "72");
     expect(svg.querySelector('[data-hash="second"] circle')).toHaveAttribute("cy", "58");
   });

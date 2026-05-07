@@ -195,6 +195,47 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("keeps lane spacing fixed and expands the graph width for many branches", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "merge\x1fmain branch-a branch-b branch-c branch-d branch-e branch-f branch-g branch-h",
+          "main\x1fbase",
+          "branch-a\x1fbase",
+          "branch-b\x1fbase",
+          "branch-c\x1fbase",
+          "branch-d\x1fbase",
+          "branch-e\x1fbase",
+          "branch-f\x1fbase",
+          "branch-g\x1fbase",
+          "branch-h\x1fbase",
+          "base\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "merge",
+      "main",
+      "branch-a",
+      "branch-b",
+      "branch-c",
+      "branch-d",
+      "branch-e",
+      "branch-f",
+      "branch-g",
+      "branch-h",
+      "base"
+    ]);
+
+    expect(graph.width).toBe(128);
+    expect(Math.max(...graph.nodes.map((node) => node.x))).toBe(104);
+    expect(
+      [...new Set(graph.nodes.map((node) => node.x))]
+        .sort((left, right) => left - right)
+        .slice(0, 3)
+    ).toEqual([8, 20, 32]);
+  });
+
   it("keeps visible shared-parent branches on separate lanes until they merge", async () => {
     const service = new GraphService({
       gitRaw: async () =>
@@ -381,7 +422,8 @@ describe("GraphService", () => {
 
     await expect(service.getLayout("/workspace/repo", [])).resolves.toEqual({
       edges: [],
-      nodes: []
+      nodes: [],
+      width: 32
     });
   });
 
@@ -422,7 +464,7 @@ describe("GraphService", () => {
     ]);
   });
 
-  it("compresses many active columns inside the graph strip", async () => {
+  it("keeps many active columns at fixed spacing outside the base graph strip", async () => {
     const branchCount = 40;
     const branchNames = Array.from({ length: branchCount }, (_value, index) => `branch-${index + 1}`);
     const service = new GraphService({
@@ -437,6 +479,7 @@ describe("GraphService", () => {
 
     const graph = await service.getLayout("/workspace/repo", ["merge", "main", ...branchNames, "base"]);
 
-    expect(Math.max(...graph.nodes.map((node) => node.x))).toBeLessThanOrEqual(108);
+    expect(Math.max(...graph.nodes.map((node) => node.x))).toBe(488);
+    expect(graph.width).toBe(512);
   });
 });

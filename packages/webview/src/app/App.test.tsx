@@ -200,7 +200,8 @@ describe("App", () => {
                     x: 8,
                     y: 54
                   }
-                ]
+                ],
+                width: 120
               }
             }
           } satisfies RpcResponse
@@ -576,7 +577,8 @@ function dispatchGraphResponse(id: string, nodes: readonly GraphNodeViewModel[])
           payload: {
             graph: {
               edges: [],
-              nodes
+              nodes,
+              width: 120
             }
           }
         } satisfies RpcResponse

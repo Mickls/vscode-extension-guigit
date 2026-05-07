@@ -4,8 +4,12 @@ import { GitGraph } from "../GitGraph/GitGraph";
 
 const emptyGraph: GraphLayoutViewModel = {
   edges: [],
-  nodes: []
+  nodes: [],
+  width: 120
 };
+
+const minimumGraphViewportWidth = 120;
+const maximumGraphViewportWidth = 240;
 
 export interface CommitListProps {
   commits?: readonly CommitListItemViewModel[];
@@ -43,9 +47,12 @@ export function CommitList({
     >
       {graphVisible ? (
         <div
-          className="w-[120px] shrink-0 border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]"
+          className="max-w-[240px] shrink-0 overflow-x-auto border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]"
           data-testid="graph-strip"
-          style={{ height: `${Math.max(commits.length, 1) * 36}px` }}
+          style={{
+            height: `${Math.max(commits.length, 1) * 36}px`,
+            width: `${Math.min(Math.max(graph.width, minimumGraphViewportWidth), maximumGraphViewportWidth)}px`
+          }}
         >
           <GitGraph graph={graph} onNodeSelect={onGraphNodeSelect} rowCount={commits.length} />
         </div>

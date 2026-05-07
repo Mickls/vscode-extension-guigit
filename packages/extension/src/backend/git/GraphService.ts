@@ -6,7 +6,8 @@ const fieldSeparator = "\x1f";
 const recordSeparator = "\x1e";
 const prettyFormat = `%H%x1f%P%x1e`;
 const graphLeft = 8;
-const graphRight = 108;
+const graphPaddingRight = 24;
+const laneSpacing = 12;
 const rowHeight = 36;
 const nodeOffsetY = 18;
 const graphColors = ["#f56565", "#4299e1", "#48bb78", "#9f7aea", "#ffc107", "#dc3545", "#28a745", "#6f42c1"];
@@ -39,7 +40,8 @@ export class GraphService {
     if (hashes.length === 0) {
       return {
         edges: [],
-        nodes: []
+        nodes: [],
+        width: graphLeft + graphPaddingRight
       };
     }
 
@@ -140,11 +142,11 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
   }
 
   const maxColumn = Math.max(0, ...positionedNodes.map((node) => node.column), ...columnByHash.values());
-  const columnSpacing = maxColumn === 0 ? 0 : Math.min(12, (graphRight - graphLeft) / maxColumn);
+  const width = graphX(maxColumn, laneSpacing) + graphPaddingRight;
   const nodes = positionedNodes.map((node) => ({
     ...node,
-    x: graphPoint(node.column, node.row, columnSpacing).x,
-    y: graphPoint(node.column, node.row, columnSpacing).y
+    x: graphPoint(node.column, node.row).x,
+    y: graphPoint(node.column, node.row).y
   }));
   const nodeByHash = new Map(nodes.map((node) => [node.hash, node]));
 
@@ -163,7 +165,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
 
         const toPoint =
           toNode ?? ({
-            x: graphX(parentColumn!, columnSpacing),
+            x: graphX(parentColumn!, laneSpacing),
             y: commits.length * rowHeight
           } satisfies Pick<GraphNodeViewModel, "x" | "y">);
 
@@ -174,13 +176,14 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
             points:
               route === undefined || (toNode === undefined && route.length === 0)
                 ? edgePoints(fromNode, toPoint, parentIndex, toNode === undefined)
-                : routedEdgePoints(fromNode, toPoint, route, columnSpacing),
+                : routedEdgePoints(fromNode, toPoint, route),
             toHash: parentHash
           }
         ];
       });
     }),
-    nodes
+    nodes,
+    width
   };
 }
 
@@ -412,12 +415,11 @@ function edgePoints(
 function routedEdgePoints(
   from: Pick<GraphNodeViewModel, "x" | "y">,
   to: Pick<GraphNodeViewModel, "x" | "y">,
-  route: readonly GraphRoutePoint[],
-  columnSpacing: number
+  route: readonly GraphRoutePoint[]
 ) {
   const points = [{ x: from.x, y: from.y }];
   for (const routePoint of route) {
-    pushGraphPoint(points, graphPoint(routePoint.column, routePoint.row, columnSpacing));
+    pushGraphPoint(points, graphPoint(routePoint.column, routePoint.row));
   }
 
   const lastPoint = points[points.length - 1]!;
@@ -436,9 +438,9 @@ function pushGraphPoint(points: Array<{ x: number; y: number }>, point: { x: num
   }
 }
 
-function graphPoint(column: number, row: number, columnSpacing: number) {
+function graphPoint(column: number, row: number) {
   return {
-    x: graphX(column, columnSpacing),
+    x: graphX(column, laneSpacing),
     y: row * rowHeight + nodeOffsetY
   };
 }

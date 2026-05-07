@@ -52,9 +52,12 @@ const graph = {
       color: "#f56565",
       column: 0,
       hash: "abc1234567890abcdef",
-      row: 0
+      row: 0,
+      x: 8,
+      y: 18
     }
-  ]
+  ],
+  width: 120
 } satisfies GraphLayoutViewModel;
 
 describe("Git history RPC handlers", () => {

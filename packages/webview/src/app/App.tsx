@@ -21,7 +21,8 @@ import { SettingsMenu, type SettingsMenuAction } from "../components/SettingsMen
 
 const emptyGraph: GraphLayoutViewModel = {
   edges: [],
-  nodes: []
+  nodes: [],
+  width: 120
 };
 
 const emptyRemotes: readonly RemoteViewModel[] = [];

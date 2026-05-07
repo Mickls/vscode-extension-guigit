@@ -103,6 +103,7 @@ export interface FileChangeViewModel {
 export interface GraphLayoutViewModel {
   nodes: readonly GraphNodeViewModel[];
   edges: readonly GraphEdgeViewModel[];
+  width: number;
 }
 
 export interface GraphNodeViewModel {
