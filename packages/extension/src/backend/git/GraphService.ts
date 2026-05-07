@@ -153,7 +153,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
           {
             color: parentIndex === 0 ? fromNode.color : (toNode?.color ?? colorByHash.get(parentHash)!),
             fromHash: commit.hash,
-            points: edgePoints(fromNode, toPoint, parentIndex),
+            points: edgePoints(fromNode, toPoint, parentIndex, toNode === undefined),
             toHash: parentHash
           }
         ];
@@ -276,11 +276,20 @@ function findAvailableColumn(columns: readonly (string | undefined)[], startFrom
   return columns.length;
 }
 
-function edgePoints(from: Pick<GraphNodeViewModel, "x" | "y">, to: Pick<GraphNodeViewModel, "x" | "y">, parentIndex: number) {
+function edgePoints(
+  from: Pick<GraphNodeViewModel, "x" | "y">,
+  to: Pick<GraphNodeViewModel, "x" | "y">,
+  parentIndex: number,
+  hiddenParent: boolean
+) {
   const fromPoint = { x: from.x, y: from.y };
   const toPoint = { x: to.x, y: to.y };
   if (from.x === to.x) {
     return [fromPoint, toPoint];
+  }
+
+  if (hiddenParent) {
+    return [fromPoint, { x: to.x, y: from.y }, toPoint];
   }
 
   return parentIndex === 0

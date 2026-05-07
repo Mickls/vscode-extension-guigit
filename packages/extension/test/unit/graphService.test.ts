@@ -165,6 +165,37 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("routes hidden shared parents away from unrelated adjacent rows", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "merge\x1fmain side-a",
+          "side-a\x1fhidden-shared",
+          "side-b\x1fhidden-shared",
+          "main\x1fmain-parent unrelated-hidden"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", ["merge", "side-a", "side-b", "main"]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "merge", row: 0 },
+      { column: 1, hash: "side-a", row: 1 },
+      { column: 2, hash: "side-b", row: 2 },
+      { column: 0, hash: "main", row: 3 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "side-b" && edge.toHash === "hidden-shared")?.points).toEqual([
+      { x: 32, y: 90 },
+      { x: 20, y: 90 },
+      { x: 20, y: 144 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "main" && edge.toHash === "unrelated-hidden")?.points).toEqual([
+      { x: 8, y: 126 },
+      { x: 32, y: 126 },
+      { x: 32, y: 144 }
+    ]);
+  });
+
   it("keeps graph rows aligned to the requested commit order", async () => {
     const service = new GraphService({
       gitRaw: async () => ["third\x1fsecond", "first\x1f", "second\x1ffirst"].join("\x1e")
