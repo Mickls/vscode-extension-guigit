@@ -167,11 +167,11 @@ gui-git-history/
 - Create: `packages/extension/src/backend/rpc/contract.ts`
 - Create: `packages/webview/src/app/rpcClient.ts`
 
-- [ ] Define discriminated union request types for history, branches, commits, files, graph, remotes, settings, and Git operations.
-- [ ] Define discriminated union response types for ViewModels, operation results, errors, and backend notifications.
-- [ ] Share equivalent type definitions through a local package or generated declaration file.
-- [ ] Add tests that fail if a request type has no backend handler.
-- [ ] Commit with `feat: define typed webview rpc contract`.
+- [x] Define discriminated union request types for history, branches, commits, files, graph, remotes, settings, and Git operations.
+- [x] Define discriminated union response types for ViewModels, operation results, errors, and backend notifications.
+- [x] Share equivalent type definitions through a local package or generated declaration file.
+- [x] Add tests that fail if a request type has no backend handler.
+- [x] Commit with `feat: define typed webview rpc contract`.
 
 ### Task 1.2: Implement backend router
 
