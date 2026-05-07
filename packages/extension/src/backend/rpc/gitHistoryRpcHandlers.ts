@@ -1,0 +1,103 @@
+import type { BranchService } from "../git/BranchService";
+import type { CommitService } from "../git/CommitService";
+import type { FileService } from "../git/FileService";
+import type { RepositoryService } from "../git/RepositoryService";
+import type { BranchesViewModel, RepositoryViewModel } from "./contract";
+import type { RpcHandlerMap } from "./router";
+
+const emptyBranches: BranchesViewModel = {
+  locals: [],
+  remotes: []
+};
+
+export interface GitHistoryRpcHandlerInput {
+  branchService: Pick<BranchService, "listBranches">;
+  commitService: Pick<CommitService, "loadHistory">;
+  fileService: Pick<FileService, "getCommitDetails" | "getFileChanges">;
+  repositoryService: Pick<
+    RepositoryService,
+    "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
+  >;
+}
+
+export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): RpcHandlerMap {
+  return {
+    "branches.list": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return {
+        branches: await input.branchService.listBranches(repository.rootPath)
+      };
+    },
+    "commits.getDetails": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return {
+        commit: await input.fileService.getCommitDetails(repository.rootPath, request.hash)
+      };
+    },
+    "files.getChanges": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.fileService.getFileChanges(repository.rootPath, request.hash, request.mode);
+    },
+    "history.load": async (request) => {
+      const repositories = await input.repositoryService.discoverRepositories();
+      const repository = selectRepository(input.repositoryService, repositories, request.repositoryId);
+
+      if (!repository) {
+        return {
+          branches: emptyBranches,
+          commits: [],
+          hasMore: false,
+          repositories
+        };
+      }
+
+      const [branches, history] = await Promise.all([
+        input.branchService.listBranches(repository.rootPath),
+        input.commitService.loadHistory({
+          author: request.author,
+          branch: request.branch,
+          cursor: request.cursor,
+          pageSize: request.pageSize,
+          repositoryRoot: repository.rootPath,
+          search: request.search
+        })
+      ]);
+
+      return {
+        branches,
+        commits: history.commits,
+        hasMore: history.hasMore,
+        nextCursor: history.nextCursor,
+        repositories
+      };
+    }
+  };
+}
+
+async function findRepository(
+  repositoryService: GitHistoryRpcHandlerInput["repositoryService"],
+  repositoryId: string
+): Promise<RepositoryViewModel> {
+  const repositories = await repositoryService.discoverRepositories();
+  const repository = repositories.find((candidate) => candidate.id === repositoryId);
+  if (!repository) {
+    throw new Error(`Repository not found: ${repositoryId}`);
+  }
+
+  return repository;
+}
+
+function selectRepository(
+  repositoryService: GitHistoryRpcHandlerInput["repositoryService"],
+  repositories: readonly RepositoryViewModel[],
+  repositoryId: string | undefined
+): RepositoryViewModel | undefined {
+  if (repositoryId) {
+    return repositories.find((repository) => repository.id === repositoryId);
+  }
+
+  return repositoryService.switchToActiveEditorRepository() ?? repositoryService.getCurrentRepository() ?? repositories[0];
+}

@@ -12,6 +12,9 @@ const vscodeMocks = vi.hoisted(() => {
 });
 
 vi.mock("vscode", () => ({
+  ConfigurationTarget: {
+    Workspace: 2
+  },
   Disposable: class {
     public constructor(public readonly dispose: () => void) {}
   },
@@ -21,7 +24,15 @@ vi.mock("vscode", () => ({
     }))
   },
   window: {
+    activeTextEditor: undefined,
     registerWebviewViewProvider: vscodeMocks.registerWebviewViewProvider
+  },
+  workspace: {
+    getConfiguration: vi.fn(() => ({
+      get: vi.fn(() => "tree"),
+      update: vi.fn()
+    })),
+    workspaceFolders: []
   }
 }));
 

@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import type { CommitDetailsViewModel } from "../../app/rpcContract.generated";
 import { FileChanges } from "../FileChanges/FileChanges";
 
-const sampleCommit: CommitDetailsViewModel = {
+export const sampleCommit: CommitDetailsViewModel = {
   author: "Mickls",
   body: "Keep Marketplace identity compatible while the rewrite moves into the new workspace.",
   canEditMessage: true,
@@ -36,7 +36,15 @@ export interface CommitDetailsProps {
   commit?: CommitDetailsViewModel;
 }
 
-export function CommitDetails({ commit = sampleCommit }: CommitDetailsProps): ReactElement {
+export function CommitDetails({ commit }: CommitDetailsProps): ReactElement {
+  if (!commit) {
+    return (
+      <div className="p-4 text-xs text-[var(--vscode-descriptionForeground)]">
+        Select a commit to view details.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 p-4 text-xs">
       <section className="space-y-1 border-b border-[var(--vscode-panel-border)] pb-3">

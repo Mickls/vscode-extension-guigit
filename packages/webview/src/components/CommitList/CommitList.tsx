@@ -49,13 +49,17 @@ const sampleGraph: GraphLayoutViewModel = {
 export interface CommitListProps {
   commits?: readonly CommitListItemViewModel[];
   graph?: GraphLayoutViewModel;
+  onCommitSelect?: (commit: CommitListItemViewModel) => void;
   onCommitContextMenu?: (event: MouseEvent<HTMLElement>, commit: CommitListItemViewModel) => void;
+  selectedHash?: string;
 }
 
 export function CommitList({
   commits = sampleCommits,
   graph = sampleGraph,
-  onCommitContextMenu
+  onCommitContextMenu,
+  onCommitSelect,
+  selectedHash
 }: CommitListProps): ReactElement {
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -69,9 +73,10 @@ export function CommitList({
             data-testid="commit-row"
             key={commit.hash}
             onContextMenu={(event) => onCommitContextMenu?.(event, commit)}
+            onClick={() => onCommitSelect?.(commit)}
           >
             <div
-              className={`grid min-w-[550px] flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] items-center gap-3 px-3 py-2 ${index === 0 ? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]" : "bg-[var(--vscode-editor-background)]"}`}
+              className={`grid min-w-[550px] flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] items-center gap-3 px-3 py-2 ${selectedHash === commit.hash || (!selectedHash && index === 0) ? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]" : "bg-[var(--vscode-editor-background)]"}`}
             >
               <span className="truncate font-mono text-[11px] text-[var(--vscode-descriptionForeground)]">
                 {commit.shortHash}
