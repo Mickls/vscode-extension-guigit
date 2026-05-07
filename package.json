@@ -4,11 +4,13 @@
   "private": true,
   "packageManager": "pnpm@11.0.6",
   "scripts": {
-    "typecheck": "pnpm -r typecheck",
+    "rpc:generate": "pnpm --filter @gui-git-history/shared build && node scripts/generate-rpc-contract.mjs",
+    "rpc:check": "pnpm --filter @gui-git-history/shared build && node scripts/generate-rpc-contract.mjs --check",
+    "typecheck": "pnpm rpc:check && pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
-    "build": "pnpm -r build",
-    "package": "pnpm --filter vscode-extension-guigit package"
+    "test": "pnpm rpc:check && pnpm -r test",
+    "build": "pnpm rpc:check && pnpm -r build",
+    "package": "pnpm build && pnpm --filter vscode-extension-guigit package"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

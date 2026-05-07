@@ -1,0 +1,21 @@
+{
+  "name": "@gui-git-history/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./out/rpc/contract.js",
+  "exports": {
+    "./rpc/contract": {
+      "types": "./src/rpc/contract.ts",
+      "default": "./out/rpc/contract.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.15"
+  }
+}

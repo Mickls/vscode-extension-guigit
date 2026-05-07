@@ -4,7 +4,7 @@ import {
   backendRpcHandlerTypes,
   type RpcRequest,
   type RpcResponse
-} from "../../src/backend/rpc/contract";
+} from "../../src/rpc/contract";
 
 const requiredRequestTypes = [
   "history.load",
