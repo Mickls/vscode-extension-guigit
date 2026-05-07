@@ -21,6 +21,11 @@ interface ParsedGraphCommit {
   parents: readonly string[];
 }
 
+interface GraphRoutePoint {
+  column: number;
+  row: number;
+}
+
 export class GraphService {
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug"> | undefined;
@@ -83,6 +88,8 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
   const positionedNodes: Array<Omit<GraphNodeViewModel, "x" | "y">> = [];
   const columnByHash = new Map<string, number>();
   const colorByHash = new Map<string, string>();
+  const columnByEdge = new Map<string, number>();
+  const routeByEdge = new Map<string, GraphRoutePoint[]>();
   const hiddenColumnByEdge = new Map<string, number>();
   const hiddenColorByEdge = new Map<string, string>();
   let nextColorIndex = 1;
@@ -95,6 +102,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
 
   for (let row = 0; row < commits.length; row += 1) {
     const commit = commits[row]!;
+    compactEdgeColumns(activeColumns, columnByEdge, hiddenColumnByEdge, routeByEdge, row);
     const mainlineCommit = mainline.has(commit.hash);
     const existingColumn = activeColumns.indexOf(commit.hash);
     const column = mainlineCommit ? 0 : existingColumn >= 0 ? existingColumn : findAvailableColumn(activeColumns, 1);
@@ -117,6 +125,8 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       activeColumns,
       columnByHash,
       colorByHash,
+      columnByEdge,
+      routeByEdge,
       hiddenColumnByEdge,
       hiddenColorByEdge,
       commit,
@@ -145,7 +155,8 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       return commit.parents.flatMap((parentHash, parentIndex) => {
         const toNode = nodeByHash.get(parentHash);
         const hiddenEdgeKey = graphEdgeKey(commit.hash, parentHash);
-        const parentColumn = toNode ? columnByHash.get(parentHash) : hiddenColumnByEdge.get(hiddenEdgeKey);
+        const route = routeByEdge.get(hiddenEdgeKey);
+        const parentColumn = toNode ? columnByHash.get(parentHash) : columnByEdge.get(hiddenEdgeKey);
         if (toNode === undefined && parentColumn === undefined) {
           return [];
         }
@@ -160,7 +171,10 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
           {
             color: parentIndex === 0 ? fromNode.color : (toNode?.color ?? hiddenColorByEdge.get(hiddenEdgeKey)!),
             fromHash: commit.hash,
-            points: edgePoints(fromNode, toPoint, parentIndex, toNode === undefined),
+            points:
+              route === undefined || (toNode === undefined && route.length === 0)
+                ? edgePoints(fromNode, toPoint, parentIndex, toNode === undefined)
+                : routedEdgePoints(fromNode, toPoint, route, columnSpacing),
             toHash: parentHash
           }
         ];
@@ -216,6 +230,8 @@ function updateActiveColumns(
   activeColumns: Array<string | undefined>,
   columnByHash: Map<string, number>,
   colorByHash: Map<string, string>,
+  columnByEdge: Map<string, number>,
+  routeByEdge: Map<string, GraphRoutePoint[]>,
   hiddenColumnByEdge: Map<string, number>,
   hiddenColorByEdge: Map<string, string>,
   commit: ParsedGraphCommit,
@@ -236,6 +252,8 @@ function updateActiveColumns(
   if (!commitByHash.has(firstParent)) {
     const edgeKey = graphEdgeKey(commit.hash, firstParent);
     activeColumns[column] = edgeKey;
+    columnByEdge.set(edgeKey, column);
+    routeByEdge.set(edgeKey, []);
     hiddenColumnByEdge.set(edgeKey, column);
     hiddenColorByEdge.set(edgeKey, color);
   } else {
@@ -262,6 +280,8 @@ function updateActiveColumns(
     } else {
       const edgeKey = graphEdgeKey(commit.hash, firstParent);
       activeColumns[column] = edgeKey;
+      columnByEdge.set(edgeKey, column);
+      routeByEdge.set(edgeKey, []);
       releaseCurrentColumn = false;
     }
   }
@@ -272,6 +292,8 @@ function updateActiveColumns(
       const parentColumn = findAvailableColumn(activeColumns, 1);
       const parentColor = nextColor();
       activeColumns[parentColumn] = edgeKey;
+      columnByEdge.set(edgeKey, parentColumn);
+      routeByEdge.set(edgeKey, []);
       hiddenColumnByEdge.set(edgeKey, parentColumn);
       hiddenColorByEdge.set(edgeKey, parentColor);
       continue;
@@ -303,6 +325,34 @@ function releaseEdgesTargeting(columns: Array<string | undefined>, hash: string)
     if (columns[index]?.endsWith(`\0${hash}`)) {
       columns[index] = undefined;
     }
+  }
+}
+
+function compactEdgeColumns(
+  columns: Array<string | undefined>,
+  columnByEdge: Map<string, number>,
+  hiddenColumnByEdge: Map<string, number>,
+  routeByEdge: Map<string, GraphRoutePoint[]>,
+  row: number
+): void {
+  for (let column = 1; column < columns.length; column += 1) {
+    const edgeKey = columns[column];
+    if (edgeKey === undefined || !edgeKey.includes("\0")) {
+      continue;
+    }
+
+    const innerColumn = findAvailableInnerColumn(columns, column);
+    if (innerColumn === undefined) {
+      continue;
+    }
+
+    columns[innerColumn] = edgeKey;
+    columns[column] = undefined;
+    columnByEdge.set(edgeKey, innerColumn);
+    if (hiddenColumnByEdge.has(edgeKey)) {
+      hiddenColumnByEdge.set(edgeKey, innerColumn);
+    }
+    routeByEdge.get(edgeKey)!.push({ column, row }, { column: innerColumn, row });
   }
 }
 
@@ -357,6 +407,33 @@ function edgePoints(
   }
 
   return [fromPoint, { x: to.x, y: from.y }, toPoint];
+}
+
+function routedEdgePoints(
+  from: Pick<GraphNodeViewModel, "x" | "y">,
+  to: Pick<GraphNodeViewModel, "x" | "y">,
+  route: readonly GraphRoutePoint[],
+  columnSpacing: number
+) {
+  const points = [{ x: from.x, y: from.y }];
+  for (const routePoint of route) {
+    pushGraphPoint(points, graphPoint(routePoint.column, routePoint.row, columnSpacing));
+  }
+
+  const lastPoint = points[points.length - 1]!;
+  if (lastPoint.x !== to.x && lastPoint.y !== to.y) {
+    pushGraphPoint(points, { x: lastPoint.x, y: to.y });
+  }
+  pushGraphPoint(points, { x: to.x, y: to.y });
+
+  return points;
+}
+
+function pushGraphPoint(points: Array<{ x: number; y: number }>, point: { x: number; y: number }): void {
+  const lastPoint = points[points.length - 1]!;
+  if (lastPoint.x !== point.x || lastPoint.y !== point.y) {
+    points.push(point);
+  }
 }
 
 function graphPoint(column: number, row: number, columnSpacing: number) {

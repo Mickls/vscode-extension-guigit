@@ -279,6 +279,61 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("keeps a shared first-parent edge separate until the parent row releases its lane", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "main-tip\x1fmain-parent branch-tip",
+          "branch-tip\x1fbranch-merge",
+          "branch-merge\x1fbranch-first-parent branch-side",
+          "branch-side\x1fshared-parent right-continuation",
+          "right-continuation\x1fright-base",
+          "right-base\x1fhidden-base",
+          "branch-first-parent\x1fshared-parent",
+          "shared-parent\x1fhidden-base",
+          "main-parent\x1fmain-base main-side",
+          "main-side\x1fhidden-base"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "main-tip",
+      "branch-tip",
+      "branch-merge",
+      "branch-side",
+      "right-continuation",
+      "right-base",
+      "branch-first-parent",
+      "shared-parent",
+      "main-parent",
+      "main-side"
+    ]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "main-tip", row: 0 },
+      { column: 1, hash: "branch-tip", row: 1 },
+      { column: 1, hash: "branch-merge", row: 2 },
+      { column: 2, hash: "branch-side", row: 3 },
+      { column: 3, hash: "right-continuation", row: 4 },
+      { column: 3, hash: "right-base", row: 5 },
+      { column: 1, hash: "branch-first-parent", row: 6 },
+      { column: 1, hash: "shared-parent", row: 7 },
+      { column: 0, hash: "main-parent", row: 8 },
+      { column: 3, hash: "main-side", row: 9 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-side" && edge.toHash === "shared-parent")?.points).toEqual([
+      { x: 32, y: 126 },
+      { x: 32, y: 270 },
+      { x: 20, y: 270 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "right-base" && edge.toHash === "hidden-base")?.points).toEqual([
+      { x: 44, y: 198 },
+      { x: 44, y: 306 },
+      { x: 32, y: 306 },
+      { x: 32, y: 360 }
+    ]);
+  });
+
   it("keeps graph rows aligned to the requested commit order", async () => {
     const service = new GraphService({
       gitRaw: async () => ["third\x1fsecond", "first\x1f", "second\x1ffirst"].join("\x1e")
