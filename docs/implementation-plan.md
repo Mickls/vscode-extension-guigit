@@ -181,11 +181,11 @@ gui-git-history/
 - Create: `packages/extension/src/backend/rpc/errors.ts`
 - Modify: `packages/extension/src/views/GitHistoryViewProvider.ts`
 
-- [ ] `GitHistoryViewProvider` only creates Webview HTML, wires scripts, and delegates messages to the router.
-- [ ] Router maps request type to backend service method.
-- [ ] Router returns typed success/error responses.
-- [ ] Add unit tests for successful dispatch and unknown request errors.
-- [ ] Commit with `feat: route webview requests through backend rpc`.
+- [x] `GitHistoryViewProvider` only creates Webview HTML, wires scripts, and delegates messages to the router.
+- [x] Router maps request type to backend service method.
+- [x] Router returns typed success/error responses.
+- [x] Add unit tests for successful dispatch and unknown request errors.
+- [x] Commit with `feat: route webview requests through backend rpc`.
 
 ## Phase 2: UI Shell Fidelity
 
