@@ -117,6 +117,47 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("keeps a shared parent on the lane of the nearest first-parent continuation", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "main-merge\x1fmain-parent branch-head",
+          "branch-head\x1fbranch-merge",
+          "branch-merge\x1fbranch-cont side-merge",
+          "side-merge\x1fshared-base side-main",
+          "side-main\x1fside-base",
+          "branch-cont\x1fshared-base",
+          "shared-base\x1f",
+          "main-parent\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "main-merge",
+      "branch-head",
+      "branch-merge",
+      "side-merge",
+      "side-main",
+      "branch-cont",
+      "shared-base",
+      "main-parent"
+    ]);
+
+    const branchHead = graph.nodes.find((node) => node.hash === "branch-head")!;
+    const branchCont = graph.nodes.find((node) => node.hash === "branch-cont")!;
+    const sharedBase = graph.nodes.find((node) => node.hash === "shared-base")!;
+    const sideMerge = graph.nodes.find((node) => node.hash === "side-merge")!;
+
+    expect(branchCont.column).toBe(branchHead.column);
+    expect(sharedBase.column).toBe(branchHead.column);
+    expect(sharedBase.color).toBe(branchHead.color);
+    expect(sideMerge.column).not.toBe(sharedBase.column);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-cont" && edge.toHash === "shared-base")?.points).toEqual([
+      { x: 20, y: 198 },
+      { x: 20, y: 234 }
+    ]);
+  });
+
   it("keeps graph rows aligned to the requested commit order", async () => {
     const service = new GraphService({
       gitRaw: async () => ["third\x1fsecond", "first\x1f", "second\x1ffirst"].join("\x1e")

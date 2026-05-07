@@ -78,6 +78,7 @@ function parseGraphCommits(output: string): readonly ParsedGraphCommit[] {
 function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutViewModel {
   const commitByHash = new Map(commits.map((commit) => [commit.hash, commit]));
   const mainline = identifyMainline(commits, commitByHash);
+  const preferredChildByParent = identifyPreferredParentChildren(commits);
   const activeColumns: Array<string | undefined> = [];
   const positionedNodes: Array<Omit<GraphNodeViewModel, "x" | "y">> = [];
   const columnByHash = new Map<string, number>();
@@ -109,7 +110,17 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       row
     });
 
-    updateActiveColumns(activeColumns, columnByHash, colorByHash, commit, column, mainline, color, nextColor);
+    updateActiveColumns(
+      activeColumns,
+      columnByHash,
+      colorByHash,
+      commit,
+      column,
+      mainline,
+      preferredChildByParent,
+      color,
+      nextColor
+    );
   }
 
   const maxColumn = Math.max(0, ...positionedNodes.map((node) => node.column), ...columnByHash.values());
@@ -168,6 +179,32 @@ function identifyMainline(
   return mainline;
 }
 
+function identifyPreferredParentChildren(commits: readonly ParsedGraphCommit[]): ReadonlyMap<string, string> {
+  const rowByHash = new Map(commits.map((commit, row) => [commit.hash, row]));
+  const preferredByParent = new Map<string, { childHash: string; childRow: number }>();
+
+  for (let row = 0; row < commits.length; row += 1) {
+    const commit = commits[row]!;
+    const firstParent = commit.parents[0];
+    const parentRow = firstParent ? rowByHash.get(firstParent) : undefined;
+    if (firstParent === undefined || parentRow === undefined || parentRow <= row) {
+      continue;
+    }
+
+    const current = preferredByParent.get(firstParent);
+    if (current === undefined || row > current.childRow) {
+      preferredByParent.set(firstParent, {
+        childHash: commit.hash,
+        childRow: row
+      });
+    }
+  }
+
+  return new Map(
+    [...preferredByParent.entries()].map(([parentHash, preferred]) => [parentHash, preferred.childHash])
+  );
+}
+
 function updateActiveColumns(
   activeColumns: Array<string | undefined>,
   columnByHash: Map<string, number>,
@@ -175,6 +212,7 @@ function updateActiveColumns(
   commit: ParsedGraphCommit,
   column: number,
   mainline: ReadonlySet<string>,
+  preferredChildByParent: ReadonlyMap<string, string>,
   color: string,
   nextColor: () => string
 ): void {
@@ -184,14 +222,21 @@ function updateActiveColumns(
   }
 
   const firstParent = commit.parents[0]!;
-  const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
-  if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
-    activeColumns[column] = undefined;
+  const preferredChild = preferredChildByParent.get(firstParent);
+  const currentCommitOwnsFirstParentLane =
+    mainline.has(firstParent) || preferredChild === undefined || preferredChild === commit.hash;
+  if (currentCommitOwnsFirstParentLane) {
+    const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
+    if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
+      activeColumns[column] = undefined;
+    } else {
+      const parentColumn = firstParentColumn >= 0 ? firstParentColumn : column;
+      activeColumns[parentColumn] = firstParent;
+      columnByHash.set(firstParent, parentColumn);
+      colorByHash.set(firstParent, mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color);
+    }
   } else {
-    const parentColumn = firstParentColumn >= 0 ? firstParentColumn : column;
-    activeColumns[parentColumn] = firstParent;
-    columnByHash.set(firstParent, parentColumn);
-    colorByHash.set(firstParent, mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color);
+    activeColumns[column] = undefined;
   }
 
   for (const parentHash of commit.parents.slice(1)) {
