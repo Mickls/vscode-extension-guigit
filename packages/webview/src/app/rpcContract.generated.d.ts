@@ -35,6 +35,7 @@ export interface CommitListItemViewModel {
     date: string;
     refs: readonly RefViewModel[];
     parents: readonly string[];
+    canEditMessage: boolean;
 }
 export interface RefViewModel {
     name: string;

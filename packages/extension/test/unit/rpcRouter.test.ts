@@ -13,7 +13,10 @@ describe("RPC router", () => {
     const router = createRpcRouter({
       "history.load": async () => ({
         repositories: [],
-        branches: [],
+        branches: {
+          locals: [],
+          remotes: []
+        },
         commits: [],
         hasMore: false
       })
@@ -25,7 +28,10 @@ describe("RPC router", () => {
       type: "history.load",
       payload: {
         repositories: [],
-        branches: [],
+        branches: {
+          locals: [],
+          remotes: []
+        },
         commits: [],
         hasMore: false
       }

@@ -244,12 +244,12 @@ gui-git-history/
 - Create: `packages/extension/src/backend/git/CommitService.ts`
 - Create: `packages/extension/src/state/CacheService.ts`
 
-- [ ] Load paged commit history with refs and parents.
-- [ ] Support all branches, selected branch, remote branch, tags, and author filters.
-- [ ] Support message search and hash-prefix search.
-- [ ] Return `canEditMessage` from backend.
-- [ ] Cache commit details and total counts.
-- [ ] Commit with `feat: add commit history service`.
+- [x] Load paged commit history with refs and parents.
+- [x] Support all branches, selected branch, remote branch, tags, and author filters.
+- [x] Support message search and hash-prefix search.
+- [x] Return `canEditMessage` from backend.
+- [x] Cache commit details and total counts.
+- [x] Commit with `feat: add commit history service`.
 
 ### Task 3.3: Commit details and file changes
 

@@ -13,7 +13,8 @@ const sampleCommits: readonly CommitListItemViewModel[] = [
       { name: "HEAD", type: "head" },
       { name: "main", type: "local" }
     ],
-    parents: ["7fd6979"]
+    parents: ["7fd6979"],
+    canEditMessage: true
   },
   {
     hash: "72ea7564a1e0d7c6b5a49382716151413121110",
@@ -22,7 +23,8 @@ const sampleCommits: readonly CommitListItemViewModel[] = [
     author: "Codex",
     date: "Yesterday",
     refs: [{ name: "origin/main", type: "remote" }],
-    parents: ["ee55e12"]
+    parents: ["ee55e12"],
+    canEditMessage: false
   }
 ];
 

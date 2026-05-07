@@ -1,0 +1,242 @@
+import { simpleGit } from "simple-git";
+import type { CommitListItemViewModel, RefViewModel } from "../rpc/contract";
+import type { CacheService } from "../../state/CacheService";
+
+const fieldSeparator = "\x1f";
+const recordSeparator = "\x1e";
+const prettyFormat = `%H${fieldSeparator}%ai${fieldSeparator}%s${fieldSeparator}%an${fieldSeparator}%ae${fieldSeparator}%D${fieldSeparator}%P${recordSeparator}`;
+
+export interface CommitServiceInput {
+  cache: CacheService;
+  gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+}
+
+export interface CommitHistoryInput {
+  author?: string;
+  branch?: string;
+  cursor?: string;
+  pageSize: number;
+  repositoryRoot: string;
+  search?: string;
+}
+
+export interface CommitHistoryResult {
+  commits: readonly CommitListItemViewModel[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
+export interface CommitCountInput {
+  author?: string;
+  branch?: string;
+  repositoryRoot: string;
+}
+
+interface ParsedCommit {
+  author: string;
+  date: string;
+  email: string;
+  hash: string;
+  message: string;
+  parents: readonly string[];
+  refs: readonly RefViewModel[];
+  shortHash: string;
+}
+
+interface EditableContext {
+  latestHash: string;
+  userEmail: string;
+  userName: string;
+}
+
+export class CommitService {
+  private readonly cache: CacheService;
+  private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+
+  public constructor(input: CommitServiceInput) {
+    this.cache = input.cache;
+    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+  }
+
+  public async loadHistory(input: CommitHistoryInput): Promise<CommitHistoryResult> {
+    const skip = Number(input.cursor ?? "0");
+    const commits = await this.loadMatchingCommits(input, skip);
+    const page = commits.slice(0, input.pageSize);
+    if (page.length === 0) {
+      return {
+        commits: [],
+        hasMore: false
+      };
+    }
+
+    const editableContext = await this.getEditableContext(input.repositoryRoot);
+
+    return {
+      commits: page.map((commit) => toViewModel(commit, editableContext)),
+      hasMore: commits.length > input.pageSize,
+      nextCursor: commits.length > input.pageSize ? String(skip + input.pageSize) : undefined
+    };
+  }
+
+  public async getTotalCommitCount(input: CommitCountInput): Promise<number> {
+    const cacheKey = totalCommitCountKey(input);
+    const cached = this.cache.getTotalCommitCount(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const args = ["rev-list", "--count", ...refArgs(input.branch)];
+    if (input.author) {
+      args.push(`--author=${input.author}`);
+    }
+
+    const count = Number.parseInt((await this.gitRaw(input.repositoryRoot, args)).trim(), 10);
+    this.cache.setTotalCommitCount(cacheKey, count);
+    return count;
+  }
+
+  private async loadMatchingCommits(input: CommitHistoryInput, skip: number): Promise<readonly ParsedCommit[]> {
+    if (input.search && isHashPrefix(input.search)) {
+      const hashMatches = parseCommitLog(
+        await this.gitRaw(input.repositoryRoot, buildLogArgs(input, undefined, undefined))
+      ).filter((commit) => commit.hash.toLowerCase().startsWith(input.search!.toLowerCase()));
+
+      if (hashMatches.length > 0) {
+        return hashMatches.slice(skip, skip + input.pageSize + 1);
+      }
+    }
+
+    const result = await this.gitRaw(input.repositoryRoot, buildLogArgs(input, input.pageSize + 1, skip, input.search));
+    return parseCommitLog(result);
+  }
+
+  private async getEditableContext(repositoryRoot: string): Promise<EditableContext | undefined> {
+    try {
+      const [latestHash, userName, userEmail] = await Promise.all([
+        this.gitRaw(repositoryRoot, ["rev-parse", "HEAD"]),
+        this.gitRaw(repositoryRoot, ["config", "user.name"]),
+        this.gitRaw(repositoryRoot, ["config", "user.email"])
+      ]);
+
+      return {
+        latestHash: latestHash.trim(),
+        userEmail: userEmail.trim(),
+        userName: userName.trim()
+      };
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+function buildLogArgs(
+  input: CommitHistoryInput,
+  maxCount: number | undefined,
+  skip: number | undefined,
+  grep?: string
+): string[] {
+  const args = ["log", ...refArgs(input.branch), `--pretty=format:${prettyFormat}`, "--encoding=UTF-8"];
+
+  if (maxCount !== undefined) {
+    args.push(`--max-count=${maxCount}`);
+  }
+
+  if (skip !== undefined && skip > 0) {
+    args.push(`--skip=${skip}`);
+  }
+
+  if (input.author) {
+    args.push(`--author=${input.author}`);
+  }
+
+  if (grep) {
+    args.push(`--grep=${grep}`, "-i");
+  }
+
+  return args;
+}
+
+function refArgs(branch: string | undefined): string[] {
+  return branch && branch !== "all" ? [branch] : ["--branches", "--remotes", "--tags"];
+}
+
+function parseCommitLog(output: string): readonly ParsedCommit[] {
+  return output
+    .split(recordSeparator)
+    .filter(Boolean)
+    .map((line) => {
+      const fields = line.split(fieldSeparator);
+      const hash = fields[0]!;
+      const date = fields[1]!;
+      const message = fields[2]!;
+      const author = fields[3]!;
+      const email = fields[4]!;
+      const refs = fields[5]!;
+      const parents = fields[6]!;
+
+      return {
+        author,
+        date,
+        email,
+        hash,
+        message,
+        parents: parents.split(" ").filter(Boolean),
+        refs: parseRefs(refs),
+        shortHash: hash.slice(0, 7)
+      };
+    });
+}
+
+function parseRefs(refs: string): readonly RefViewModel[] {
+  return refs
+    .split(",")
+    .map((ref) => ref.trim())
+    .filter(Boolean)
+    .flatMap((ref) => {
+      if (ref.startsWith("HEAD -> ")) {
+        const target = ref.slice("HEAD -> ".length);
+        return [{ name: "HEAD", type: "head" }, classifyRef(target)];
+      }
+
+      if (ref === "HEAD") {
+        return [{ name: "HEAD", type: "head" }];
+      }
+
+      if (ref.startsWith("tag: ")) {
+        return [{ name: ref.slice("tag: ".length), type: "tag" }];
+      }
+
+      return [classifyRef(ref)];
+    });
+}
+
+function classifyRef(ref: string): RefViewModel {
+  return {
+    name: ref,
+    type: ref.includes("/") ? "remote" : "local"
+  };
+}
+
+function toViewModel(commit: ParsedCommit, editableContext: EditableContext | undefined): CommitListItemViewModel {
+  return {
+    author: commit.author,
+    canEditMessage:
+      editableContext !== undefined &&
+      commit.hash === editableContext.latestHash &&
+      (commit.author === editableContext.userName || commit.email === editableContext.userEmail),
+    date: commit.date,
+    hash: commit.hash,
+    message: commit.message,
+    parents: commit.parents,
+    refs: commit.refs,
+    shortHash: commit.shortHash
+  };
+}
+
+function isHashPrefix(search: string): boolean {
+  return /^[a-f0-9]{4,40}$/i.test(search);
+}
+
+function totalCommitCountKey(input: CommitCountInput): string {
+  return `${input.repositoryRoot}:${input.branch ?? "all"}:${input.author ?? "all"}`;
+}
