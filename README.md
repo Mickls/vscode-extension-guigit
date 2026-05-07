@@ -111,6 +111,14 @@ pnpm --filter @gui-git-history/webview serve
 
 That server is only for UI development. The VS Code extension path still consumes built webview assets from `packages/webview/dist`.
 
+## Debugging In VS Code
+
+The repository includes `.vscode/launch.json` and `.vscode/tasks.json`.
+
+Use **Run Extension** when you want F5 to build first and then open an Extension Development Host.
+
+Use **Run Extension (watch output)** when `pnpm dev` is already running in a terminal. This avoids a full pre-launch build and launches against the current watched output.
+
 ## RPC Contract Maintenance
 
 The RPC contract has one source file:
