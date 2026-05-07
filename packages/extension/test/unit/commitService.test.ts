@@ -101,6 +101,7 @@ describe("CommitService", () => {
       "--branches",
       "--remotes",
       "--tags",
+      "--topo-order",
       `--pretty=format:%H${field}%ai${field}%s${field}%an${field}%ae${field}%D${field}%P${record}`,
       "--encoding=UTF-8",
       "--max-count=3",
@@ -134,6 +135,27 @@ describe("CommitService", () => {
     expect(logCalls[0]).not.toContain("--branches");
     expect(logCalls[0]).not.toContain("--remotes");
     expect(logCalls[0]).not.toContain("--tags");
+  });
+
+  it("loads history in topology order for graph-readable merge groups", async () => {
+    const logCalls: string[][] = [];
+    const service = new CommitService({
+      cache: new CacheService(),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args[0] === "log") {
+          logCalls.push([...args]);
+        }
+
+        return "";
+      }
+    });
+
+    await service.loadHistory({
+      pageSize: 20,
+      repositoryRoot: "/workspace/repo"
+    });
+
+    expect(logCalls[0]).toContain("--topo-order");
   });
 
   it("supports message search", async () => {

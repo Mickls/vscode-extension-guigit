@@ -160,7 +160,7 @@ function buildLogArgs(
   skip: number | undefined,
   grep?: string
 ): string[] {
-  const args = ["log", ...refArgs(input.branch), `--pretty=format:${prettyFormat}`, "--encoding=UTF-8"];
+  const args = ["log", ...refArgs(input.branch), "--topo-order", `--pretty=format:${prettyFormat}`, "--encoding=UTF-8"];
 
   if (maxCount !== undefined) {
     args.push(`--max-count=${maxCount}`);
