@@ -1,6 +1,7 @@
 import type { BranchService } from "../git/BranchService";
 import type { CommitService } from "../git/CommitService";
 import type { FileService } from "../git/FileService";
+import type { GraphService } from "../git/GraphService";
 import type { RepositoryService } from "../git/RepositoryService";
 import type { BranchesViewModel, RepositoryViewModel } from "./contract";
 import type { RpcHandlerMap } from "./router";
@@ -14,6 +15,7 @@ export interface GitHistoryRpcHandlerInput {
   branchService: Pick<BranchService, "listBranches">;
   commitService: Pick<CommitService, "loadHistory">;
   fileService: Pick<FileService, "getCommitDetails" | "getFileChanges">;
+  graphService: Pick<GraphService, "getLayout">;
   repositoryService: Pick<
     RepositoryService,
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
@@ -40,6 +42,13 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.fileService.getFileChanges(repository.rootPath, request.hash, request.mode);
+    },
+    "graph.getLayout": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return {
+        graph: await input.graphService.getLayout(repository.rootPath, request.hashes)
+      };
     },
     "history.load": async (request) => {
       const repositories = await input.repositoryService.discoverRepositories();

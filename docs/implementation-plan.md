@@ -271,10 +271,10 @@ gui-git-history/
 - Create: `packages/extension/src/backend/git/GraphService.ts`
 - Modify: `packages/webview/src/components/GitGraph/GitGraph.tsx`
 
-- [ ] Compute graph layout in backend.
-- [ ] Frontend only draws nodes and edges from backend ViewModel.
-- [ ] Preserve current graph toggle, hover, click, and scroll sync behavior.
-- [ ] Commit with `feat: add backend git graph layout`.
+- [x] Compute graph layout in backend.
+- [x] Frontend only draws nodes and edges from backend ViewModel.
+- [x] Preserve current graph toggle, hover, click, and scroll sync behavior.
+- [x] Commit with `feat: add backend git graph layout`.
 
 ## Phase 4: VS Code Integrations
 

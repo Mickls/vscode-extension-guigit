@@ -1,13 +1,29 @@
-import type { ReactElement } from "react";
+import type { KeyboardEvent, ReactElement } from "react";
+import { useState } from "react";
 import type { GraphLayoutViewModel } from "../../app/rpcContract.generated";
 
 export interface GitGraphProps {
   graph?: GraphLayoutViewModel;
+  onNodeSelect?: (hash: string) => void;
+  rowCount?: number;
 }
 
-export function GitGraph({ graph }: GitGraphProps): ReactElement {
+const rowHeight = 36;
+const minimumHeight = 36;
+
+export function GitGraph({ graph, onNodeSelect, rowCount = 0 }: GitGraphProps): ReactElement {
+  const [hoveredHash, setHoveredHash] = useState<string | undefined>();
+  const height = Math.max(rowCount * rowHeight, minimumHeight);
+
+  const handleNodeKeyDown = (event: KeyboardEvent<SVGGElement>, hash: string) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onNodeSelect?.(hash);
+    }
+  };
+
   return (
-    <svg aria-label="Git graph" className="block h-full w-full" role="img">
+    <svg aria-label="Git graph" className="block w-full" height={height} role="img" viewBox={`0 0 120 ${height}`}>
       {graph?.edges.map((edge) => (
         <polyline
           fill="none"
@@ -18,7 +34,27 @@ export function GitGraph({ graph }: GitGraphProps): ReactElement {
         />
       ))}
       {graph?.nodes.map((node) => (
-        <circle cx={node.column * 16 + 16} cy={node.row * 36 + 18} fill={node.color} key={node.hash} r="4" />
+        <g
+          aria-label={`Select commit ${node.hash} in graph`}
+          data-hash={node.hash}
+          data-hovered={hoveredHash === node.hash}
+          key={node.hash}
+          onClick={() => onNodeSelect?.(node.hash)}
+          onKeyDown={(event) => handleNodeKeyDown(event, node.hash)}
+          onMouseEnter={() => setHoveredHash(node.hash)}
+          onMouseLeave={() => setHoveredHash(undefined)}
+          role="button"
+          tabIndex={0}
+        >
+          <circle
+            cx={node.column * 16 + 16}
+            cy={node.row * 36 + 18}
+            fill={node.color}
+            r={hoveredHash === node.hash ? "6" : "4"}
+            stroke="var(--vscode-editor-background)"
+            strokeWidth="1"
+          />
+        </g>
       ))}
     </svg>
   );

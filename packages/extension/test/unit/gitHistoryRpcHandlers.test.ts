@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createGitHistoryRpcHandlers } from "../../src/backend/rpc/gitHistoryRpcHandlers";
-import type { BranchesViewModel, CommitDetailsViewModel, CommitListItemViewModel } from "../../src/backend/rpc/contract";
+import type {
+  BranchesViewModel,
+  CommitDetailsViewModel,
+  CommitListItemViewModel,
+  GraphLayoutViewModel
+} from "../../src/backend/rpc/contract";
 
 const branches = {
   locals: [{ current: true, name: "main" }],
@@ -30,6 +35,28 @@ const details = {
   refs: []
 } satisfies CommitDetailsViewModel;
 
+const graph = {
+  edges: [
+    {
+      color: "#f56565",
+      fromHash: "abc1234567890abcdef",
+      points: [
+        { x: 16, y: 18 },
+        { x: 16, y: 54 }
+      ],
+      toHash: "def4567890abcdefabc"
+    }
+  ],
+  nodes: [
+    {
+      color: "#f56565",
+      column: 0,
+      hash: "abc1234567890abcdef",
+      row: 0
+    }
+  ]
+} satisfies GraphLayoutViewModel;
+
 describe("Git history RPC handlers", () => {
   it("loads repositories, branches, and commit history", async () => {
     const handlers = createGitHistoryRpcHandlers({
@@ -48,6 +75,9 @@ describe("Git history RPC handlers", () => {
           files: [],
           mode: "list"
         })
+      },
+      graphService: {
+        getLayout: async () => graph
       },
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
@@ -82,6 +112,9 @@ describe("Git history RPC handlers", () => {
           mode: "list"
         })
       },
+      graphService: {
+        getLayout: async () => graph
+      },
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
@@ -97,5 +130,51 @@ describe("Git history RPC handlers", () => {
         type: "commits.getDetails"
       })
     ).resolves.toEqual({ commit: details });
+  });
+
+  it("returns backend graph layout for the requested repository", async () => {
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async (repositoryRoot, hashes) => ({
+          ...graph,
+          nodes: graph.nodes.map((node) => ({ ...node, hash: `${repositoryRoot}:${hashes.join(",")}` }))
+        })
+      },
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      }
+    });
+
+    await expect(
+      handlers["graph.getLayout"]!({
+        hashes: ["abc1234567890abcdef", "def4567890abcdefabc"],
+        id: "3",
+        repositoryId: "/repo",
+        type: "graph.getLayout"
+      })
+    ).resolves.toEqual({
+      graph: {
+        ...graph,
+        nodes: [{ ...graph.nodes[0]!, hash: "/repo:abc1234567890abcdef,def4567890abcdefabc" }]
+      }
+    });
   });
 });

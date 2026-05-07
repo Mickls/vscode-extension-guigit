@@ -3,11 +3,20 @@ import type { ReactElement } from "react";
 const toolbarActions = ["Refresh", "Pull", "Push", "Fetch", "Settings"] as const;
 
 export interface HeaderProps {
+  graphVisible?: boolean;
+  onGraphToggle?: () => void;
   onSettingsClick?: () => void;
   settingsOpen?: boolean;
 }
 
-export function Header({ onSettingsClick, settingsOpen = false }: HeaderProps): ReactElement {
+export function Header({
+  graphVisible = true,
+  onGraphToggle,
+  onSettingsClick,
+  settingsOpen = false
+}: HeaderProps): ReactElement {
+  const graphLabel = graphVisible ? "Hide Git Graph" : "Show Git Graph";
+
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] px-2">
       <button
@@ -29,6 +38,16 @@ export function Header({ onSettingsClick, settingsOpen = false }: HeaderProps): 
         type="search"
       />
       <div className="flex items-center gap-1">
+        <button
+          aria-label={graphLabel}
+          aria-pressed={graphVisible}
+          className="flex h-7 min-w-7 items-center justify-center rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+          onClick={onGraphToggle}
+          title={graphLabel}
+          type="button"
+        >
+          G
+        </button>
         {toolbarActions.map((action) => (
           <button
             aria-label={action}

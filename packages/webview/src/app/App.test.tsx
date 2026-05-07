@@ -145,6 +145,93 @@ describe("App", () => {
     expect(await screen.findByText("Second commit details")).toBeInTheDocument();
   });
 
+  it("requests backend graph layout and uses graph node clicks to select commits", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await screen.findByText("Wire real data");
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hashes: ["abc1234567890abcdef", "def4567890abcdefabc"],
+        repositoryId: "/repo",
+        type: "graph.getLayout"
+      })
+    );
+
+    const graphRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "graph.getLayout")![0];
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            id: graphRequest.id,
+            ok: true,
+            type: "graph.getLayout",
+            payload: {
+              graph: {
+                edges: [
+                  {
+                    color: "#f56565",
+                    fromHash: "abc1234567890abcdef",
+                    points: [
+                      { x: 16, y: 18 },
+                      { x: 16, y: 54 }
+                    ],
+                    toHash: "def4567890abcdefabc"
+                  }
+                ],
+                nodes: [
+                  {
+                    color: "#f56565",
+                    column: 0,
+                    hash: "abc1234567890abcdef",
+                    row: 0
+                  },
+                  {
+                    color: "#f56565",
+                    column: 0,
+                    hash: "def4567890abcdefabc",
+                    row: 1
+                  }
+                ]
+              }
+            }
+          } satisfies RpcResponse
+        })
+      );
+    });
+
+    const graph = screen.getByRole("img", { name: "Git graph" });
+    expect(graph.querySelectorAll("circle")).toHaveLength(2);
+
+    await user.click(graph.querySelector('[data-hash="def4567890abcdefabc"]')!);
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hash: "def4567890abcdefabc",
+        repositoryId: "/repo",
+        type: "commits.getDetails"
+      })
+    );
+  });
+
+  it("toggles the graph strip without dropping commit rows", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await screen.findByText("Wire real data");
+
+    expect(screen.getByRole("img", { name: "Git graph" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Hide Git Graph" }));
+
+    expect(screen.queryByRole("img", { name: "Git graph" })).not.toBeInTheDocument();
+    expect(screen.getByText("Second real commit")).toBeInTheDocument();
+  });
+
   it("opens the compare overlay from the commit context menu", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

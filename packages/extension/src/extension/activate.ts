@@ -6,6 +6,7 @@ import { createRpcRouter } from "../backend/rpc/router";
 import { BranchService } from "../backend/git/BranchService";
 import { CommitService } from "../backend/git/CommitService";
 import { FileService } from "../backend/git/FileService";
+import { GraphService } from "../backend/git/GraphService";
 import { RepositoryService } from "../backend/git/RepositoryService";
 import { LoggerService, type LogLevel } from "../logging/LoggerService";
 import { CacheService } from "../state/CacheService";
@@ -39,11 +40,13 @@ export function activate(context: ExtensionContext): void {
     },
     logger
   });
+  const graphService = new GraphService({ logger });
   const router = createRpcRouter(
     createGitHistoryRpcHandlers({
       branchService,
       commitService,
       fileService,
+      graphService,
       repositoryService
     }),
     logger

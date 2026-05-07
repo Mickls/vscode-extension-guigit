@@ -35,6 +35,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [remoteManagerOpen, setRemoteManagerOpen] = useState(false);
   const [compareOverlayOpen, setCompareOverlayOpen] = useState(false);
   const [commits, setCommits] = useState<readonly CommitListItemViewModel[]>([]);
+  const [graph, setGraph] = useState<GraphLayoutViewModel>(emptyGraph);
+  const [graphVisible, setGraphVisible] = useState(true);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
@@ -64,6 +66,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (response.type === "history.load") {
         setCommits(response.payload.commits);
+        setGraph(emptyGraph);
 
         const repositoryId = response.payload.repositories[0]?.id;
         const commit = response.payload.commits[0];
@@ -75,10 +78,22 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if (repositoryId && commit) {
           requestCommitDetails(client, repositoryId, commit.hash);
         }
+
+        if (repositoryId && response.payload.commits.length > 0) {
+          requestGraphLayout(
+            client,
+            repositoryId,
+            response.payload.commits.map((historyCommit) => historyCommit.hash)
+          );
+        }
       }
 
       if (response.type === "commits.getDetails" && response.payload.commit.hash === selectedCommitHashRef.current) {
         setCommitDetails(response.payload.commit);
+      }
+
+      if (response.type === "graph.getLayout") {
+        setGraph(response.payload.graph);
       }
     };
 
@@ -94,6 +109,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
     if (selectedRepositoryId) {
       requestCommitDetails(client, selectedRepositoryId, commit.hash);
+    }
+  };
+
+  const selectGraphNode = (hash: string) => {
+    const commit = commits.find((candidate) => candidate.hash === hash);
+    if (commit) {
+      selectCommit(commit);
     }
   };
 
@@ -128,6 +150,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   return (
     <main className="flex min-h-screen flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
       <Header
+        graphVisible={graphVisible}
+        onGraphToggle={() => setGraphVisible((visible) => !visible)}
         onSettingsClick={() => {
           setContextMenu((current) => ({ ...current, visible: false }));
           setSettingsMenuOpen((open) => !open);
@@ -138,9 +162,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
         left={
           <CommitList
             commits={commits}
-            graph={emptyGraph}
+            graph={graph}
+            graphVisible={graphVisible}
             onCommitContextMenu={openCommitContextMenu}
             onCommitSelect={selectCommit}
+            onGraphNodeSelect={selectGraphNode}
             selectedHash={selectedCommitHash}
           />
         }
@@ -177,5 +203,14 @@ function requestCommitDetails(client: RpcClient | undefined, repositoryId: strin
     id: crypto.randomUUID(),
     repositoryId,
     type: "commits.getDetails"
+  });
+}
+
+function requestGraphLayout(client: RpcClient | undefined, repositoryId: string, hashes: readonly string[]): void {
+  client?.post({
+    hashes,
+    id: crypto.randomUUID(),
+    repositoryId,
+    type: "graph.getLayout"
   });
 }

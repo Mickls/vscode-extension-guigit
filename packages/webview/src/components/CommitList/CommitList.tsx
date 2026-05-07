@@ -10,6 +10,8 @@ const emptyGraph: GraphLayoutViewModel = {
 export interface CommitListProps {
   commits?: readonly CommitListItemViewModel[];
   graph?: GraphLayoutViewModel;
+  graphVisible?: boolean;
+  onGraphNodeSelect?: (hash: string) => void;
   onCommitSelect?: (commit: CommitListItemViewModel) => void;
   onCommitContextMenu?: (event: MouseEvent<HTMLElement>, commit: CommitListItemViewModel) => void;
   selectedHash?: string;
@@ -18,16 +20,20 @@ export interface CommitListProps {
 export function CommitList({
   commits = [],
   graph = emptyGraph,
+  graphVisible = true,
+  onGraphNodeSelect,
   onCommitContextMenu,
   onCommitSelect,
   selectedHash
 }: CommitListProps): ReactElement {
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      <div className="w-[120px] shrink-0 border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]">
-        <GitGraph graph={graph} />
-      </div>
-      <div className="min-w-0 flex-1 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 overflow-y-auto" data-testid="commit-scroll-container">
+      {graphVisible ? (
+        <div className="w-[120px] shrink-0 border-r border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)]">
+          <GitGraph graph={graph} onNodeSelect={onGraphNodeSelect} rowCount={commits.length} />
+        </div>
+      ) : null}
+      <div className="min-w-0 flex-1">
         {commits.map((commit, index) => (
           <article
             className="flex min-h-9 cursor-pointer select-none border-b border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
