@@ -83,6 +83,8 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
   const positionedNodes: Array<Omit<GraphNodeViewModel, "x" | "y">> = [];
   const columnByHash = new Map<string, number>();
   const colorByHash = new Map<string, string>();
+  const hiddenColumnByEdge = new Map<string, number>();
+  const hiddenColorByEdge = new Map<string, string>();
   let nextColorIndex = 1;
 
   const nextColor = () => {
@@ -114,9 +116,12 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       activeColumns,
       columnByHash,
       colorByHash,
+      hiddenColumnByEdge,
+      hiddenColorByEdge,
       commit,
       column,
       mainline,
+      commitByHash,
       preferredChildByParent,
       color,
       nextColor
@@ -138,7 +143,8 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
 
       return commit.parents.flatMap((parentHash, parentIndex) => {
         const toNode = nodeByHash.get(parentHash);
-        const parentColumn = columnByHash.get(parentHash);
+        const hiddenEdgeKey = graphEdgeKey(commit.hash, parentHash);
+        const parentColumn = toNode ? columnByHash.get(parentHash) : hiddenColumnByEdge.get(hiddenEdgeKey);
         if (toNode === undefined && parentColumn === undefined) {
           return [];
         }
@@ -151,7 +157,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
 
         return [
           {
-            color: parentIndex === 0 ? fromNode.color : (toNode?.color ?? colorByHash.get(parentHash)!),
+            color: parentIndex === 0 ? fromNode.color : (toNode?.color ?? hiddenColorByEdge.get(hiddenEdgeKey)!),
             fromHash: commit.hash,
             points: edgePoints(fromNode, toPoint, parentIndex, toNode === undefined),
             toHash: parentHash
@@ -209,9 +215,12 @@ function updateActiveColumns(
   activeColumns: Array<string | undefined>,
   columnByHash: Map<string, number>,
   colorByHash: Map<string, string>,
+  hiddenColumnByEdge: Map<string, number>,
+  hiddenColorByEdge: Map<string, string>,
   commit: ParsedGraphCommit,
   column: number,
   mainline: ReadonlySet<string>,
+  commitByHash: Map<string, ParsedGraphCommit>,
   preferredChildByParent: ReadonlyMap<string, string>,
   color: string,
   nextColor: () => string
@@ -222,25 +231,45 @@ function updateActiveColumns(
   }
 
   const firstParent = commit.parents[0]!;
-  const preferredChild = preferredChildByParent.get(firstParent);
-  const currentCommitOwnsFirstParentLane =
-    mainline.has(firstParent) || preferredChild === undefined || preferredChild === commit.hash;
   let releaseCurrentColumn = false;
-  if (currentCommitOwnsFirstParentLane) {
-    const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
-    if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
-      activeColumns[column] = undefined;
-    } else {
-      const parentColumn = firstParentColumn >= 0 ? firstParentColumn : column;
-      activeColumns[parentColumn] = firstParent;
-      columnByHash.set(firstParent, parentColumn);
-      colorByHash.set(firstParent, mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color);
-    }
+  if (!commitByHash.has(firstParent)) {
+    const edgeKey = graphEdgeKey(commit.hash, firstParent);
+    activeColumns[column] = edgeKey;
+    hiddenColumnByEdge.set(edgeKey, column);
+    hiddenColorByEdge.set(edgeKey, color);
   } else {
-    releaseCurrentColumn = true;
+    const preferredChild = preferredChildByParent.get(firstParent);
+    const currentCommitOwnsFirstParentLane =
+      mainline.has(firstParent) || preferredChild === undefined || preferredChild === commit.hash;
+    if (currentCommitOwnsFirstParentLane) {
+      const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
+      if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
+        activeColumns[column] = undefined;
+      } else {
+        const parentColumn = firstParentColumn >= 0 ? firstParentColumn : column;
+        activeColumns[parentColumn] = firstParent;
+        columnByHash.set(firstParent, parentColumn);
+        colorByHash.set(
+          firstParent,
+          mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color
+        );
+      }
+    } else {
+      releaseCurrentColumn = true;
+    }
   }
 
   for (const parentHash of commit.parents.slice(1)) {
+    if (!commitByHash.has(parentHash)) {
+      const edgeKey = graphEdgeKey(commit.hash, parentHash);
+      const parentColumn = findAvailableColumn(activeColumns, 1);
+      const parentColor = nextColor();
+      activeColumns[parentColumn] = edgeKey;
+      hiddenColumnByEdge.set(edgeKey, parentColumn);
+      hiddenColorByEdge.set(edgeKey, parentColor);
+      continue;
+    }
+
     const existingColumn = activeColumns.indexOf(parentHash);
     if (existingColumn >= 0) {
       columnByHash.set(parentHash, existingColumn);
@@ -256,6 +285,10 @@ function updateActiveColumns(
   if (releaseCurrentColumn && activeColumns[column] === commit.hash) {
     activeColumns[column] = undefined;
   }
+}
+
+function graphEdgeKey(fromHash: string, toHash: string): string {
+  return `${fromHash}\0${toHash}`;
 }
 
 function removeHashFromOtherColumns(columns: Array<string | undefined>, hash: string, currentColumn: number): void {
@@ -285,7 +318,7 @@ function edgePoints(
   const fromPoint = { x: from.x, y: from.y };
   const toPoint = { x: to.x, y: to.y };
   if (hiddenParent) {
-    return [fromPoint, { x: from.x, y: from.y + nodeOffsetY }];
+    return from.x === to.x ? [fromPoint, toPoint] : [fromPoint, { x: to.x, y: from.y }, toPoint];
   }
 
   if (from.x === to.x) {
