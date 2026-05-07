@@ -1,8 +1,12 @@
 import type { ExtensionContext } from "vscode";
-import { Disposable } from "vscode";
+import { Disposable, window } from "vscode";
+import { GitHistoryViewProvider } from "../views/GitHistoryViewProvider";
 
 export function activate(context: ExtensionContext): void {
-  context.subscriptions.push(new Disposable(() => undefined));
+  context.subscriptions.push(
+    window.registerWebviewViewProvider(GitHistoryViewProvider.viewType, new GitHistoryViewProvider(context)),
+    new Disposable(() => undefined)
+  );
 }
 
 export function deactivate(): void {
