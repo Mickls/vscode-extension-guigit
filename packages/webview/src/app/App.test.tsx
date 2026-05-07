@@ -232,6 +232,57 @@ describe("App", () => {
     expect(screen.getByText("Second real commit")).toBeInTheDocument();
   });
 
+  it("reloads history when the backend reports repository history changes", () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    rpcClient.post.mockClear();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            reason: "watcher",
+            type: "history.changed"
+          }
+        })
+      );
+    });
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageSize: 50,
+        type: "history.load"
+      })
+    );
+  });
+
+  it("loads and selects a commit requested by the backend", () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    rpcClient.post.mockClear();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            hash: "abc1234",
+            type: "history.revealCommit"
+          }
+        })
+      );
+    });
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageSize: 50,
+        search: "abc1234",
+        type: "history.load"
+      })
+    );
+  });
+
   it("opens the compare overlay from the commit context menu", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

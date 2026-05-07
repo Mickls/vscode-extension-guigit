@@ -286,12 +286,12 @@ gui-git-history/
 - Create: `packages/extension/src/extension/watchers.ts`
 - Modify: `packages/extension/src/extension/activate.ts`
 
-- [ ] Register all `guigit.*` commands.
-- [ ] Register Git state listeners.
-- [ ] Watch `.git/HEAD` and `.git/refs/heads/**`.
-- [ ] Debounce refresh.
-- [ ] Preserve `showCommitDetails` jump behavior.
-- [ ] Commit with `feat: wire vscode commands and git watchers`.
+- [x] Register all `guigit.*` commands.
+- [x] Register Git state listeners.
+- [x] Watch `.git/HEAD` and `.git/refs/heads/**`.
+- [x] Debounce refresh.
+- [x] Preserve `showCommitDetails` jump behavior.
+- [x] Commit with `feat: wire vscode commands and git watchers`.
 
 ### Task 4.2: Diff and virtual documents
 

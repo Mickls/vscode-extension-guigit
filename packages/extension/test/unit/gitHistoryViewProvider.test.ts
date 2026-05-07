@@ -1,0 +1,69 @@
+import { describe, expect, it, vi } from "vitest";
+import { GitHistoryViewProvider } from "../../src/views/GitHistoryViewProvider";
+
+vi.mock("vscode", () => ({
+  Uri: {
+    joinPath: (...parts: Array<{ path?: string } | string>) => ({
+      path: parts.map((part) => (typeof part === "string" ? part : part.path)).join("/"),
+      toString: () => parts.map((part) => (typeof part === "string" ? part : part.path)).join("/")
+    })
+  }
+}));
+
+describe("GitHistoryViewProvider notifications", () => {
+  it("posts refresh and reveal notifications to the resolved webview", () => {
+    const postMessage = vi.fn();
+    const provider = new GitHistoryViewProvider(
+      {
+        extensionUri: { path: "/extension" }
+      } as never,
+      {
+        dispatch: async (request) => ({
+          id: request.id,
+          ok: true,
+          payload: {},
+          type: request.type
+        })
+      } as never
+    );
+
+    provider.resolveWebviewView(createWebviewView(postMessage));
+    provider.refresh("command");
+    provider.revealCommit("abc1234");
+
+    expect(postMessage).toHaveBeenCalledWith({
+      reason: "command",
+      type: "history.changed"
+    });
+    expect(postMessage).toHaveBeenCalledWith({
+      hash: "abc1234",
+      type: "history.revealCommit"
+    });
+  });
+
+  it("queues reveal notifications until the webview is resolved", () => {
+    const postMessage = vi.fn();
+    const provider = new GitHistoryViewProvider({ extensionUri: { path: "/extension" } } as never);
+
+    provider.revealCommit("abc1234");
+    provider.resolveWebviewView(createWebviewView(postMessage));
+
+    expect(postMessage).toHaveBeenCalledWith({
+      hash: "abc1234",
+      type: "history.revealCommit"
+    });
+  });
+});
+
+function createWebviewView(postMessage: ReturnType<typeof vi.fn>) {
+  return {
+    webview: {
+      asWebviewUri: (uri: { toString(): string }) => uri,
+      cspSource: "vscode-webview:",
+      html: "",
+      onDidReceiveMessage: vi.fn(),
+      options: {},
+      postMessage
+    }
+  } as never;
+}

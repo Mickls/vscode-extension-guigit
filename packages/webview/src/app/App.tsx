@@ -1,6 +1,7 @@
 import type { MouseEvent, ReactElement } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
+  BackendNotification,
   CommitDetailsViewModel,
   CommitListItemViewModel,
   FileChangeViewModel,
@@ -50,16 +51,24 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const client = useMemo(() => rpcClient, [rpcClient]);
 
   useEffect(() => {
-    client?.post({
-      id: crypto.randomUUID(),
-      pageSize: 50,
-      type: "history.load"
-    });
+    requestHistory(client);
   }, [client]);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent<RpcResponse>) => {
+    const handleMessage = (event: MessageEvent<BackendNotification | RpcResponse>) => {
       const response = event.data;
+      if (isBackendNotification(response)) {
+        if (response.type === "history.changed") {
+          requestHistory(client);
+        }
+
+        if (response.type === "history.revealCommit") {
+          requestHistory(client, response.hash);
+        }
+
+        return;
+      }
+
       if (!response.ok) {
         return;
       }
@@ -206,6 +215,15 @@ function requestCommitDetails(client: RpcClient | undefined, repositoryId: strin
   });
 }
 
+function requestHistory(client: RpcClient | undefined, search?: string): void {
+  client?.post({
+    id: crypto.randomUUID(),
+    pageSize: 50,
+    search,
+    type: "history.load"
+  });
+}
+
 function requestGraphLayout(client: RpcClient | undefined, repositoryId: string, hashes: readonly string[]): void {
   client?.post({
     hashes,
@@ -213,4 +231,8 @@ function requestGraphLayout(client: RpcClient | undefined, repositoryId: string,
     repositoryId,
     type: "graph.getLayout"
   });
+}
+
+function isBackendNotification(message: BackendNotification | RpcResponse): message is BackendNotification {
+  return !("ok" in message);
 }

@@ -6,7 +6,24 @@ const vscodeMocks = vi.hoisted(() => {
   const providerDisposable = { dispose: vi.fn() };
 
   return {
+    createFileSystemWatcher: vi.fn(() => ({
+      dispose: vi.fn(),
+      onDidChange: vi.fn(),
+      onDidCreate: vi.fn(),
+      onDidDelete: vi.fn()
+    })),
+    executeCommand: vi.fn(),
+    getExtension: vi.fn(() => ({
+      exports: {
+        getAPI: vi.fn(() => ({
+          onDidOpenRepository: vi.fn(() => ({ dispose: vi.fn() })),
+          repositories: []
+        }))
+      }
+    })),
+    onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
     providerDisposable,
+    registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
     outputChannel: {
       appendLine: vi.fn()
     },
@@ -19,11 +36,24 @@ const vscodeMocks = vi.hoisted(() => {
 });
 
 vi.mock("vscode", () => ({
+  commands: {
+    executeCommand: vscodeMocks.executeCommand,
+    registerCommand: vscodeMocks.registerCommand
+  },
   ConfigurationTarget: {
     Workspace: 2
   },
   Disposable: class {
     public constructor(public readonly dispose: () => void) {}
+  },
+  extensions: {
+    getExtension: vscodeMocks.getExtension
+  },
+  RelativePattern: class {
+    public constructor(
+      public readonly folder: unknown,
+      public readonly pattern: string
+    ) {}
   },
   Uri: {
     joinPath: vi.fn((base: { path: string }, ...paths: readonly string[]) => ({
@@ -33,9 +63,11 @@ vi.mock("vscode", () => ({
   window: {
     activeTextEditor: undefined,
     createOutputChannel: vscodeMocks.createOutputChannel,
+    onDidChangeActiveTextEditor: vscodeMocks.onDidChangeActiveTextEditor,
     registerWebviewViewProvider: vscodeMocks.registerWebviewViewProvider
   },
   workspace: {
+    createFileSystemWatcher: vscodeMocks.createFileSystemWatcher,
     getConfiguration: vi.fn(() => ({
       get: vi.fn(() => "tree"),
       update: vi.fn()
@@ -46,7 +78,11 @@ vi.mock("vscode", () => ({
 
 describe("activate", () => {
   beforeEach(() => {
+    vscodeMocks.createFileSystemWatcher.mockClear();
     vscodeMocks.createOutputChannel.mockClear();
+    vscodeMocks.getExtension.mockClear();
+    vscodeMocks.onDidChangeActiveTextEditor.mockClear();
+    vscodeMocks.registerCommand.mockClear();
     vscodeMocks.registerWebviewViewProvider.mockClear();
   });
 
@@ -64,6 +100,8 @@ describe("activate", () => {
       GitHistoryViewProvider.viewType,
       expect.any(GitHistoryViewProvider)
     );
+    expect(vscodeMocks.registerCommand).toHaveBeenCalledTimes(5);
+    expect(vscodeMocks.onDidChangeActiveTextEditor).toHaveBeenCalled();
     expect(vscodeMocks.createOutputChannel).toHaveBeenCalledWith("GUI Git History");
     expect(subscriptions).toContain(vscodeMocks.providerDisposable);
   });

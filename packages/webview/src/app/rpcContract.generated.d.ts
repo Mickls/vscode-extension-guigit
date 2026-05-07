@@ -277,7 +277,10 @@ export type RpcErrorResponse<TType extends RpcRequestType = RpcRequestType> = Rp
 export type RpcResponse = RpcSuccessResponse | RpcErrorResponse;
 export type BackendNotification = {
     type: "history.changed";
-    repositoryId: string;
+    reason: "command" | "watcher" | "operation";
+} | {
+    type: "history.revealCommit";
+    hash: string;
 } | {
     type: "settings.changed";
     settings: SettingsViewModel;
