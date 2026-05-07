@@ -1,0 +1,203 @@
+{
+  "name": "vscode-extension-guigit",
+  "displayName": "GUI Git History",
+  "description": "A visual Git history viewer with advanced commit operations",
+  "version": "0.1.0",
+  "publisher": "Mickls",
+  "icon": "../../assets/gui-git-history-high-resolution-logo-transparent.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mickls/vscode-extension-guigit.git"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "main": "./out/extension/activate.js",
+  "activationEvents": [
+    "onCommand:guigit.showHistory",
+    "onView:guigit.historyView",
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "GUI Git History",
+      "properties": {
+        "guigit.proxy.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable custom proxy configuration"
+        },
+        "guigit.proxy.http": {
+          "type": "string",
+          "default": "",
+          "description": "HTTP proxy URL (e.g., http://127.0.0.1:7890)"
+        },
+        "guigit.proxy.https": {
+          "type": "string",
+          "default": "",
+          "description": "HTTPS proxy URL (e.g., http://127.0.0.1:7890)"
+        },
+        "guigit.proxy.noProxy": {
+          "type": "string",
+          "default": "",
+          "description": "No proxy for these hosts (comma-separated)"
+        },
+        "guigit.autoStashOnPull": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "always",
+            "never"
+          ],
+          "default": "ask",
+          "description": "Automatically stash uncommitted changes when pulling",
+          "enumDescriptions": [
+            "Ask each time what to do with uncommitted changes",
+            "Always automatically stash uncommitted changes",
+            "Never stash, cancel operation if there are uncommitted changes"
+          ]
+        },
+        "guigit.blame.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Git blame annotations in the editor"
+        },
+        "guigit.blame.showOnlyCurrentLine": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show Git blame annotations only for the current editor line"
+        },
+        "guigit.blame.format": {
+          "type": "string",
+          "default": "${author}, ${time}: ${summary}",
+          "description": "Git blame annotation format"
+        },
+        "guigit.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "en",
+            "zh",
+            "es",
+            "fr",
+            "de",
+            "ja",
+            "ru"
+          ],
+          "default": "auto",
+          "description": "Language preference for GUI Git History extension",
+          "enumDescriptions": [
+            "Follow VS Code UI language",
+            "English",
+            "中文",
+            "Español",
+            "Français",
+            "Deutsch",
+            "日本語",
+            "Русский"
+          ]
+        },
+        "guigit.fileViewMode": {
+          "type": "string",
+          "enum": [
+            "tree",
+            "list"
+          ],
+          "default": "tree",
+          "description": "Default file change view mode in commit details"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "guigit.showHistory",
+        "title": "Show Git History",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "guigit.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "guigit.toggleBlame",
+        "title": "Toggle Git Blame",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "guigit.viewFileHistory",
+        "title": "View File History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "guigit.showCommitDetails",
+        "title": "Show Commit Details"
+      }
+    ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "guigit",
+          "title": "Git History",
+          "icon": "$(git-branch)"
+        }
+      ]
+    },
+    "views": {
+      "guigit": [
+        {
+          "type": "webview",
+          "id": "guigit.historyView",
+          "name": "Commit History"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "guigit.refresh",
+          "when": "view == guigit.historyView",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "guigit.viewFileHistory",
+          "when": "resourceScheme == file",
+          "group": "navigation@9"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "guigit.viewFileHistory",
+          "when": "editorTextFocus && !isInDiffEditor",
+          "group": "navigation@9"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.json",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.38",
+    "simple-git": "^3.29.0",
+    "vscode-nls-i18n": "^0.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3.6.3",
+    "vitest": "^4.0.15"
+  }
+}

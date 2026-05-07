@@ -131,14 +131,14 @@ gui-git-history/
 - Create: `packages/extension/tsconfig.json`
 - Create: `packages/extension/src/extension/activate.ts`
 
-- [ ] Set `publisher` to `Mickls`.
-- [ ] Set `name` to `vscode-extension-guigit`.
-- [ ] Set `displayName` to `GUI Git History`.
-- [ ] Preserve command IDs, configuration keys, view container ID, and Webview view ID from `migration-requirements.md`.
-- [ ] Use `vscode.git` as an extension dependency.
-- [ ] Add a minimal activate function that registers no-op disposable lifecycle cleanly.
-- [ ] Run `pnpm typecheck`.
-- [ ] Commit with `chore: preserve extension identity`.
+- [x] Set `publisher` to `Mickls`.
+- [x] Set `name` to `vscode-extension-guigit`.
+- [x] Set `displayName` to `GUI Git History`.
+- [x] Preserve command IDs, configuration keys, view container ID, and Webview view ID from `migration-requirements.md`.
+- [x] Use `vscode.git` as an extension dependency.
+- [x] Add a minimal activate function that registers no-op disposable lifecycle cleanly.
+- [x] Run `pnpm typecheck`.
+- [x] Commit with `chore: preserve extension identity`.
 
 ### Task 0.3: Create webview package shell
 

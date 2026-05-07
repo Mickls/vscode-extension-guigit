@@ -4,5 +4,6 @@ dist/
 out/
 coverage/
 *.vsix
+*.tsbuildinfo
 .vscode-test/
 .pnpm-store/
