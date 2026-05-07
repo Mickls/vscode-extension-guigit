@@ -225,6 +225,7 @@ function updateActiveColumns(
   const preferredChild = preferredChildByParent.get(firstParent);
   const currentCommitOwnsFirstParentLane =
     mainline.has(firstParent) || preferredChild === undefined || preferredChild === commit.hash;
+  let releaseCurrentColumn = false;
   if (currentCommitOwnsFirstParentLane) {
     const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
     if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
@@ -236,7 +237,7 @@ function updateActiveColumns(
       colorByHash.set(firstParent, mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color);
     }
   } else {
-    activeColumns[column] = undefined;
+    releaseCurrentColumn = true;
   }
 
   for (const parentHash of commit.parents.slice(1)) {
@@ -250,6 +251,10 @@ function updateActiveColumns(
     activeColumns[parentColumn] = parentHash;
     columnByHash.set(parentHash, parentColumn);
     colorByHash.set(parentHash, mainline.has(parentHash) ? graphColors[0]! : colorByHash.get(parentHash) ?? nextColor());
+  }
+
+  if (releaseCurrentColumn && activeColumns[column] === commit.hash) {
+    activeColumns[column] = undefined;
   }
 }
 

@@ -147,14 +147,21 @@ describe("GraphService", () => {
     const branchCont = graph.nodes.find((node) => node.hash === "branch-cont")!;
     const sharedBase = graph.nodes.find((node) => node.hash === "shared-base")!;
     const sideMerge = graph.nodes.find((node) => node.hash === "side-merge")!;
+    const sideMain = graph.nodes.find((node) => node.hash === "side-main")!;
 
     expect(branchCont.column).toBe(branchHead.column);
     expect(sharedBase.column).toBe(branchHead.column);
     expect(sharedBase.color).toBe(branchHead.color);
     expect(sideMerge.column).not.toBe(sharedBase.column);
+    expect(sideMain.column).not.toBe(sideMerge.column);
     expect(graph.edges.find((edge) => edge.fromHash === "branch-cont" && edge.toHash === "shared-base")?.points).toEqual([
       { x: 20, y: 198 },
       { x: 20, y: 234 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "side-merge" && edge.toHash === "side-main")?.points).toEqual([
+      { x: 32, y: 126 },
+      { x: 44, y: 126 },
+      { x: 44, y: 162 }
     ]);
   });
 
