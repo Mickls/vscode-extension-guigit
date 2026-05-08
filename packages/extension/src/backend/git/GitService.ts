@@ -46,7 +46,7 @@ export class GitService {
   }
 
   public async pull(repositoryRoot: string): Promise<OperationResultViewModel> {
-    return this.runPullWithSafety(repositoryRoot, ["pull"], "Pull completed");
+    return this.runPullWithSafety(repositoryRoot, ["pull", "--no-rebase"], "Pull completed");
   }
 
   public async advancedPull(repositoryRoot: string): Promise<OperationResultViewModel> {
@@ -69,7 +69,7 @@ export class GitService {
     const remoteTarget = splitRemoteBranch(branch.value);
     const args = mode.value === "rebase"
       ? ["pull", "--rebase", remoteTarget.remote, remoteTarget.branch]
-      : ["pull", remoteTarget.remote, remoteTarget.branch];
+      : ["pull", "--no-rebase", remoteTarget.remote, remoteTarget.branch];
 
     return this.runPullWithSafety(repositoryRoot, args, "Advanced pull completed");
   }
@@ -224,7 +224,8 @@ function getPullConflictResolution(args: readonly string[]): ConflictResolutionI
   if (args.includes("--rebase")) {
     return {
       abortArgs: ["rebase", "--abort"],
-      continueArgs: ["rebase", "--continue"],
+      continueArgs: ["-c", "core.editor=true", "rebase", "--continue"],
+      operationKind: "rebase",
       operationName: "Rebase"
     };
   }
@@ -232,6 +233,7 @@ function getPullConflictResolution(args: readonly string[]): ConflictResolutionI
   return {
     abortArgs: ["merge", "--abort"],
     continueArgs: ["commit", "--no-edit"],
+    operationKind: "merge",
     operationName: "Pull"
   };
 }

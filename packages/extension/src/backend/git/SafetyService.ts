@@ -5,13 +5,14 @@ import type { Logger } from "../../logging/LoggerService";
 
 const stashMessage = "GUI Git History auto stash";
 const stashAndContinue = "Stash and Continue";
-const continueOperation = "Continue";
+const continueOperation = "Resolved and Staged";
 const abortOperation = "Abort";
 const cancel = "Cancel";
 
 export interface ConflictResolutionInput {
   abortArgs: readonly string[];
   continueArgs: readonly string[];
+  operationKind: "merge" | "rebase";
   operationName: string;
 }
 
@@ -91,7 +92,7 @@ export class SafetyService {
 
       return result;
     } catch (error) {
-      if (conflict && (await this.hasUnmergedConflicts(repositoryRoot))) {
+      if (conflict && (await this.getConflictState(repositoryRoot, conflict.operationKind)) !== "none") {
         this.logger?.debug("safety.conflict.detected", {
           operationName: conflict.operationName,
           repositoryRoot
@@ -108,9 +109,10 @@ export class SafetyService {
     conflict: ConflictResolutionInput,
     autoStashed: boolean
   ): Promise<OperationResultViewModel> {
+    let prompt = this.getConflictPrompt(conflict.operationName, autoStashed);
     while (true) {
       const choice = await this.showWarningMessage(
-        this.getConflictPrompt(conflict.operationName, autoStashed),
+        prompt,
         continueOperation,
         abortOperation
       );
@@ -129,6 +131,13 @@ export class SafetyService {
         };
       }
 
+      if (choice !== continueOperation) {
+        return {
+          message: `${conflict.operationName} still has conflicts`,
+          status: "cancelled"
+        };
+      }
+
       if (choice === continueOperation) {
         try {
           await this.runLoggedGit(repositoryRoot, conflict.continueArgs);
@@ -141,11 +150,14 @@ export class SafetyService {
             status: "ok"
           };
         } catch (error) {
-          if (await this.hasUnmergedConflicts(repositoryRoot)) {
+          const conflictState = await this.getConflictState(repositoryRoot, conflict.operationKind);
+          if (conflictState !== "none") {
             this.logger?.debug("safety.conflict.continueFailed", {
+              error: error instanceof Error ? error.message : String(error),
               operationName: conflict.operationName,
               repositoryRoot
             });
+            prompt = this.getContinueFailedPrompt(conflict.operationName, conflictState);
             continue;
           }
 
@@ -168,12 +180,50 @@ export class SafetyService {
       .some((line) => unmergedStatuses.has(line.slice(0, 2)));
   }
 
-  private getConflictPrompt(operationName: string, autoStashed: boolean): string {
-    if (autoStashed) {
-      return `${operationName} has conflicts. Resolve them in the working tree, then continue. GUI Git History will finish ${operationName} and restore your stashed changes.`;
+  private async hasGitOperationInProgress(
+    repositoryRoot: string,
+    operationKind: ConflictResolutionInput["operationKind"]
+  ): Promise<boolean> {
+    const status = await this.gitRaw(repositoryRoot, ["status", "--untracked-files=no"]);
+    if (operationKind === "rebase") {
+      return status.includes("rebase in progress") || status.includes("currently rebasing");
     }
 
-    return `${operationName} has conflicts. Resolve them in the working tree, then continue.`;
+    return status.includes("still merging") || status.includes("merge in progress");
+  }
+
+  private async getConflictState(
+    repositoryRoot: string,
+    operationKind: ConflictResolutionInput["operationKind"]
+  ): Promise<"inProgress" | "none" | "unresolved"> {
+    if (await this.hasUnmergedConflicts(repositoryRoot)) {
+      return "unresolved";
+    }
+
+    if (await this.hasGitOperationInProgress(repositoryRoot, operationKind)) {
+      return "inProgress";
+    }
+
+    return "none";
+  }
+
+  private getConflictPrompt(operationName: string, autoStashed: boolean): string {
+    if (autoStashed) {
+      return `${operationName} has conflicts. Resolve all conflicted files, stage them, then continue here. GUI Git History will finish ${operationName} and restore your stashed changes. Do not create a manual commit.`;
+    }
+
+    return `${operationName} has conflicts. Resolve all conflicted files, stage them, then continue here. Do not create a manual commit.`;
+  }
+
+  private getContinueFailedPrompt(
+    operationName: string,
+    conflictState: "inProgress" | "unresolved"
+  ): string {
+    if (conflictState === "unresolved") {
+      return `${operationName} still has unresolved conflicts. Resolve all conflicted files and stage them, then continue.`;
+    }
+
+    return `${operationName} is still in progress. Do not create a manual commit; resolve conflicts, stage the files, then continue from here.`;
   }
 
   private async runLoggedGit(repositoryRoot: string, args: readonly string[]): Promise<string> {

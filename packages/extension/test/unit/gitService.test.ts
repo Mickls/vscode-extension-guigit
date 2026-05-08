@@ -36,13 +36,14 @@ describe("GitService", () => {
     });
 
     await expect(service.pull("/repo")).resolves.toEqual({ message: "Pull completed", status: "ok" });
-    expect(calls).toEqual(["safety /repo always", "pull"]);
+    expect(calls).toEqual(["safety /repo always", "pull --no-rebase"]);
     expect(conflictContext).toEqual({
       abortArgs: ["merge", "--abort"],
       continueArgs: ["commit", "--no-edit"],
+      operationKind: "merge",
       operationName: "Pull"
     });
-    expect(logs).toContainEqual({ command: "git -C /repo pull" });
+    expect(logs).toContainEqual({ command: "git -C /repo pull --no-rebase" });
   });
 
   it("runs push, prompts pull request creation for non-main branches, and fetches", async () => {
@@ -148,7 +149,8 @@ describe("GitService", () => {
     ]);
     expect(conflictContext).toEqual({
       abortArgs: ["rebase", "--abort"],
-      continueArgs: ["rebase", "--continue"],
+      continueArgs: ["-c", "core.editor=true", "rebase", "--continue"],
+      operationKind: "rebase",
       operationName: "Rebase"
     });
     expect(showInformationMessage).toHaveBeenCalledWith(
@@ -194,6 +196,7 @@ function createService(input: {
       conflict?: {
         abortArgs: readonly string[];
         continueArgs: readonly string[];
+        operationKind: "merge" | "rebase";
         operationName: string;
       }
     ): Promise<OperationResultViewModel>;
