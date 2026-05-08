@@ -63,4 +63,27 @@ describe("FileChanges", () => {
 
     expect(onOpenFileDiff).toHaveBeenCalledWith("src/components/FileChanges.tsx");
   });
+
+  it("sends view mode change intent without opening file diffs", async () => {
+    const user = userEvent.setup();
+    const onModeChange = vi.fn();
+    const onOpenFileDiff = vi.fn();
+
+    render(
+      <FileChanges
+        files={files}
+        mode="tree"
+        onModeChange={onModeChange}
+        onOpenFileDiff={onOpenFileDiff}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Tree view" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "List view" })).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(screen.getByRole("button", { name: "List view" }));
+
+    expect(onModeChange).toHaveBeenCalledWith("list");
+    expect(onOpenFileDiff).not.toHaveBeenCalled();
+  });
 });

@@ -4,6 +4,7 @@ import type { FileService } from "../git/FileService";
 import type { GraphService } from "../git/GraphService";
 import type { RepositoryService } from "../git/RepositoryService";
 import type { DiffService } from "../vscode/DiffService";
+import type { SettingsService } from "../../state/SettingsService";
 import type { BranchesViewModel, RepositoryViewModel } from "./contract";
 import type { RpcHandlerMap } from "./router";
 
@@ -22,6 +23,7 @@ export interface GitHistoryRpcHandlerInput {
     RepositoryService,
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
   >;
+  settingsService: Pick<SettingsService, "getSettings" | "updateSettings">;
 }
 
 export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): RpcHandlerMap {
@@ -61,6 +63,16 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.diffService.openCompareFileDiff(repository.rootPath, request.fromHash, request.toHash, request.filePath);
+    },
+    "settings.get": () => ({
+      settings: input.settingsService.getSettings()
+    }),
+    "settings.update": async (request) => {
+      await input.settingsService.updateSettings(request.settings);
+
+      return {
+        settings: input.settingsService.getSettings()
+      };
     },
     "history.load": async (request) => {
       const repositories = await input.repositoryService.discoverRepositories();

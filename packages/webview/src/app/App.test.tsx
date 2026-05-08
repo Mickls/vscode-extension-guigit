@@ -241,6 +241,57 @@ describe("App", () => {
     );
   });
 
+  it("uses backend file view mode settings and sends update intents from changed files", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "settings.get"
+      })
+    );
+
+    const settingsRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "settings.get")![0];
+    dispatchSettingsResponse(settingsRequest.id, "tree");
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+
+    const detailsRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "commits.getDetails")![0];
+    dispatchDetailsResponse(detailsRequest.id, {
+      body: "First commit details",
+      files: [
+        {
+          binary: false,
+          deletions: 1,
+          insertions: 3,
+          path: "src/app/App.tsx",
+          status: "modified"
+        }
+      ],
+      hash: "abc1234567890abcdef",
+      message: "Wire real data"
+    });
+
+    expect(await screen.findByText("App.tsx")).toBeInTheDocument();
+    expect(screen.queryByText("src/app/App.tsx")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "List view" }));
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: { fileViewMode: "list" },
+        type: "settings.update"
+      })
+    );
+
+    const updateRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "settings.update")![0];
+    dispatchSettingsResponse(updateRequest.id, "list", "settings.update");
+
+    expect(screen.getByText("src/app/App.tsx")).toBeInTheDocument();
+  });
+
   it("requests backend graph layout and uses graph node clicks to select commits", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -671,6 +722,36 @@ function dispatchDetailsResponse(
               hash: commit.hash,
               message: commit.message,
               refs: []
+            }
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", type: "settings.get" | "settings.update" = "settings.get"): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type,
+          payload: {
+            settings: {
+              autoStashOnPull: "ask",
+              blameEnabled: true,
+              blameFormat: "${author}, ${time}: ${summary}",
+              blameShowOnlyCurrentLine: false,
+              fileViewMode,
+              language: "auto",
+              proxy: {
+                enabled: false,
+                http: "",
+                https: "",
+                noProxy: ""
+              }
             }
           }
         } satisfies RpcResponse

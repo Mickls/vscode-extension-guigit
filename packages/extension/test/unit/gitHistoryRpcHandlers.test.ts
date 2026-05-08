@@ -90,7 +90,8 @@ describe("Git history RPC handlers", () => {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" }),
         switchToActiveEditorRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" })
-      }
+      },
+      settingsService: createSettingsService()
     });
 
     await expect(handlers["history.load"]!({ id: "1", pageSize: 50, type: "history.load" })).resolves.toEqual({
@@ -99,6 +100,60 @@ describe("Git history RPC handlers", () => {
       hasMore: false,
       repositories: [{ id: "/repo", name: "repo", rootPath: "/repo" }]
     });
+  });
+
+  it("reads and updates settings", async () => {
+    const updates: unknown[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      repositoryService: {
+        discoverRepositories: async () => [],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      settingsService: {
+        getSettings: () => createSettings("tree"),
+        updateSettings: async (settings) => {
+          updates.push(settings);
+        }
+      }
+    });
+
+    expect(handlers["settings.get"]!({ id: "settings-1", type: "settings.get" })).toEqual({
+      settings: createSettings("tree")
+    });
+    await expect(
+      handlers["settings.update"]!({
+        id: "settings-2",
+        settings: { fileViewMode: "list" },
+        type: "settings.update"
+      })
+    ).resolves.toEqual({
+      settings: createSettings("tree")
+    });
+    expect(updates).toEqual([{ fileViewMode: "list" }]);
   });
 
   it("returns commit details for the requested repository", async () => {
@@ -130,7 +185,8 @@ describe("Git history RPC handlers", () => {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
-      }
+      },
+      settingsService: createSettingsService()
     });
 
     await expect(
@@ -175,7 +231,8 @@ describe("Git history RPC handlers", () => {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
-      }
+      },
+      settingsService: createSettingsService()
     });
 
     await expect(
@@ -229,7 +286,8 @@ describe("Git history RPC handlers", () => {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
-      }
+      },
+      settingsService: createSettingsService()
     });
 
     await expect(
@@ -258,3 +316,27 @@ describe("Git history RPC handlers", () => {
     ]);
   });
 });
+
+function createSettings(mode: "tree" | "list") {
+  return {
+    autoStashOnPull: "ask",
+    blameEnabled: true,
+    blameFormat: "${author}, ${time}: ${summary}",
+    blameShowOnlyCurrentLine: false,
+    fileViewMode: mode,
+    language: "auto",
+    proxy: {
+      enabled: false,
+      http: "",
+      https: "",
+      noProxy: ""
+    }
+  } as const;
+}
+
+function createSettingsService() {
+  return {
+    getSettings: () => createSettings("tree"),
+    updateSettings: async () => undefined
+  };
+}

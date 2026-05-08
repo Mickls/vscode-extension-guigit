@@ -1,13 +1,20 @@
 import type { ReactElement } from "react";
-import type { CommitDetailsViewModel } from "../../app/rpcContract.generated";
+import type { CommitDetailsViewModel, FileViewMode } from "../../app/rpcContract.generated";
 import { FileChanges } from "../FileChanges/FileChanges";
 
 export interface CommitDetailsProps {
   commit?: CommitDetailsViewModel;
+  fileViewMode: FileViewMode;
+  onFileViewModeChange?: (mode: FileViewMode) => void;
   onOpenFileDiff?: (path: string) => void;
 }
 
-export function CommitDetails({ commit, onOpenFileDiff }: CommitDetailsProps): ReactElement {
+export function CommitDetails({
+  commit,
+  fileViewMode,
+  onFileViewModeChange,
+  onOpenFileDiff
+}: CommitDetailsProps): ReactElement {
   if (!commit) {
     return (
       <div className="p-4 text-xs text-[var(--vscode-descriptionForeground)]">
@@ -30,7 +37,12 @@ export function CommitDetails({ commit, onOpenFileDiff }: CommitDetailsProps): R
           {commit.body}
         </p>
       </section>
-      <FileChanges files={commit.files} mode="list" onOpenFileDiff={onOpenFileDiff} />
+      <FileChanges
+        files={commit.files}
+        mode={fileViewMode}
+        onModeChange={onFileViewModeChange}
+        onOpenFileDiff={onOpenFileDiff}
+      />
     </div>
   );
 }

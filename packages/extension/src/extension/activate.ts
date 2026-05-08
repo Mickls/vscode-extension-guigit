@@ -11,6 +11,7 @@ import { RepositoryService } from "../backend/git/RepositoryService";
 import { DiffService } from "../backend/vscode/DiffService";
 import { LoggerService, type LogLevel } from "../logging/LoggerService";
 import { CacheService } from "../state/CacheService";
+import { SettingsService, type SettingsConfigurationKey } from "../state/SettingsService";
 import { WorkspaceStateService } from "../state/WorkspaceStateService";
 import { GitHistoryViewProvider } from "../views/GitHistoryViewProvider";
 import { registerGitHistoryCommands } from "./commands";
@@ -47,6 +48,14 @@ export function activate(context: ExtensionContext): void {
     },
     logger
   });
+  const settingsService = new SettingsService({
+    configuration: {
+      get: (key) => workspace.getConfiguration().get(key),
+      update: async (key: SettingsConfigurationKey, value) => {
+        await workspace.getConfiguration().update(key, value, ConfigurationTarget.Workspace);
+      }
+    }
+  });
   const graphService = new GraphService({ logger });
   const diffService = new DiffService({ logger });
   const router = createRpcRouter(
@@ -56,7 +65,8 @@ export function activate(context: ExtensionContext): void {
       diffService,
       fileService,
       graphService,
-      repositoryService
+      repositoryService,
+      settingsService
     }),
     logger
   );

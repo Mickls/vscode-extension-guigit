@@ -4,6 +4,7 @@ import type { FileChangeViewModel, FileViewMode } from "../../app/rpcContract.ge
 export interface FileChangesProps {
   files: readonly FileChangeViewModel[];
   mode: FileViewMode;
+  onModeChange?: (mode: FileViewMode) => void;
   onOpenFileDiff?: (path: string) => void;
 }
 
@@ -12,10 +13,16 @@ interface TreeNode {
   file?: FileChangeViewModel;
 }
 
-export function FileChanges({ files, mode, onOpenFileDiff }: FileChangesProps): ReactElement {
+export function FileChanges({ files, mode, onModeChange, onOpenFileDiff }: FileChangesProps): ReactElement {
   return (
     <section aria-label="Files Changed" className="space-y-2">
-      <h3 className="text-xs font-semibold">Files Changed ({files.length})</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold">Files Changed ({files.length})</h3>
+        <div className="flex overflow-hidden rounded-[3px] border border-[var(--vscode-button-border)]">
+          <FileViewModeButton active={mode === "tree"} label="Tree" mode="tree" onModeChange={onModeChange} />
+          <FileViewModeButton active={mode === "list"} label="List" mode="list" onModeChange={onModeChange} />
+        </div>
+      </div>
       <div className="rounded-[3px] border border-[var(--vscode-panel-border)]">
         {mode === "tree" ? (
           <TreeFileChanges files={files} onOpenFileDiff={onOpenFileDiff} />
@@ -24,6 +31,30 @@ export function FileChanges({ files, mode, onOpenFileDiff }: FileChangesProps): 
         )}
       </div>
     </section>
+  );
+}
+
+function FileViewModeButton({
+  active,
+  label,
+  mode,
+  onModeChange
+}: {
+  active: boolean;
+  label: string;
+  mode: FileViewMode;
+  onModeChange?: (mode: FileViewMode) => void;
+}): ReactElement {
+  return (
+    <button
+      aria-label={`${label} view`}
+      aria-pressed={active}
+      className={`px-2 py-1 text-[11px] ${active ? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]" : "bg-transparent text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"}`}
+      onClick={() => onModeChange?.(mode)}
+      type="button"
+    >
+      {label}
+    </button>
   );
 }
 

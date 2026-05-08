@@ -5,6 +5,7 @@ import type {
   CommitDetailsViewModel,
   CommitListItemViewModel,
   FileChangeViewModel,
+  FileViewMode,
   GraphLayoutViewModel,
   RemoteViewModel,
   RpcResponse
@@ -28,6 +29,7 @@ const emptyGraph: GraphLayoutViewModel = {
 const emptyRemotes: readonly RemoteViewModel[] = [];
 const emptyCompareFiles: readonly FileChangeViewModel[] = [];
 const pageSize = 50;
+const defaultFileViewMode: FileViewMode = "list";
 
 export interface AppProps {
   rpcClient?: RpcClient;
@@ -48,6 +50,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
+  const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
   const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
   const hasMoreRef = useRef(false);
   const nextCursorRef = useRef<string | undefined>(undefined);
@@ -71,6 +74,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
   useEffect(() => {
     requestHistory(client, pendingHistoryRequestsRef.current);
+    requestSettings(client);
   }, [client]);
 
   useEffect(() => {
@@ -148,6 +152,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if (response.id === latestGraphRequestIdRef.current) {
           setGraph(response.payload.graph);
         }
+      }
+
+      if (response.type === "settings.get" || response.type === "settings.update") {
+        setFileViewMode(response.payload.settings.fileViewMode);
       }
     };
 
@@ -245,6 +253,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
     });
   };
 
+  const updateFileViewMode = (mode: FileViewMode) => {
+    setFileViewMode(mode);
+    client?.post({
+      id: crypto.randomUUID(),
+      settings: {
+        fileViewMode: mode
+      },
+      type: "settings.update"
+    });
+  };
+
   return (
     <main className="flex h-screen overflow-hidden flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
       <Header
@@ -269,7 +288,14 @@ export function App({ rpcClient }: AppProps): ReactElement {
             selectedHash={selectedCommitHash}
           />
         }
-        right={<CommitDetails commit={commitDetails} onOpenFileDiff={openCommitFileDiff} />}
+        right={
+          <CommitDetails
+            commit={commitDetails}
+            fileViewMode={fileViewMode}
+            onFileViewModeChange={updateFileViewMode}
+            onOpenFileDiff={openCommitFileDiff}
+          />
+        }
       />
       <ContextMenu
         canEditCommitMessage={commits.find((commit) => commit.hash === selectedCommitHash)?.canEditMessage ?? false}
@@ -303,6 +329,13 @@ function requestCommitDetails(client: RpcClient | undefined, repositoryId: strin
     id: crypto.randomUUID(),
     repositoryId,
     type: "commits.getDetails"
+  });
+}
+
+function requestSettings(client: RpcClient | undefined): void {
+  client?.post({
+    id: crypto.randomUUID(),
+    type: "settings.get"
   });
 }
 
