@@ -25,7 +25,7 @@ interface GitExtensionExports {
 }
 
 export function activate(context: ExtensionContext): void {
-  const outputChannel = window.createOutputChannel("GUI Git History");
+  const outputChannel = window.createOutputChannel("GUI Git History", "guigit-log");
   const logger = new LoggerService({
     level: () => workspace.getConfiguration().get<LogLevel>("guigit.logLevel") ?? "info",
     sink: outputChannel

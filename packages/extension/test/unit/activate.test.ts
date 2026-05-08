@@ -102,7 +102,7 @@ describe("activate", () => {
     );
     expect(vscodeMocks.registerCommand).toHaveBeenCalledTimes(5);
     expect(vscodeMocks.onDidChangeActiveTextEditor).toHaveBeenCalled();
-    expect(vscodeMocks.createOutputChannel).toHaveBeenCalledWith("GUI Git History");
+    expect(vscodeMocks.createOutputChannel).toHaveBeenCalledWith("GUI Git History", "guigit-log");
     expect(subscriptions).toContain(vscodeMocks.providerDisposable);
   });
 });

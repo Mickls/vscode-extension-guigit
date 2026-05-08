@@ -25,6 +25,24 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "guigit-log",
+        "aliases": [
+          "GUI Git History Log"
+        ],
+        "extensions": [
+          ".guigit-log"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "guigit-log",
+        "scopeName": "source.guigit-log",
+        "path": "./syntaxes/guigit-log.tmLanguage.json"
+      }
+    ],
     "configuration": {
       "title": "GUI Git History",
       "properties": {

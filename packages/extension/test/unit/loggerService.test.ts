@@ -16,12 +16,12 @@ describe("LoggerService", () => {
     logger.error("visible.error", { value: 3 });
 
     expect(lines).toEqual([
-      "\u001B[32m[info] visible.info {\"value\":2}\u001B[0m",
-      "\u001B[31m[error] visible.error {\"value\":3}\u001B[0m"
+      "[info] visible.info {\"value\":2}",
+      "[error] visible.error {\"value\":3}"
     ]);
   });
 
-  it("uses distinct colors for debug, info, and error output", () => {
+  it("writes plain text tokens for syntax highlighting instead of ANSI escape codes", () => {
     const lines: string[] = [];
     const logger = new LoggerService({
       level: () => "debug",
@@ -35,9 +35,10 @@ describe("LoggerService", () => {
     logger.error("error.command");
 
     expect(lines).toEqual([
-      "\u001B[33m[debug] debug.command\u001B[0m",
-      "\u001B[32m[info] info.command\u001B[0m",
-      "\u001B[31m[error] error.command\u001B[0m"
+      "[debug] debug.command",
+      "[info] info.command",
+      "[error] error.command"
     ]);
+    expect(lines.join("\n")).not.toContain("\u001B");
   });
 });

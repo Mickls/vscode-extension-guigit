@@ -22,14 +22,6 @@ const priorities = {
   debug: 3
 } as const satisfies Record<LogLevel, number>;
 
-const colors = {
-  debug: "\u001B[33m",
-  error: "\u001B[31m",
-  info: "\u001B[32m"
-} as const satisfies Record<Exclude<LogLevel, "off">, string>;
-
-const resetColor = "\u001B[0m";
-
 export class LoggerService implements Logger {
   private readonly level: () => LogLevel;
   private readonly sink: LogSink;
@@ -57,6 +49,6 @@ export class LoggerService implements Logger {
     }
 
     const serializedContext = context === undefined ? "" : ` ${JSON.stringify(context)}`;
-    this.sink.appendLine(`${colors[level]}[${level}] ${message}${serializedContext}${resetColor}`);
+    this.sink.appendLine(`[${level}] ${message}${serializedContext}`);
   }
 }
