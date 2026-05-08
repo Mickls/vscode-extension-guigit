@@ -33,7 +33,7 @@ export class VirtualDocumentService<TUri extends { toString(): string } = Uri> {
 
   public createDocument(content: string, fileName: string): TUri {
     const scheme = `guigit-${this.randomId()}`;
-    const uri = this.createUri(`${scheme}:${fileName}`);
+    const uri = this.createUri(`${scheme}:/${encodeVirtualPath(fileName)}`);
     const disposable = this.registerTextDocumentContentProvider(scheme, {
       provideTextDocumentContent: (requestUri) => (requestUri.toString() === uri.toString() ? content : undefined)
     });
@@ -44,4 +44,8 @@ export class VirtualDocumentService<TUri extends { toString(): string } = Uri> {
 
     return uri;
   }
+}
+
+function encodeVirtualPath(fileName: string): string {
+  return fileName.split("/").map(encodeURIComponent).join("/");
 }

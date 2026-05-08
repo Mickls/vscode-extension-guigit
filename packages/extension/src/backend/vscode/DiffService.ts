@@ -60,10 +60,9 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
       : `${baseFileName(filePath)} (${shortHash}) - Initial Commit`;
 
     await this.openContentDiff({
+      filePath,
       leftContent: oldContent,
-      leftLabel: parent ? `${baseFileName(filePath)} (${shortHash}^)` : `${baseFileName(filePath)} (empty)`,
       rightContent: newContent,
-      rightLabel: `${baseFileName(filePath)} (${shortHash})`,
       title
     });
     this.logger?.debug("diff.commitFile.opened", {
@@ -114,10 +113,9 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
     }
 
     await this.openContentDiff({
+      filePath,
       leftContent: fromContent,
-      leftLabel: fromContent === null ? `${baseFileName(filePath)} (empty)` : `${baseFileName(filePath)} (${shortFromHash})`,
       rightContent: toContent,
-      rightLabel: toContent === null ? `${baseFileName(filePath)} (deleted)` : `${baseFileName(filePath)} (${shortToHash})`,
       title: compareTitle(filePath, shortFromHash, shortToHash, fromContent, toContent)
     });
     this.logger?.debug("diff.compareFile.opened", {
@@ -147,14 +145,13 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
   }
 
   private async openContentDiff(input: {
+    filePath: string;
     leftContent: string | null;
-    leftLabel: string;
     rightContent: string | null;
-    rightLabel: string;
     title: string;
   }): Promise<void> {
-    const leftUri = this.virtualDocuments.createDocument(input.leftContent ?? "", input.leftLabel);
-    const rightUri = this.virtualDocuments.createDocument(input.rightContent ?? "", input.rightLabel);
+    const leftUri = this.virtualDocuments.createDocument(input.leftContent ?? "", input.filePath);
+    const rightUri = this.virtualDocuments.createDocument(input.rightContent ?? "", input.filePath);
 
     await this.executeCommand("vscode.diff", leftUri, rightUri, input.title, {
       preview: true,

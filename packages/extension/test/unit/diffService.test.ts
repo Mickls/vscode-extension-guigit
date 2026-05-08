@@ -32,10 +32,28 @@ describe("DiffService", () => {
     const result = await service.openCommitFileDiff("/repo", "commit", "src/file.ts");
 
     expect(result).toEqual({ status: "ok", message: "Opened diff for src/file.ts" });
-    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "file.ts (commit^):before", "file.ts (commit):after", "file.ts (commit)", {
+    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "src/file.ts:before", "src/file.ts:after", "file.ts (commit)", {
       preview: true,
       viewColumn: 1
     });
+  });
+
+  it("creates diff virtual documents with the original file path for language detection", async () => {
+    const documentNames: string[] = [];
+    const service = new DiffService({
+      executeCommand: vi.fn(),
+      gitRaw: async (_repositoryRoot, args) => (args[3] === "commit" ? "parent" : "content"),
+      virtualDocuments: {
+        createDocument: (content, fileName) => {
+          documentNames.push(fileName);
+          return `${fileName}:${content}`;
+        }
+      }
+    });
+
+    await service.openCommitFileDiff("/repo", "commit", "src/components/App.tsx");
+
+    expect(documentNames).toEqual(["src/components/App.tsx", "src/components/App.tsx"]);
   });
 
   it("loads normal commit diff sides in parallel after resolving the first parent", async () => {
@@ -78,7 +96,7 @@ describe("DiffService", () => {
 
     await service.openCommitFileDiff("/repo", "initial", "src/file.ts");
 
-    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "file.ts (empty):", "file.ts (initial):created", "file.ts (initial) - Initial Commit", {
+    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "src/file.ts:", "src/file.ts:created", "file.ts (initial) - Initial Commit", {
       preview: true,
       viewColumn: 1
     });
@@ -98,11 +116,11 @@ describe("DiffService", () => {
     await service.openCompareFileDiff("/repo", "from", "to", "added.ts");
     await service.openCompareFileDiff("/repo", "from", "to", "deleted.ts");
 
-    expect(executeCommand).toHaveBeenNthCalledWith(1, "vscode.diff", "added.ts (empty):", "added.ts (to):added", "added.ts (from..to) - New File", {
+    expect(executeCommand).toHaveBeenNthCalledWith(1, "vscode.diff", "added.ts:", "added.ts:added", "added.ts (from..to) - New File", {
       preview: true,
       viewColumn: 1
     });
-    expect(executeCommand).toHaveBeenNthCalledWith(2, "vscode.diff", "deleted.ts (from):deleted", "deleted.ts (deleted):", "deleted.ts (from..to) - Deleted File", {
+    expect(executeCommand).toHaveBeenNthCalledWith(2, "vscode.diff", "deleted.ts:deleted", "deleted.ts:", "deleted.ts (from..to) - Deleted File", {
       preview: true,
       viewColumn: 1
     });
