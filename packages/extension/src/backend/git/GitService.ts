@@ -1,7 +1,7 @@
 import { simpleGit } from "simple-git";
 import { window } from "vscode";
 import type { OperationResultViewModel } from "../rpc/contract";
-import type { SafetyService } from "./SafetyService";
+import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
 import type { SettingsService } from "../../state/SettingsService";
 import type { Logger } from "../../logging/LoggerService";
 
@@ -166,6 +166,7 @@ export class GitService {
     message: string
   ): Promise<OperationResultViewModel> {
     const preference = this.settingsService.getSettings().autoStashOnPull;
+    const conflict = getPullConflictResolution(args);
     return this.safetyService.runWithAutoStash(repositoryRoot, preference, async () => {
       this.logger?.debug("git.pull", { args, repositoryRoot });
       await this.runGitRaw(repositoryRoot, args);
@@ -174,7 +175,7 @@ export class GitService {
         message,
         status: "ok"
       };
-    });
+    }, conflict);
   }
 
   private async pickRemoteBranch(repositoryRoot: string, placeHolder: string): Promise<QuickPickItem | undefined> {
@@ -216,5 +217,21 @@ function splitRemoteBranch(branch: string): { branch: string; remote: string } {
   return {
     branch: branch.slice(separatorIndex + 1),
     remote: branch.slice(0, separatorIndex)
+  };
+}
+
+function getPullConflictResolution(args: readonly string[]): ConflictResolutionInput {
+  if (args.includes("--rebase")) {
+    return {
+      abortArgs: ["rebase", "--abort"],
+      continueArgs: ["rebase", "--continue"],
+      operationName: "Rebase"
+    };
+  }
+
+  return {
+    abortArgs: ["merge", "--abort"],
+    continueArgs: ["commit", "--no-edit"],
+    operationName: "Pull"
   };
 }

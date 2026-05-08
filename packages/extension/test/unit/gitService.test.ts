@@ -13,14 +13,16 @@ describe("GitService", () => {
   it("runs pull through safety auto-stash handling", async () => {
     const calls: string[] = [];
     const logs: unknown[] = [];
+    let conflictContext: unknown;
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
         return "";
       },
       safetyService: {
-        runWithAutoStash: async (repositoryRoot, preference, operation) => {
+        runWithAutoStash: async (repositoryRoot, preference, operation, conflict) => {
           calls.push(`safety ${repositoryRoot} ${preference}`);
+          conflictContext = conflict;
           return operation();
         }
       },
@@ -35,6 +37,11 @@ describe("GitService", () => {
 
     await expect(service.pull("/repo")).resolves.toEqual({ message: "Pull completed", status: "ok" });
     expect(calls).toEqual(["safety /repo always", "pull"]);
+    expect(conflictContext).toEqual({
+      abortArgs: ["merge", "--abort"],
+      continueArgs: ["commit", "--no-edit"],
+      operationName: "Pull"
+    });
     expect(logs).toContainEqual({ command: "git -C /repo pull" });
   });
 
@@ -95,6 +102,7 @@ describe("GitService", () => {
 
   it("uses backend quick picks for advanced pull and push", async () => {
     const calls: string[] = [];
+    let conflictContext: unknown;
     const showInformationMessage = vi.fn().mockResolvedValue("Force Push");
     const showQuickPick = vi
       .fn()
@@ -116,7 +124,10 @@ describe("GitService", () => {
         return "";
       },
       safetyService: {
-        runWithAutoStash: async (_repositoryRoot, _preference, operation) => operation()
+        runWithAutoStash: async (_repositoryRoot, _preference, operation, conflict) => {
+          conflictContext = conflict;
+          return operation();
+        }
       },
       settingsService: {
         getSettings: () => ({ autoStashOnPull: "ask" })
@@ -135,6 +146,11 @@ describe("GitService", () => {
       "push --force-with-lease origin HEAD:feature",
       "rev-parse --abbrev-ref HEAD"
     ]);
+    expect(conflictContext).toEqual({
+      abortArgs: ["rebase", "--abort"],
+      continueArgs: ["rebase", "--continue"],
+      operationName: "Rebase"
+    });
     expect(showInformationMessage).toHaveBeenCalledWith(
       "Force push to origin/feature with lease?",
       "Force Push",
@@ -174,7 +190,12 @@ function createService(input: {
     runWithAutoStash(
       repositoryRoot: string,
       preference: "ask" | "always" | "never",
-      operation: () => Promise<OperationResultViewModel>
+      operation: () => Promise<OperationResultViewModel>,
+      conflict?: {
+        abortArgs: readonly string[];
+        continueArgs: readonly string[];
+        operationName: string;
+      }
     ): Promise<OperationResultViewModel>;
   };
   settingsService?: {

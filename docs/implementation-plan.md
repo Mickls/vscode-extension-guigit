@@ -332,6 +332,7 @@ gui-git-history/
 - [x] Implement `ask | always | never` auto-stash preference.
 - [x] Implement stash push with untracked files.
 - [x] Implement safe stash pop after pull/rebase.
+- [x] Handle pull/rebase conflicts before restoring auto-stashed changes.
 - [x] Implement reset preference action.
 - [x] Commit with `feat: add safe git operation handling`.
 

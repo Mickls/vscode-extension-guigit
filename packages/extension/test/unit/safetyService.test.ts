@@ -99,4 +99,85 @@ describe("SafetyService", () => {
       { command: "git -C /repo stash pop" }
     ]);
   });
+
+  it("waits for conflict resolution before continuing and popping the auto stash", async () => {
+    const calls: string[] = [];
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      calls.push(args.join(" "));
+      if (args.join(" ") === "status --porcelain") {
+        return calls.includes("operation") ? "UU src/file.ts\n" : " M src/file.ts\n";
+      }
+
+      return "";
+    });
+    const operation = vi.fn(async () => {
+      calls.push("operation");
+      throw new Error("CONFLICT (content): Merge conflict in src/file.ts");
+    });
+    const showWarningMessage = vi.fn(async () => "Continue");
+    const service = new SafetyService({ gitRaw, showWarningMessage });
+
+    await expect(
+      service.runWithAutoStash("/repo", "always", operation, {
+        abortArgs: ["merge", "--abort"],
+        continueArgs: ["commit", "--no-edit"],
+        operationName: "Pull"
+      })
+    ).resolves.toEqual({
+      message: "Pull conflicts resolved",
+      status: "ok"
+    });
+
+    expect(calls).toEqual([
+      "status --porcelain",
+      "stash push --include-untracked -m GUI Git History auto stash",
+      "operation",
+      "status --porcelain",
+      "commit --no-edit",
+      "stash pop"
+    ]);
+    expect(showWarningMessage).toHaveBeenCalledWith(
+      "Pull has conflicts. Resolve them in the working tree, then continue. GUI Git History will finish Pull and restore your stashed changes.",
+      "Continue",
+      "Abort"
+    );
+  });
+
+  it("aborts the conflicted operation and restores the auto stash", async () => {
+    const calls: string[] = [];
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      calls.push(args.join(" "));
+      if (args.join(" ") === "status --porcelain") {
+        return calls.includes("operation") ? "UU src/file.ts\n" : " M src/file.ts\n";
+      }
+
+      return "";
+    });
+    const operation = vi.fn(async () => {
+      calls.push("operation");
+      throw new Error("Automatic merge failed; fix conflicts and then commit the result.");
+    });
+    const showWarningMessage = vi.fn(async () => "Abort");
+    const service = new SafetyService({ gitRaw, showWarningMessage });
+
+    await expect(
+      service.runWithAutoStash("/repo", "always", operation, {
+        abortArgs: ["merge", "--abort"],
+        continueArgs: ["commit", "--no-edit"],
+        operationName: "Pull"
+      })
+    ).resolves.toEqual({
+      message: "Pull aborted and stashed changes restored",
+      status: "cancelled"
+    });
+
+    expect(calls).toEqual([
+      "status --porcelain",
+      "stash push --include-untracked -m GUI Git History auto stash",
+      "operation",
+      "status --porcelain",
+      "merge --abort",
+      "stash pop"
+    ]);
+  });
 });
