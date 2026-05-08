@@ -73,7 +73,7 @@ pnpm dev:shared
 pnpm rpc:generate
 pnpm rpc:check
 pnpm typecheck
-pnpm lint
+pnpm eslint
 pnpm test
 pnpm build
 pnpm package
@@ -169,7 +169,7 @@ Run these before claiming a phase or task is complete:
 pnpm install
 pnpm rpc:check
 pnpm typecheck
-pnpm lint
+pnpm eslint
 pnpm test
 pnpm build
 pnpm package

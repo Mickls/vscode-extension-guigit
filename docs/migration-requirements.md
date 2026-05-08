@@ -226,7 +226,7 @@
 
 - `pnpm install` 成功
 - `pnpm typecheck` 成功
-- `pnpm lint` 成功
+- `pnpm eslint` 成功
 - `pnpm test` 成功
 - `pnpm package` 或等价 VSIX 打包命令成功
 - Extension Development Host 能打开 `GUI Git History`

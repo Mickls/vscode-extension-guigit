@@ -202,7 +202,8 @@
   "scripts": {
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src --ext .ts",
+    "eslint": "eslint src --ext .ts",
+    "lint": "pnpm run eslint",
     "test": "vitest run --passWithNoTests",
     "build": "tsc -p tsconfig.json",
     "package": "vsce package --no-dependencies"

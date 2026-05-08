@@ -12,7 +12,8 @@
     "rpc:generate": "pnpm --filter @gui-git-history/shared build && node scripts/generate-rpc-contract.mjs",
     "rpc:check": "pnpm --filter @gui-git-history/shared build && node scripts/generate-rpc-contract.mjs --check",
     "typecheck": "pnpm rpc:check && pnpm -r typecheck",
-    "lint": "pnpm -r lint",
+    "eslint": "pnpm -r eslint",
+    "lint": "pnpm run eslint",
     "test": "pnpm rpc:check && pnpm -r test",
     "build": "pnpm rpc:check && pnpm -r build",
     "package": "pnpm build && pnpm --filter vscode-extension-guigit package"

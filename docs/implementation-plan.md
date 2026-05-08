@@ -449,7 +449,7 @@ gui-git-history/
 - [ ] Keep `package.json.name` as `vscode-extension-guigit`.
 - [ ] Remove `package-lock.json`.
 - [ ] Add `pnpm-lock.yaml`.
-- [ ] Run `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm package`.
+- [ ] Run `pnpm install`, `pnpm typecheck`, `pnpm eslint`, `pnpm test`, `pnpm package`.
 - [ ] Commit with `feat: rewrite gui git history extension`.
 
 ## Verification Checklist
