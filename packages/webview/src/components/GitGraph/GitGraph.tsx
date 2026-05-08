@@ -11,7 +11,7 @@ export interface GitGraphProps {
 const rowHeight = 36;
 const minimumHeight = 36;
 const defaultWidth = 120;
-const curveRadius = 8;
+const curveRadius = 12;
 
 export function GitGraph({ graph, onNodeSelect, rowCount = 0 }: GitGraphProps): ReactElement {
   const [hoveredHash, setHoveredHash] = useState<string | undefined>();

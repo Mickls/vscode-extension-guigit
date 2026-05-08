@@ -644,4 +644,24 @@ describe("GraphService", () => {
     expect(Math.max(...graph.nodes.map((node) => node.x))).toBe(488);
     expect(graph.width).toBe(512);
   });
+
+  it("assigns distinct colors to the first many side branches", async () => {
+    const branchCount = 16;
+    const branchNames = Array.from({ length: branchCount }, (_value, index) => `branch-${index + 1}`);
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          `merge\x1fmain ${branchNames.join(" ")}`,
+          "main\x1fbase",
+          ...branchNames.map((branchName) => `${branchName}\x1fbase`),
+          "base\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", ["merge", "main", ...branchNames, "base"]);
+    const branchColors = branchNames.map((branchName) => graph.nodes.find((node) => node.hash === branchName)!.color);
+
+    expect(new Set(branchColors).size).toBe(branchCount);
+    expect(branchColors).not.toContain("#f56565");
+  });
 });

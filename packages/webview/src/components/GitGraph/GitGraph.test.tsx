@@ -54,7 +54,7 @@ describe("GitGraph", () => {
     expect(svg).toHaveAttribute("width", "160");
     expect(svg).toHaveAttribute("viewBox", "0 0 160 72");
     expect(svg.querySelector("polyline")).not.toBeInTheDocument();
-    expect(svg.querySelector("path")).toHaveAttribute("d", "M 16 18 L 36 18 Q 44 18 39.088 24.315 L 16 54");
+    expect(svg.querySelector("path")).toHaveAttribute("d", "M 16 18 L 32 18 Q 44 18 36.633 27.472 L 16 54");
     expect(svg.querySelector('[data-hash="second"] circle')).toHaveAttribute("cx", "72");
     expect(svg.querySelector('[data-hash="second"] circle')).toHaveAttribute("cy", "58");
   });

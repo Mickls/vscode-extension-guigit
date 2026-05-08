@@ -10,7 +10,36 @@ const graphPaddingRight = 24;
 const laneSpacing = 12;
 const rowHeight = 36;
 const nodeOffsetY = 18;
-const graphColors = ["#f56565", "#4299e1", "#48bb78", "#9f7aea", "#ffc107", "#dc3545", "#28a745", "#6f42c1"];
+const graphColors = [
+  "#f56565",
+  "#4299e1",
+  "#48bb78",
+  "#9f7aea",
+  "#ffc107",
+  "#dc3545",
+  "#28a745",
+  "#6f42c1",
+  "#00b8d9",
+  "#ff8b00",
+  "#36b37e",
+  "#6554c0",
+  "#ff5630",
+  "#00a3bf",
+  "#8f5fe8",
+  "#00875a",
+  "#ffab00",
+  "#4c9aff",
+  "#de350b",
+  "#8777d9",
+  "#57d9a3",
+  "#ff7452",
+  "#2684ff",
+  "#bf2600",
+  "#6b778c",
+  "#0065ff",
+  "#ff991f",
+  "#403294"
+];
 
 export interface GraphServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
