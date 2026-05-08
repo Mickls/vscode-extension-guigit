@@ -51,8 +51,16 @@ export class SettingsService {
   }
 
   public async updateSettings(settings: Partial<SettingsViewModel>): Promise<void> {
+    if (settings.autoStashOnPull !== undefined) {
+      await this.configuration.update("guigit.autoStashOnPull", settings.autoStashOnPull);
+    }
+
     if (settings.fileViewMode !== undefined) {
       await this.configuration.update("guigit.fileViewMode", settings.fileViewMode);
     }
+  }
+
+  public async resetAutoStashPreference(): Promise<void> {
+    await this.configuration.update("guigit.autoStashOnPull", "ask");
   }
 }

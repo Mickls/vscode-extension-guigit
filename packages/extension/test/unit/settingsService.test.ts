@@ -53,4 +53,24 @@ describe("SettingsService", () => {
 
     expect(updates).toEqual([{ key: "guigit.fileViewMode", value: "list" }]);
   });
+
+  it("updates and resets auto stash preference", async () => {
+    const updates: Array<{ key: string; value: unknown }> = [];
+    const service = new SettingsService({
+      configuration: {
+        get: () => undefined,
+        update: async (key, value) => {
+          updates.push({ key, value });
+        }
+      }
+    });
+
+    await service.updateSettings({ autoStashOnPull: "always" });
+    await service.resetAutoStashPreference();
+
+    expect(updates).toEqual([
+      { key: "guigit.autoStashOnPull", value: "always" },
+      { key: "guigit.autoStashOnPull", value: "ask" }
+    ]);
+  });
 });

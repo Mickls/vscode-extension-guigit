@@ -328,12 +328,12 @@ gui-git-history/
 - Create: `packages/extension/src/backend/git/SafetyService.ts`
 - Create: `packages/extension/src/state/SettingsService.ts`
 
-- [ ] Implement uncommitted change detection.
-- [ ] Implement `ask | always | never` auto-stash preference.
-- [ ] Implement stash push with untracked files.
-- [ ] Implement safe stash pop after pull/rebase.
-- [ ] Implement reset preference action.
-- [ ] Commit with `feat: add safe git operation handling`.
+- [x] Implement uncommitted change detection.
+- [x] Implement `ask | always | never` auto-stash preference.
+- [x] Implement stash push with untracked files.
+- [x] Implement safe stash pop after pull/rebase.
+- [x] Implement reset preference action.
+- [x] Commit with `feat: add safe git operation handling`.
 
 ### Task 5.2: Pull, push, fetch, clone, checkout
 
