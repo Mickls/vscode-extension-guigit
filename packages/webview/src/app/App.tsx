@@ -205,6 +205,37 @@ export function App({ rpcClient }: AppProps): ReactElement {
     }
   };
 
+  const openCommitFileDiff = (filePath: string) => {
+    if (!selectedRepositoryIdRef.current || !selectedCommitHashRef.current) {
+      return;
+    }
+
+    client?.post({
+      filePath,
+      hash: selectedCommitHashRef.current,
+      id: crypto.randomUUID(),
+      repositoryId: selectedRepositoryIdRef.current,
+      type: "diff.openCommitFile"
+    });
+  };
+
+  const openCompareFileDiff = (filePath: string) => {
+    const fromHash = commits[0]?.hash;
+    const toHash = commits[1]?.hash;
+    if (!selectedRepositoryIdRef.current || !fromHash || !toHash) {
+      return;
+    }
+
+    client?.post({
+      filePath,
+      fromHash,
+      id: crypto.randomUUID(),
+      repositoryId: selectedRepositoryIdRef.current,
+      toHash,
+      type: "diff.openCompareFile"
+    });
+  };
+
   return (
     <main className="flex h-screen overflow-hidden flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
       <Header
@@ -229,7 +260,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
             selectedHash={selectedCommitHash}
           />
         }
-        right={<CommitDetails commit={commitDetails} />}
+        right={<CommitDetails commit={commitDetails} onOpenFileDiff={openCommitFileDiff} />}
       />
       <ContextMenu
         canEditCommitMessage={commits.find((commit) => commit.hash === selectedCommitHash)?.canEditMessage ?? false}
@@ -249,6 +280,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         files={emptyCompareFiles}
         fromHash={commits[0]?.hash ?? ""}
         onClose={() => setCompareOverlayOpen(false)}
+        onOpenFileDiff={openCompareFileDiff}
         open={compareOverlayOpen}
         toHash={commits[1]?.hash ?? ""}
       />

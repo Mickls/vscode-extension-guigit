@@ -8,6 +8,7 @@ import { CommitService } from "../backend/git/CommitService";
 import { FileService } from "../backend/git/FileService";
 import { GraphService } from "../backend/git/GraphService";
 import { RepositoryService } from "../backend/git/RepositoryService";
+import { DiffService } from "../backend/vscode/DiffService";
 import { LoggerService, type LogLevel } from "../logging/LoggerService";
 import { CacheService } from "../state/CacheService";
 import { WorkspaceStateService } from "../state/WorkspaceStateService";
@@ -47,10 +48,12 @@ export function activate(context: ExtensionContext): void {
     logger
   });
   const graphService = new GraphService({ logger });
+  const diffService = new DiffService();
   const router = createRpcRouter(
     createGitHistoryRpcHandlers({
       branchService,
       commitService,
+      diffService,
       fileService,
       graphService,
       repositoryService

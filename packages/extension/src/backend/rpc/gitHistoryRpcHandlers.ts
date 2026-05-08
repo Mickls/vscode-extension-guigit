@@ -3,6 +3,7 @@ import type { CommitService } from "../git/CommitService";
 import type { FileService } from "../git/FileService";
 import type { GraphService } from "../git/GraphService";
 import type { RepositoryService } from "../git/RepositoryService";
+import type { DiffService } from "../vscode/DiffService";
 import type { BranchesViewModel, RepositoryViewModel } from "./contract";
 import type { RpcHandlerMap } from "./router";
 
@@ -16,6 +17,7 @@ export interface GitHistoryRpcHandlerInput {
   commitService: Pick<CommitService, "loadHistory">;
   fileService: Pick<FileService, "getCommitDetails" | "getFileChanges">;
   graphService: Pick<GraphService, "getLayout">;
+  diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
   repositoryService: Pick<
     RepositoryService,
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
@@ -49,6 +51,16 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       return {
         graph: await input.graphService.getLayout(repository.rootPath, request.hashes)
       };
+    },
+    "diff.openCommitFile": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.diffService.openCommitFileDiff(repository.rootPath, request.hash, request.filePath);
+    },
+    "diff.openCompareFile": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.diffService.openCompareFileDiff(repository.rootPath, request.fromHash, request.toHash, request.filePath);
     },
     "history.load": async (request) => {
       const repositories = await input.repositoryService.discoverRepositories();

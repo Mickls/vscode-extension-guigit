@@ -4,9 +4,10 @@ import { FileChanges } from "../FileChanges/FileChanges";
 
 export interface CommitDetailsProps {
   commit?: CommitDetailsViewModel;
+  onOpenFileDiff?: (path: string) => void;
 }
 
-export function CommitDetails({ commit }: CommitDetailsProps): ReactElement {
+export function CommitDetails({ commit, onOpenFileDiff }: CommitDetailsProps): ReactElement {
   if (!commit) {
     return (
       <div className="p-4 text-xs text-[var(--vscode-descriptionForeground)]">
@@ -29,7 +30,7 @@ export function CommitDetails({ commit }: CommitDetailsProps): ReactElement {
           {commit.body}
         </p>
       </section>
-      <FileChanges files={commit.files} mode="list" />
+      <FileChanges files={commit.files} mode="list" onOpenFileDiff={onOpenFileDiff} />
     </div>
   );
 }

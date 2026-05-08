@@ -4,6 +4,8 @@ export const allRpcRequestTypes = [
   "commits.getDetails",
   "files.getChanges",
   "graph.getLayout",
+  "diff.openCommitFile",
+  "diff.openCompareFile",
   "remotes.list",
   "remotes.add",
   "remotes.update",
@@ -173,6 +175,14 @@ export type RpcRequest =
       mode: FileViewMode;
     })
   | (RpcEnvelope & { type: "graph.getLayout"; repositoryId: string; hashes: readonly string[] })
+  | (RpcEnvelope & { type: "diff.openCommitFile"; repositoryId: string; hash: string; filePath: string })
+  | (RpcEnvelope & {
+      type: "diff.openCompareFile";
+      repositoryId: string;
+      fromHash: string;
+      toHash: string;
+      filePath: string;
+    })
   | (RpcEnvelope & { type: "remotes.list"; repositoryId: string })
   | (RpcEnvelope & { type: "remotes.add"; repositoryId: string; name: string; url: string })
   | (RpcEnvelope & { type: "remotes.update"; repositoryId: string; name: string; url: string })
@@ -217,6 +227,8 @@ export interface RpcPayloadByType {
   "commits.getDetails": { commit: CommitDetailsViewModel };
   "files.getChanges": { files: readonly FileChangeViewModel[]; mode: FileViewMode };
   "graph.getLayout": { graph: GraphLayoutViewModel };
+  "diff.openCommitFile": OperationResultViewModel;
+  "diff.openCompareFile": OperationResultViewModel;
   "remotes.list": { remotes: readonly RemoteViewModel[] };
   "remotes.add": OperationResultViewModel;
   "remotes.update": OperationResultViewModel;

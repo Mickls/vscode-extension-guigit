@@ -146,6 +146,40 @@ describe("App", () => {
     expect(await screen.findByText("Second commit details")).toBeInTheDocument();
   });
 
+  it("sends commit file diff intents from commit details", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await screen.findByText("Wire real data");
+    dispatchDetailsResponse(rpcClient.post.mock.calls[1]![0].id, {
+      body: "First commit details",
+      files: [
+        {
+          binary: false,
+          deletions: 1,
+          insertions: 3,
+          path: "src/app/App.tsx",
+          status: "modified"
+        }
+      ],
+      hash: "abc1234567890abcdef",
+      message: "Wire real data"
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Open diff for src/app/App.tsx" }));
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: "src/app/App.tsx",
+        hash: "abc1234567890abcdef",
+        repositoryId: "/repo",
+        type: "diff.openCommitFile"
+      })
+    );
+  });
+
   it("requests backend graph layout and uses graph node clicks to select commits", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -539,7 +573,21 @@ function createCommit(input: {
   };
 }
 
-function dispatchDetailsResponse(id: string, commit: { body: string; hash: string; message: string }): void {
+function dispatchDetailsResponse(
+  id: string,
+  commit: {
+    body: string;
+    files?: readonly {
+      binary: boolean;
+      deletions: number;
+      insertions: number;
+      path: string;
+      status: "added" | "deleted" | "modified" | "renamed" | "copied" | "unchanged";
+    }[];
+    hash: string;
+    message: string;
+  }
+): void {
   act(() => {
     window.dispatchEvent(
       new MessageEvent("message", {
@@ -554,7 +602,7 @@ function dispatchDetailsResponse(id: string, commit: { body: string; hash: strin
               canEditMessage: true,
               date: "2026-05-07 10:00:00 +0800",
               email: "ada@example.com",
-              files: [],
+              files: commit.files ?? [],
               hash: commit.hash,
               message: commit.message,
               refs: []

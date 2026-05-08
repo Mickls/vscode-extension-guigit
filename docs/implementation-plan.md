@@ -300,12 +300,12 @@ gui-git-history/
 - Create: `packages/extension/src/backend/vscode/DiffService.ts`
 - Create: `packages/extension/src/backend/vscode/VirtualDocumentService.ts`
 
-- [ ] Support initial commit diff.
-- [ ] Support normal commit diff.
-- [ ] Support compare file diff.
-- [ ] Support added, deleted, unchanged, and modified file scenarios.
-- [ ] Dispose virtual document providers after a bounded lifetime.
-- [ ] Commit with `feat: add vscode diff integration`.
+- [x] Support initial commit diff.
+- [x] Support normal commit diff.
+- [x] Support compare file diff.
+- [x] Support added, deleted, unchanged, and modified file scenarios.
+- [x] Dispose virtual document providers after a bounded lifetime.
+- [x] Commit with `feat: add vscode diff integration`.
 
 ### Task 4.3: File history panel
 
