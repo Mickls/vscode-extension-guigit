@@ -448,6 +448,56 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("keeps a branch lane reserved until its mainline source row releases it", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "final-merge\x1fmain-parent branch-a-tip",
+          "branch-a-tip\x1fbranch-source",
+          "main-parent\x1fbranch-source branch-b-tip",
+          "branch-b-tip\x1fbranch-b-base",
+          "branch-source\x1ftrunk-base",
+          "trunk-base\x1f",
+          "branch-b-base\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "final-merge",
+      "branch-a-tip",
+      "main-parent",
+      "branch-b-tip",
+      "branch-source",
+      "trunk-base",
+      "branch-b-base"
+    ]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "final-merge", row: 0 },
+      { column: 1, hash: "branch-a-tip", row: 1 },
+      { column: 0, hash: "main-parent", row: 2 },
+      { column: 2, hash: "branch-b-tip", row: 3 },
+      { column: 0, hash: "branch-source", row: 4 },
+      { column: 0, hash: "trunk-base", row: 5 },
+      { column: 1, hash: "branch-b-base", row: 6 }
+    ]);
+    expect(
+      graph.edges.find((edge) => edge.fromHash === "branch-a-tip" && edge.toHash === "branch-source")?.points
+    ).toEqual([
+      { x: 20, y: 54 },
+      { x: 20, y: 162 },
+      { x: 8, y: 162 }
+    ]);
+    expect(
+      graph.edges.find((edge) => edge.fromHash === "branch-b-tip" && edge.toHash === "branch-b-base")?.points
+    ).toEqual([
+      { x: 32, y: 126 },
+      { x: 32, y: 198 },
+      { x: 20, y: 198 },
+      { x: 20, y: 234 }
+    ]);
+  });
+
   it("keeps graph rows aligned to the requested commit order", async () => {
     const service = new GraphService({
       gitRaw: async () => ["third\x1fsecond", "first\x1f", "second\x1ffirst"].join("\x1e")

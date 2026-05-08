@@ -92,6 +92,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
   const colorByHash = new Map<string, string>();
   const columnByEdge = new Map<string, number>();
   const routeByEdge = new Map<string, GraphRoutePoint[]>();
+  const routeEdgeByHash = new Map<string, string>();
   const hiddenColumnByEdge = new Map<string, number>();
   const hiddenColorByEdge = new Map<string, string>();
   let nextColorIndex = 1;
@@ -104,7 +105,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
 
   for (let row = 0; row < commits.length; row += 1) {
     const commit = commits[row]!;
-    compactEdgeColumns(activeColumns, columnByEdge, hiddenColumnByEdge, routeByEdge, row);
+    compactEdgeColumns(activeColumns, columnByHash, columnByEdge, routeByEdge, routeEdgeByHash, hiddenColumnByEdge, row);
     const mainlineCommit = mainline.has(commit.hash);
     const existingColumn = activeColumns.indexOf(commit.hash);
     const column = mainlineCommit ? 0 : existingColumn >= 0 ? existingColumn : findAvailableColumn(activeColumns, 1);
@@ -129,6 +130,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       colorByHash,
       columnByEdge,
       routeByEdge,
+      routeEdgeByHash,
       hiddenColumnByEdge,
       hiddenColorByEdge,
       commit,
@@ -175,7 +177,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
             color: parentIndex === 0 ? fromNode.color : (toNode?.color ?? hiddenColorByEdge.get(hiddenEdgeKey)!),
             fromHash: commit.hash,
             points:
-              route === undefined || (toNode === undefined && route.length === 0)
+              route === undefined || route.length === 0
                 ? edgePoints(fromNode, toPoint, parentIndex, toNode === undefined)
                 : routedEdgePoints(fromNode, toPoint, route),
             toHash: parentHash
@@ -236,6 +238,7 @@ function updateActiveColumns(
   colorByHash: Map<string, string>,
   columnByEdge: Map<string, number>,
   routeByEdge: Map<string, GraphRoutePoint[]>,
+  routeEdgeByHash: Map<string, string>,
   hiddenColumnByEdge: Map<string, number>,
   hiddenColorByEdge: Map<string, string>,
   commit: ParsedGraphCommit,
@@ -267,16 +270,24 @@ function updateActiveColumns(
       mainline.has(firstParent) || preferredChild === undefined || preferredChild === commit.hash;
     if (currentCommitOwnsFirstParentLane) {
       const firstParentColumn = mainline.has(firstParent) ? 0 : activeColumns.indexOf(firstParent);
-      if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
-        activeColumns[column] = undefined;
+      if (firstParentColumn >= 0 && firstParentColumn !== column) {
+        const edgeKey = graphEdgeKey(commit.hash, firstParent);
+        activeColumns[column] = edgeKey;
+        columnByEdge.set(edgeKey, column);
+        routeByEdge.set(edgeKey, []);
       } else {
         const innerEdgeKey =
           firstParentColumn >= 0 ? undefined : findInnerEdgeTargeting(activeColumns, firstParent, column);
         const innerEdgeColumn = innerEdgeKey === undefined ? undefined : activeColumns.indexOf(innerEdgeKey);
         const innerColumn = firstParentColumn >= 0 ? undefined : findAvailableInnerColumn(activeColumns, column);
         const parentColumn = firstParentColumn >= 0 ? firstParentColumn : (innerEdgeColumn ?? innerColumn ?? column);
+        const edgeKey = graphEdgeKey(commit.hash, firstParent);
         activeColumns[parentColumn] = firstParent;
         columnByHash.set(firstParent, parentColumn);
+        routeEdgeByHash.set(firstParent, edgeKey);
+        if (!routeByEdge.has(edgeKey)) {
+          routeByEdge.set(edgeKey, []);
+        }
         colorByHash.set(
           firstParent,
           mainline.has(firstParent)
@@ -285,7 +296,6 @@ function updateActiveColumns(
         );
         if (parentColumn !== column) {
           if (innerColumn !== undefined) {
-            const edgeKey = graphEdgeKey(commit.hash, firstParent);
             routeByEdge.set(edgeKey, [
               { column, row },
               { column: parentColumn, row }
@@ -324,8 +334,11 @@ function updateActiveColumns(
     }
 
     const parentColumn = mainline.has(parentHash) ? 0 : findAvailableColumn(activeColumns, 1);
+    const edgeKey = graphEdgeKey(commit.hash, parentHash);
     activeColumns[parentColumn] = parentHash;
     columnByHash.set(parentHash, parentColumn);
+    routeEdgeByHash.set(parentHash, edgeKey);
+    routeByEdge.set(edgeKey, []);
     colorByHash.set(parentHash, mainline.has(parentHash) ? graphColors[0]! : colorByHash.get(parentHash) ?? nextColor());
   }
 
@@ -348,14 +361,21 @@ function releaseEdgesTargeting(columns: Array<string | undefined>, hash: string)
 
 function compactEdgeColumns(
   columns: Array<string | undefined>,
+  columnByHash: Map<string, number>,
   columnByEdge: Map<string, number>,
-  hiddenColumnByEdge: Map<string, number>,
   routeByEdge: Map<string, GraphRoutePoint[]>,
+  routeEdgeByHash: Map<string, string>,
+  hiddenColumnByEdge: Map<string, number>,
   row: number
 ): void {
   for (let column = 1; column < columns.length; column += 1) {
-    const edgeKey = columns[column];
-    if (edgeKey === undefined || !edgeKey.includes("\0")) {
+    const columnValue = columns[column];
+    if (columnValue === undefined) {
+      continue;
+    }
+
+    const routeEdgeKey = columnValue.includes("\0") ? columnValue : routeEdgeByHash.get(columnValue);
+    if (routeEdgeKey === undefined) {
       continue;
     }
 
@@ -364,13 +384,17 @@ function compactEdgeColumns(
       continue;
     }
 
-    columns[innerColumn] = edgeKey;
+    columns[innerColumn] = columnValue;
     columns[column] = undefined;
-    columnByEdge.set(edgeKey, innerColumn);
-    if (hiddenColumnByEdge.has(edgeKey)) {
-      hiddenColumnByEdge.set(edgeKey, innerColumn);
+    if (columnValue.includes("\0")) {
+      columnByEdge.set(columnValue, innerColumn);
+      if (hiddenColumnByEdge.has(columnValue)) {
+        hiddenColumnByEdge.set(columnValue, innerColumn);
+      }
+    } else {
+      columnByHash.set(columnValue, innerColumn);
     }
-    routeByEdge.get(edgeKey)!.push({ column, row }, { column: innerColumn, row });
+    routeByEdge.get(routeEdgeKey)!.push({ column, row }, { column: innerColumn, row });
   }
 }
 
