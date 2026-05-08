@@ -4,6 +4,7 @@ type ToolbarAction = "advancedPull" | "advancedPush" | "fetch" | "pull" | "push"
 
 interface ToolbarActionItem {
   action: ToolbarAction;
+  gitOperation?: boolean;
   icon: ReactElement;
   label: string;
 }
@@ -16,26 +17,31 @@ const toolbarActions: readonly ToolbarActionItem[] = [
   },
   {
     action: "pull",
+    gitOperation: true,
     icon: <PullIcon />,
     label: "Pull"
   },
   {
     action: "advancedPull",
+    gitOperation: true,
     icon: <PullIcon />,
     label: "Advanced Pull"
   },
   {
     action: "push",
+    gitOperation: true,
     icon: <PushIcon />,
     label: "Push"
   },
   {
     action: "advancedPush",
+    gitOperation: true,
     icon: <PushIcon />,
     label: "Advanced Push"
   },
   {
     action: "fetch",
+    gitOperation: true,
     icon: <FetchIcon />,
     label: "Fetch"
   },
@@ -56,6 +62,7 @@ export interface HeaderProps {
   onPull?: () => void;
   onPush?: () => void;
   onSettingsClick?: () => void;
+  gitOperationBusy?: boolean;
   settingsOpen?: boolean;
 }
 
@@ -69,6 +76,7 @@ export function Header({
   onPush,
   onRefresh,
   onSettingsClick,
+  gitOperationBusy = false,
   settingsOpen = false
 }: HeaderProps): ReactElement {
   const graphLabel = graphVisible ? "Hide Git Graph" : "Show Git Graph";
@@ -117,8 +125,10 @@ export function Header({
         {toolbarActions.map((item) => (
           <button
             aria-label={item.label}
+            aria-busy={item.gitOperation && gitOperationBusy ? true : undefined}
             aria-expanded={item.action === "settings" ? settingsOpen : undefined}
-            className="flex h-7 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+            className="flex h-7 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+            disabled={item.gitOperation && gitOperationBusy}
             key={item.action}
             onClick={actionHandlers[item.action]}
             title={item.label}
@@ -184,9 +194,8 @@ function PushIcon(): ReactElement {
 function FetchIcon(): ReactElement {
   return (
     <HeaderIcon>
-      <path d="M4.5 7.2A3.8 3.8 0 0 1 11 4.5l.6.6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
-      <path d="M11.5 8.8A3.8 3.8 0 0 1 5 11.5l-.6-.6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
-      <path d="M11.8 2.4v2.9H8.9M4.2 13.6v-2.9h2.9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
+      <path d="M5.1 12.2H4.6a3 3 0 0 1-.3-6 4.1 4.1 0 0 1 7.9 1.1 2.5 2.5 0 0 1-.8 4.9h-.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
+      <path d="M8 7.4v6M5.8 11.2 8 13.4l2.2-2.2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
     </HeaderIcon>
   );
 }

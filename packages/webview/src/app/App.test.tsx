@@ -669,8 +669,16 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pull" }));
     const pullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.pull")![0];
     expect(pullRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.pull" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Pull is running...");
+    expect(screen.getByRole("button", { name: "Pull" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Advanced Pull" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Push" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }));
+    expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "git.pull")).toHaveLength(1);
+
     dispatchOperationResponse(pullRequest.id, "git.pull");
     expect(screen.getByRole("status")).toHaveTextContent("Git operation completed");
+    expect(screen.getByRole("button", { name: "Pull" })).not.toBeDisabled();
 
     const pullReloadRequest = rpcClient.post.mock.calls.find(
       ([request]) => request.type === "history.load" && request.repositoryId === "/repo"
@@ -723,12 +731,14 @@ describe("App", () => {
     rpcClient.post.mockClear();
 
     await user.click(screen.getByRole("button", { name: "Advanced Pull" }));
+    const advancedPullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.advancedPull")![0];
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
         repositoryId: "/repo",
         type: "git.advancedPull"
       })
     );
+    dispatchOperationResponse(advancedPullRequest.id, "git.advancedPull");
 
     await user.click(screen.getByRole("button", { name: "Advanced Push" }));
     expect(rpcClient.post).toHaveBeenCalledWith(
@@ -957,7 +967,10 @@ function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", typ
   });
 }
 
-function dispatchOperationResponse(id: string, type: "git.fetch" | "git.pull" | "git.push"): void {
+function dispatchOperationResponse(
+  id: string,
+  type: "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push"
+): void {
   act(() => {
     window.dispatchEvent(
       new MessageEvent("message", {
