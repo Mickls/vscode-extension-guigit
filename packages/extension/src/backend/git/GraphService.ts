@@ -470,7 +470,12 @@ function routedEdgePoints(
 ) {
   const points = [{ x: from.x, y: from.y }];
   for (const routePoint of route) {
-    pushGraphPoint(points, graphPoint(routePoint.column, routePoint.row));
+    const point = graphPoint(routePoint.column, routePoint.row);
+    const lastPoint = points[points.length - 1]!;
+    if (lastPoint.x !== point.x && lastPoint.y !== point.y) {
+      pushGraphPoint(points, { x: point.x, y: lastPoint.y });
+    }
+    pushGraphPoint(points, point);
   }
 
   const lastPoint = points[points.length - 1]!;

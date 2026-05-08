@@ -393,6 +393,45 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("keeps side-parent routes orthogonal when their lanes compact later", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "main-tip\x1fmain-parent branch-tip",
+          "branch-tip\x1fbranch-base side-parent",
+          "branch-base\x1f",
+          "unrelated\x1f",
+          "side-parent\x1f",
+          "main-parent\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "main-tip",
+      "branch-tip",
+      "branch-base",
+      "unrelated",
+      "side-parent",
+      "main-parent"
+    ]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "main-tip", row: 0 },
+      { column: 1, hash: "branch-tip", row: 1 },
+      { column: 1, hash: "branch-base", row: 2 },
+      { column: 2, hash: "unrelated", row: 3 },
+      { column: 1, hash: "side-parent", row: 4 },
+      { column: 0, hash: "main-parent", row: 5 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-tip" && edge.toHash === "side-parent")?.points).toEqual([
+      { x: 20, y: 54 },
+      { x: 32, y: 54 },
+      { x: 32, y: 126 },
+      { x: 20, y: 126 },
+      { x: 20, y: 162 }
+    ]);
+  });
+
   it("keeps a shared first-parent edge separate until the parent row releases its lane", async () => {
     const service = new GraphService({
       gitRaw: async () =>
