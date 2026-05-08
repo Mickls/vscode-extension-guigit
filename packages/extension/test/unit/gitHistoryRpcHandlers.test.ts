@@ -90,6 +90,7 @@ describe("Git history RPC handlers", () => {
         openHistory: async () => ({ message: "ok", status: "ok" }),
         openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
+      gitService: createGitService(),
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" }),
@@ -136,6 +137,7 @@ describe("Git history RPC handlers", () => {
         openHistory: async () => ({ message: "ok", status: "ok" }),
         openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
+      gitService: createGitService(),
       repositoryService: {
         discoverRepositories: async () => [],
         getCurrentRepository: () => undefined,
@@ -193,6 +195,7 @@ describe("Git history RPC handlers", () => {
         openHistory: async () => ({ message: "ok", status: "ok" }),
         openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
+      gitService: createGitService(),
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
@@ -243,6 +246,7 @@ describe("Git history RPC handlers", () => {
         openHistory: async () => ({ message: "ok", status: "ok" }),
         openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
+      gitService: createGitService(),
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
@@ -302,6 +306,7 @@ describe("Git history RPC handlers", () => {
         openHistory: async () => ({ message: "ok", status: "ok" }),
         openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
+      gitService: createGitService(),
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
@@ -372,6 +377,7 @@ describe("Git history RPC handlers", () => {
           return { message: "file opened", status: "ok" };
         }
       },
+      gitService: createGitService(),
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
@@ -402,6 +408,93 @@ describe("Git history RPC handlers", () => {
       ["history", "/repo", "src/file.ts"]
     ]);
   });
+
+  it("runs git operations for the requested repository", async () => {
+    const gitCalls: unknown[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: {
+        advancedPull: async (repositoryRoot) => {
+          gitCalls.push(["advancedPull", repositoryRoot]);
+          return { message: "advanced pull", status: "ok" };
+        },
+        advancedPush: async (repositoryRoot) => {
+          gitCalls.push(["advancedPush", repositoryRoot]);
+          return { message: "advanced push", status: "ok" };
+        },
+        checkout: async (repositoryRoot, branch) => {
+          gitCalls.push(["checkout", repositoryRoot, branch]);
+          return { message: "checkout", status: "ok" };
+        },
+        clone: async (targetDirectory, url) => {
+          gitCalls.push(["clone", targetDirectory, url]);
+          return { message: "clone", status: "ok" };
+        },
+        fetch: async (repositoryRoot) => {
+          gitCalls.push(["fetch", repositoryRoot]);
+          return { message: "fetch", status: "ok" };
+        },
+        pull: async (repositoryRoot) => {
+          gitCalls.push(["pull", repositoryRoot]);
+          return { message: "pull", status: "ok" };
+        },
+        push: async (repositoryRoot) => {
+          gitCalls.push(["push", repositoryRoot]);
+          return { message: "push", status: "ok" };
+        }
+      },
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      settingsService: createSettingsService()
+    });
+
+    await handlers["git.pull"]!({ id: "8", repositoryId: "/repo", type: "git.pull" });
+    await handlers["git.advancedPull"]!({ id: "9", repositoryId: "/repo", type: "git.advancedPull" });
+    await handlers["git.push"]!({ id: "10", repositoryId: "/repo", type: "git.push" });
+    await handlers["git.advancedPush"]!({ id: "11", repositoryId: "/repo", type: "git.advancedPush" });
+    await handlers["git.fetch"]!({ id: "12", repositoryId: "/repo", type: "git.fetch" });
+    await handlers["git.checkout"]!({ branch: "feature", id: "13", repositoryId: "/repo", type: "git.checkout" });
+    await handlers["git.clone"]!({ id: "14", targetDirectory: "/target", type: "git.clone", url: "https://example.com/repo.git" });
+
+    expect(gitCalls).toEqual([
+      ["pull", "/repo"],
+      ["advancedPull", "/repo"],
+      ["push", "/repo"],
+      ["advancedPush", "/repo"],
+      ["fetch", "/repo"],
+      ["checkout", "/repo", "feature"],
+      ["clone", "/target", "https://example.com/repo.git"]
+    ]);
+  });
 });
 
 function createSettings(mode: "tree" | "list") {
@@ -425,5 +518,17 @@ function createSettingsService() {
   return {
     getSettings: () => createSettings("tree"),
     updateSettings: async () => undefined
+  };
+}
+
+function createGitService() {
+  return {
+    advancedPull: async () => ({ message: "ok", status: "ok" as const }),
+    advancedPush: async () => ({ message: "ok", status: "ok" as const }),
+    checkout: async () => ({ message: "ok", status: "ok" as const }),
+    clone: async () => ({ message: "ok", status: "ok" as const }),
+    fetch: async () => ({ message: "ok", status: "ok" as const }),
+    pull: async () => ({ message: "ok", status: "ok" as const }),
+    push: async () => ({ message: "ok", status: "ok" as const })
   };
 }

@@ -6,8 +6,10 @@ import { createRpcRouter } from "../backend/rpc/router";
 import { BranchService } from "../backend/git/BranchService";
 import { CommitService } from "../backend/git/CommitService";
 import { FileService } from "../backend/git/FileService";
+import { GitService } from "../backend/git/GitService";
 import { GraphService } from "../backend/git/GraphService";
 import { RepositoryService } from "../backend/git/RepositoryService";
+import { SafetyService } from "../backend/git/SafetyService";
 import { DiffService } from "../backend/vscode/DiffService";
 import { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
 import { LoggerService, type LogLevel } from "../logging/LoggerService";
@@ -59,6 +61,12 @@ export function activate(context: ExtensionContext): void {
   });
   const graphService = new GraphService({ logger });
   const diffService = new DiffService({ logger });
+  const safetyService = new SafetyService({ logger });
+  const gitService = new GitService({
+    logger,
+    safetyService,
+    settingsService
+  });
   const fileHistoryPanel = new FileHistoryPanel({
     activeEditorUri: () => window.activeTextEditor?.document.uri,
     logger,
@@ -71,6 +79,7 @@ export function activate(context: ExtensionContext): void {
       diffService,
       fileHistoryPanel,
       fileService,
+      gitService,
       graphService,
       repositoryService,
       settingsService

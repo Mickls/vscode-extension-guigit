@@ -656,6 +656,54 @@ describe("App", () => {
     );
   });
 
+  it("posts toolbar git operations and reloads history after they complete", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByText("Second real commit"));
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Pull" }));
+    const pullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.pull")![0];
+    expect(pullRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.pull" }));
+    dispatchOperationResponse(pullRequest.id, "git.pull");
+
+    const pullReloadRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "history.load" && request.repositoryId === "/repo"
+    )![0];
+    dispatchHistoryResponse(rpcClient, { requestId: pullReloadRequest.id });
+    expect(screen.getAllByText("Second real commit").length).toBeGreaterThan(0);
+
+    rpcClient.post.mockClear();
+    await user.click(screen.getByRole("button", { name: "Push" }));
+    const pushRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.push")![0];
+    expect(pushRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.push" }));
+    dispatchOperationResponse(pushRequest.id, "git.push");
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryId: "/repo",
+        type: "history.load"
+      })
+    );
+
+    rpcClient.post.mockClear();
+    await user.click(screen.getByRole("button", { name: "Fetch" }));
+    const fetchRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.fetch")![0];
+    expect(fetchRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.fetch" }));
+    dispatchOperationResponse(fetchRequest.id, "git.fetch");
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryId: "/repo",
+        type: "history.load"
+      })
+    );
+  });
+
   it("loads history context and selects a commit requested by the backend", () => {
     const rpcClient = createTestRpcClient();
 
@@ -867,6 +915,24 @@ function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", typ
                 noProxy: ""
               }
             }
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchOperationResponse(id: string, type: "git.fetch" | "git.pull" | "git.push"): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type,
+          payload: {
+            message: "Git operation completed",
+            status: "ok"
           }
         } satisfies RpcResponse
       })

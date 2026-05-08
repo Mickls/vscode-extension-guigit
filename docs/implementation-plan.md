@@ -342,11 +342,11 @@ gui-git-history/
 - Create: `packages/extension/src/backend/git/GitService.ts`
 - Modify: `packages/extension/src/backend/rpc/router.ts`
 
-- [ ] Basic pull, push, fetch, clone, checkout work through backend RPC.
-- [ ] Advanced pull uses backend QuickPick flow for merge/rebase and target remote branch.
-- [ ] Advanced push uses backend QuickPick flow for target remote branch and force confirmation.
-- [ ] Push to non-main branch prompts PR creation.
-- [ ] Commit with `feat: add primary git operations`.
+- [x] Basic pull, push, fetch, clone, checkout work through backend RPC.
+- [x] Advanced pull uses backend QuickPick flow for merge/rebase and target remote branch.
+- [x] Advanced push uses backend QuickPick flow for target remote branch and force confirmation.
+- [x] Push to non-main branch prompts PR creation.
+- [x] Commit with `feat: add primary git operations`.
 
 ### Task 5.3: Context menu operations
 

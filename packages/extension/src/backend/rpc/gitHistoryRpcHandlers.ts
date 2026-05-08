@@ -1,6 +1,7 @@
 import type { BranchService } from "../git/BranchService";
 import type { CommitService } from "../git/CommitService";
 import type { FileService } from "../git/FileService";
+import type { GitService } from "../git/GitService";
 import type { GraphService } from "../git/GraphService";
 import type { RepositoryService } from "../git/RepositoryService";
 import type { DiffService } from "../vscode/DiffService";
@@ -19,6 +20,7 @@ export interface GitHistoryRpcHandlerInput {
   commitService: Pick<CommitService, "loadHistory">;
   fileService: Pick<FileService, "getCommitDetails" | "getFileChanges">;
   fileHistoryPanel: Pick<FileHistoryPanel, "openHistory" | "openWorkingFile">;
+  gitService: Pick<GitService, "advancedPull" | "advancedPush" | "checkout" | "clone" | "fetch" | "pull" | "push">;
   graphService: Pick<GraphService, "getLayout">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
   repositoryService: Pick<
@@ -85,6 +87,37 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       return {
         settings: input.settingsService.getSettings()
       };
+    },
+    "git.pull": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.pull(repository.rootPath);
+    },
+    "git.advancedPull": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.advancedPull(repository.rootPath);
+    },
+    "git.push": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.push(repository.rootPath);
+    },
+    "git.advancedPush": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.advancedPush(repository.rootPath);
+    },
+    "git.fetch": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.fetch(repository.rootPath);
+    },
+    "git.clone": (request) => input.gitService.clone(request.targetDirectory, request.url),
+    "git.checkout": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.checkout(repository.rootPath, request.branch);
     },
     "history.load": async (request) => {
       const repositories = await input.repositoryService.discoverRepositories();

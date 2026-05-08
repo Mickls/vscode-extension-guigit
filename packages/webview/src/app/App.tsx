@@ -189,6 +189,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
       if (response.type === "settings.get" || response.type === "settings.update") {
         setFileViewMode(response.payload.settings.fileViewMode);
       }
+
+      if (isPrimaryGitOperationResponse(response) && response.payload.status === "ok") {
+        requestHistory(client, pendingHistoryRequestsRef.current, {
+          preserveSelection: true,
+          repositoryId: selectedRepositoryIdRef.current
+        });
+      }
     };
 
     window.addEventListener("message", handleMessage);
@@ -327,6 +334,15 @@ export function App({ rpcClient }: AppProps): ReactElement {
       <Header
         graphVisible={graphVisible}
         onGraphToggle={() => setGraphVisible((visible) => !visible)}
+        onFetch={() => postRepositoryGitOperation(client, selectedRepositoryIdRef.current, "git.fetch")}
+        onPull={() => postRepositoryGitOperation(client, selectedRepositoryIdRef.current, "git.pull")}
+        onPush={() => postRepositoryGitOperation(client, selectedRepositoryIdRef.current, "git.push")}
+        onRefresh={() => {
+          requestHistory(client, pendingHistoryRequestsRef.current, {
+            preserveSelection: true,
+            repositoryId: selectedRepositoryIdRef.current
+          });
+        }}
         onSettingsClick={() => {
           setContextMenu((current) => ({ ...current, visible: false }));
           setSettingsMenuOpen((open) => !open);
@@ -441,8 +457,30 @@ function requestGraphLayout(client: RpcClient | undefined, repositoryId: string,
   return id;
 }
 
+function postRepositoryGitOperation(
+  client: RpcClient | undefined,
+  repositoryId: string | undefined,
+  type: "git.fetch" | "git.pull" | "git.push"
+): void {
+  if (!repositoryId) {
+    return;
+  }
+
+  client?.post({
+    id: crypto.randomUUID(),
+    repositoryId,
+    type
+  });
+}
+
 function isBackendNotification(message: BackendNotification | RpcResponse): message is BackendNotification {
   return !("ok" in message);
+}
+
+function isPrimaryGitOperationResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: "git.fetch" | "git.pull" | "git.push" }> {
+  return response.type === "git.fetch" || response.type === "git.pull" || response.type === "git.push";
 }
 
 function selectCommitAfterHistoryLoad(
