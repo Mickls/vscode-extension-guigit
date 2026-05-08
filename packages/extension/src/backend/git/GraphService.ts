@@ -133,6 +133,7 @@ function computeGraphLayout(commits: readonly ParsedGraphCommit[]): GraphLayoutV
       hiddenColorByEdge,
       commit,
       column,
+      row,
       mainline,
       commitByHash,
       preferredChildByParent,
@@ -239,6 +240,7 @@ function updateActiveColumns(
   hiddenColorByEdge: Map<string, string>,
   commit: ParsedGraphCommit,
   column: number,
+  row: number,
   mainline: ReadonlySet<string>,
   commitByHash: Map<string, ParsedGraphCommit>,
   preferredChildByParent: ReadonlyMap<string, string>,
@@ -268,8 +270,8 @@ function updateActiveColumns(
       if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
         activeColumns[column] = undefined;
       } else {
-        const parentColumn =
-          firstParentColumn >= 0 ? firstParentColumn : (findAvailableInnerColumn(activeColumns, column) ?? column);
+        const innerColumn = firstParentColumn >= 0 ? undefined : findAvailableInnerColumn(activeColumns, column);
+        const parentColumn = firstParentColumn >= 0 ? firstParentColumn : (innerColumn ?? column);
         activeColumns[parentColumn] = firstParent;
         columnByHash.set(firstParent, parentColumn);
         colorByHash.set(
@@ -277,6 +279,13 @@ function updateActiveColumns(
           mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color
         );
         if (parentColumn !== column) {
+          if (innerColumn !== undefined) {
+            const edgeKey = graphEdgeKey(commit.hash, firstParent);
+            routeByEdge.set(edgeKey, [
+              { column, row },
+              { column: parentColumn, row }
+            ]);
+          }
           activeColumns[column] = undefined;
         }
       }
@@ -404,9 +413,7 @@ function edgePoints(
   }
 
   if (parentIndex === 0) {
-    return to.x < from.x
-      ? [fromPoint, { x: to.x, y: from.y }, toPoint]
-      : [fromPoint, { x: from.x, y: to.y }, toPoint];
+    return [fromPoint, { x: from.x, y: to.y }, toPoint];
   }
 
   return [fromPoint, { x: to.x, y: from.y }, toPoint];

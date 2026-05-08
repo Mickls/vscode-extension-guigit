@@ -117,6 +117,30 @@ describe("GraphService", () => {
     ]);
   });
 
+  it("routes first-parent joins into an occupied parent lane from the parent row", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "main-tip\x1fmain-parent branch-tip",
+          "branch-tip\x1fmain-parent",
+          "main-parent\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", ["main-tip", "branch-tip", "main-parent"]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "main-tip", row: 0 },
+      { column: 1, hash: "branch-tip", row: 1 },
+      { column: 0, hash: "main-parent", row: 2 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-tip" && edge.toHash === "main-parent")?.points).toEqual([
+      { x: 20, y: 54 },
+      { x: 20, y: 90 },
+      { x: 8, y: 90 }
+    ]);
+  });
+
   it("keeps a shared parent on the lane of the nearest first-parent continuation", async () => {
     const service = new GraphService({
       gitRaw: async () =>
