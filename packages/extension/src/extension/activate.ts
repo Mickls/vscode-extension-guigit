@@ -89,6 +89,7 @@ export function activate(context: ExtensionContext): void {
       createFileSystemWatcher: (pattern) => workspace.createFileSystemWatcher(pattern as RelativePattern),
       createRelativePattern: (folder, pattern) => new RelativePattern(folder.uri.fsPath, pattern),
       git,
+      initialActiveTextEditor: () => window.activeTextEditor,
       logger,
       onDidChangeActiveTextEditor: window.onDidChangeActiveTextEditor,
       refresh: (reason) => viewProvider.refresh(reason),

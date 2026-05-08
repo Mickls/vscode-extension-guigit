@@ -1,4 +1,5 @@
 import type { Disposable } from "vscode";
+import { isAbsolute, relative } from "node:path";
 import type { Logger } from "../logging/LoggerService";
 
 export interface RelativePatternLike {
@@ -34,6 +35,7 @@ export interface GitWatchersInput {
   createRelativePattern(folder: WorkspaceFolderLike, pattern: string): RelativePatternLike;
   debounceMs?: number;
   git?: GitApiLike;
+  initialActiveTextEditor?: () => unknown;
   logger: Pick<Logger, "debug">;
   onDidChangeActiveTextEditor(callback: (editor: unknown) => void): Disposable;
   refresh(reason: "watcher"): void;
@@ -43,6 +45,7 @@ export interface GitWatchersInput {
 interface ActiveEditorLike {
   document: {
     uri: {
+      fsPath: string;
       scheme: string;
     };
   };
@@ -52,6 +55,7 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
   const disposables: Disposable[] = [];
   let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
   const debounceMs = input.debounceMs ?? 500;
+  let activeWorkspaceRoot = workspaceRootForEditor(input, input.initialActiveTextEditor?.());
 
   const scheduleRefresh = (reason: string) => {
     input.logger.debug("watcher.refreshScheduled", { reason });
@@ -66,7 +70,9 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
 
   disposables.push(
     input.onDidChangeActiveTextEditor((editor) => {
-      if (isFileEditor(editor)) {
+      const workspaceRoot = workspaceRootForEditor(input, editor);
+      if (workspaceRoot && workspaceRoot !== activeWorkspaceRoot) {
+        activeWorkspaceRoot = workspaceRoot;
         scheduleRefresh("active editor changed");
       }
     })
@@ -109,6 +115,19 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
   return disposables;
 }
 
+function workspaceRootForEditor(input: GitWatchersInput, editor: unknown): string | undefined {
+  if (!isFileEditor(editor)) {
+    return undefined;
+  }
+
+  return input.workspaceFolders.find((folder) => isPathInside(editor.document.uri.fsPath, folder.uri.fsPath))?.uri.fsPath;
+}
+
 function isFileEditor(editor: unknown): editor is ActiveEditorLike {
   return (editor as ActiveEditorLike | undefined)?.document.uri.scheme === "file";
+}
+
+function isPathInside(path: string, parent: string): boolean {
+  const result = relative(parent, path);
+  return result === "" || (!result.startsWith("..") && !isAbsolute(result));
 }

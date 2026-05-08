@@ -116,7 +116,7 @@ describe("git watchers", () => {
         return { dispose: vi.fn() };
       },
       refresh,
-      workspaceFolders: []
+      workspaceFolders: [{ name: "repo", uri: { fsPath: "/workspace/repo" } }]
     });
 
     activeEditorChanged?.({ document: { uri: { scheme: "git" } } });
@@ -125,7 +125,73 @@ describe("git watchers", () => {
 
     expect(refresh).not.toHaveBeenCalled();
 
-    activeEditorChanged?.({ document: { uri: { scheme: "file" } } });
+    activeEditorChanged?.({ document: { uri: { fsPath: "/workspace/repo/src/file.ts", scheme: "file" } } });
+    vi.advanceTimersByTime(500);
+
+    expect(refresh).toHaveBeenCalledWith("watcher");
+  });
+
+  it("ignores active editor changes that stay inside the same workspace folder", () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    let activeEditorChanged: ((editor: unknown) => void) | undefined;
+
+    registerGitWatchers({
+      createFileSystemWatcher: () => ({
+        dispose: vi.fn(),
+        onDidChange: vi.fn(),
+        onDidCreate: vi.fn(),
+        onDidDelete: vi.fn()
+      }),
+      createRelativePattern: (_folder, pattern) => ({ pattern }),
+      initialActiveTextEditor: () => ({ document: { uri: { fsPath: "/workspace/repo/src/current.ts", scheme: "file" } } }),
+      logger: {
+        debug: vi.fn()
+      },
+      onDidChangeActiveTextEditor: (callback) => {
+        activeEditorChanged = callback;
+        return { dispose: vi.fn() };
+      },
+      refresh,
+      workspaceFolders: [{ name: "repo", uri: { fsPath: "/workspace/repo" } }]
+    });
+
+    activeEditorChanged?.({ document: { uri: { scheme: "guigit-doc-1" } } });
+    activeEditorChanged?.({ document: { uri: { fsPath: "/workspace/repo/src/current.ts", scheme: "file" } } });
+    vi.advanceTimersByTime(500);
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("refreshes when the active editor moves to a different workspace folder", () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    let activeEditorChanged: ((editor: unknown) => void) | undefined;
+
+    registerGitWatchers({
+      createFileSystemWatcher: () => ({
+        dispose: vi.fn(),
+        onDidChange: vi.fn(),
+        onDidCreate: vi.fn(),
+        onDidDelete: vi.fn()
+      }),
+      createRelativePattern: (_folder, pattern) => ({ pattern }),
+      initialActiveTextEditor: () => ({ document: { uri: { fsPath: "/workspace/repo-a/src/current.ts", scheme: "file" } } }),
+      logger: {
+        debug: vi.fn()
+      },
+      onDidChangeActiveTextEditor: (callback) => {
+        activeEditorChanged = callback;
+        return { dispose: vi.fn() };
+      },
+      refresh,
+      workspaceFolders: [
+        { name: "repo-a", uri: { fsPath: "/workspace/repo-a" } },
+        { name: "repo-b", uri: { fsPath: "/workspace/repo-b" } }
+      ]
+    });
+
+    activeEditorChanged?.({ document: { uri: { fsPath: "/workspace/repo-b/src/current.ts", scheme: "file" } } });
     vi.advanceTimersByTime(500);
 
     expect(refresh).toHaveBeenCalledWith("watcher");
