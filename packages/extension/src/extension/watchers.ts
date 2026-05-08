@@ -40,6 +40,14 @@ export interface GitWatchersInput {
   workspaceFolders: readonly WorkspaceFolderLike[];
 }
 
+interface ActiveEditorLike {
+  document: {
+    uri: {
+      scheme: string;
+    };
+  };
+}
+
 export function registerGitWatchers(input: GitWatchersInput): readonly Disposable[] {
   const disposables: Disposable[] = [];
   let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -57,8 +65,10 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
   };
 
   disposables.push(
-    input.onDidChangeActiveTextEditor(() => {
-      scheduleRefresh("active editor changed");
+    input.onDidChangeActiveTextEditor((editor) => {
+      if (isFileEditor(editor)) {
+        scheduleRefresh("active editor changed");
+      }
     })
   );
 
@@ -97,4 +107,8 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
   });
 
   return disposables;
+}
+
+function isFileEditor(editor: unknown): editor is ActiveEditorLike {
+  return (editor as ActiveEditorLike | undefined)?.document.uri.scheme === "file";
 }

@@ -55,6 +55,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const selectedRepositoryIdRef = useRef<string | undefined>(undefined);
   const loadingMoreRef = useRef(false);
   const selectedCommitHashRef = useRef<string | undefined>(undefined);
+  const commitDetailsRef = useRef<CommitDetailsViewModel | undefined>(undefined);
   const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -63,6 +64,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
   });
 
   const client = useMemo(() => rpcClient, [rpcClient]);
+  const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
+    commitDetailsRef.current = details;
+    setCommitDetails(details);
+  };
 
   useEffect(() => {
     requestHistory(client, pendingHistoryRequestsRef.current);
@@ -101,7 +106,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           ? [...commitsRef.current, ...response.payload.commits]
           : response.payload.commits;
         const repositoryId = historyRequest?.repositoryId ?? response.payload.repositories[0]?.id;
-        const commit = nextCommits[0];
+        const commit = selectCommitAfterHistoryLoad(nextCommits, selectedCommitHashRef.current);
         commitsRef.current = nextCommits;
         hasMoreRef.current = response.payload.hasMore;
         nextCursorRef.current = response.payload.nextCursor;
@@ -115,7 +120,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if (!historyRequest?.append) {
           setSelectedCommitHash(commit?.hash);
           selectedCommitHashRef.current = commit?.hash;
-          setCommitDetails(undefined);
+          if (!commit) {
+            showCommitDetails(undefined);
+          } else if (commitDetailsRef.current?.hash !== commit.hash) {
+            showCommitDetails(createPendingCommitDetails(commit));
+          }
         }
 
         if (repositoryId && commit && !historyRequest?.append) {
@@ -132,7 +141,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (response.type === "commits.getDetails" && response.payload.commit.hash === selectedCommitHashRef.current) {
-        setCommitDetails(response.payload.commit);
+        showCommitDetails(response.payload.commit);
       }
 
       if (response.type === "graph.getLayout") {
@@ -150,7 +159,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const selectCommit = (commit: CommitListItemViewModel) => {
     setSelectedCommitHash(commit.hash);
     selectedCommitHashRef.current = commit.hash;
-    setCommitDetails(undefined);
+    showCommitDetails(createPendingCommitDetails(commit));
 
     if (selectedRepositoryId) {
       requestCommitDetails(client, selectedRepositoryId, commit.hash);
@@ -335,4 +344,25 @@ function requestGraphLayout(client: RpcClient | undefined, repositoryId: string,
 
 function isBackendNotification(message: BackendNotification | RpcResponse): message is BackendNotification {
   return !("ok" in message);
+}
+
+function selectCommitAfterHistoryLoad(
+  commits: readonly CommitListItemViewModel[],
+  selectedHash: string | undefined
+): CommitListItemViewModel | undefined {
+  return commits.find((commit) => commit.hash === selectedHash) ?? commits[0];
+}
+
+function createPendingCommitDetails(commit: CommitListItemViewModel): CommitDetailsViewModel {
+  return {
+    author: commit.author,
+    body: "",
+    canEditMessage: commit.canEditMessage,
+    date: commit.date,
+    email: "",
+    files: [],
+    hash: commit.hash,
+    message: commit.message,
+    refs: commit.refs
+  };
 }

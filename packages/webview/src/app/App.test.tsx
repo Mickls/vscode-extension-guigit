@@ -67,7 +67,7 @@ describe("App", () => {
       })
     );
 
-    expect(await screen.findByText("Wire real data")).toBeInTheDocument();
+    await waitForCommitRows();
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
         hash: "abc1234567890abcdef",
@@ -118,7 +118,7 @@ describe("App", () => {
 
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
-    await screen.findByText("Wire real data");
+    await waitForCommitRows();
 
     await user.click(screen.getByText("Second real commit"));
 
@@ -146,13 +146,74 @@ describe("App", () => {
     expect(await screen.findByText("Second commit details")).toBeInTheDocument();
   });
 
+  it("shows selected commit summary while full details are loading", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+
+    await user.click(screen.getByText("Second real commit"));
+
+    expect(screen.queryByText("Select a commit to view details.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Second real commit")).toHaveLength(2);
+    expect(screen.getByText("Grace - 2026-05-07 09:00:00 +0800")).toBeInTheDocument();
+  });
+
+  it("preserves the selected commit when history reloads with that commit still present", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+
+    await user.click(screen.getByText("Second real commit"));
+    const detailsRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "commits.getDetails" && request.hash === "def4567890abcdefabc"
+    )![0];
+    dispatchDetailsResponse(detailsRequest.id, {
+      body: "Second commit details",
+      hash: "def4567890abcdefabc",
+      message: "Second real commit"
+    });
+    expect(await screen.findByText("Second commit details")).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            reason: "watcher",
+            type: "history.changed"
+          }
+        })
+      );
+    });
+    const reloadRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "history.load" && request.repositoryId === "/repo"
+    )![0];
+    dispatchHistoryResponse(rpcClient, {
+      requestId: reloadRequest.id
+    });
+
+    expect(screen.getByText("Second commit details")).toBeInTheDocument();
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hash: "def4567890abcdefabc",
+        repositoryId: "/repo",
+        type: "commits.getDetails"
+      })
+    );
+  });
+
   it("sends commit file diff intents from commit details", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
 
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
-    await screen.findByText("Wire real data");
+    await waitForCommitRows();
     dispatchDetailsResponse(rpcClient.post.mock.calls[1]![0].id, {
       body: "First commit details",
       files: [
@@ -186,7 +247,7 @@ describe("App", () => {
 
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
-    await screen.findByText("Wire real data");
+    await waitForCommitRows();
 
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -266,7 +327,7 @@ describe("App", () => {
       hasMore: true,
       nextCursor: "1"
     });
-    await screen.findByText("First page commit");
+    await waitForCommitRows();
 
     const firstGraphRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "graph.getLayout")![0];
     const scrollContainer = screen.getByTestId("commit-scroll-container");
@@ -332,7 +393,7 @@ describe("App", () => {
       hasMore: true,
       nextCursor: "1"
     });
-    await screen.findByText("First page commit");
+    await waitForCommitRows();
 
     const firstGraphRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "graph.getLayout")![0];
     dispatchGraphResponse(firstGraphRequest.id, [
@@ -372,7 +433,7 @@ describe("App", () => {
 
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
-    await screen.findByText("Wire real data");
+    await waitForCommitRows();
 
     expect(screen.getByRole("img", { name: "Git graph" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Hide Git Graph" }));
@@ -390,7 +451,7 @@ describe("App", () => {
       hasMore: true,
       nextCursor: "1"
     });
-    await screen.findByText("First page commit");
+    await waitForCommitRows();
 
     const scrollContainer = screen.getByTestId("commit-scroll-container");
     Object.defineProperties(scrollContainer, {
@@ -419,7 +480,7 @@ describe("App", () => {
     });
 
     expect(await screen.findByText("Second page commit")).toBeInTheDocument();
-    expect(screen.getByText("First page commit")).toBeInTheDocument();
+    expect(screen.getAllByText("First page commit").length).toBeGreaterThan(0);
   });
 
   it("keeps the app shell viewport-bound so panels scroll without hiding the header", () => {
@@ -485,7 +546,7 @@ describe("App", () => {
 
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
-    await screen.findByText("Wire real data");
+    await waitForCommitRows();
     await user.pointer({
       keys: "[MouseRight]",
       target: screen.getAllByTestId("commit-row")[0]!
@@ -498,6 +559,10 @@ describe("App", () => {
 
 function createTestRpcClient(): RpcClient & { post: ReturnType<typeof vi.fn<(request: RpcRequest) => void>> } {
   return { post: vi.fn<(request: RpcRequest) => void>() };
+}
+
+async function waitForCommitRows(): Promise<void> {
+  await screen.findAllByTestId("commit-row");
 }
 
 interface HistoryResponseOptions {

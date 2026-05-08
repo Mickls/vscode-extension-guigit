@@ -38,6 +38,33 @@ describe("DiffService", () => {
     });
   });
 
+  it("loads normal commit diff sides in parallel after resolving the first parent", async () => {
+    const oldContent = deferred<string>();
+    let newContentRequested = false;
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args[3] === "commit") {
+        return "parent";
+      }
+
+      if (args[1] === "parent:src/file.ts") {
+        return oldContent.promise;
+      }
+
+      newContentRequested = true;
+      return "after";
+    });
+    const service = createService({ gitRaw });
+
+    const result = service.openCommitFileDiff("/repo", "commit", "src/file.ts");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(newContentRequested).toBe(true);
+
+    oldContent.resolve("before");
+    await expect(result).resolves.toEqual({ status: "ok", message: "Opened diff for src/file.ts" });
+  });
+
   it("opens initial commit file diffs against an empty document", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
       if (args[3] === "initial") {
@@ -115,4 +142,13 @@ function createService(input: {
       createDocument: (content, fileName) => `${fileName}:${content}`
     }
   });
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
 }

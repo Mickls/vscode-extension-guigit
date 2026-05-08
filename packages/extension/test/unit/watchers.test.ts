@@ -94,4 +94,40 @@ describe("git watchers", () => {
     expect(onRepositoryStateChange).toHaveBeenCalled();
     expect(onDidOpenRepository).toHaveBeenCalled();
   });
+
+  it("ignores active editor changes for diff and virtual documents", () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    let activeEditorChanged: ((editor: unknown) => void) | undefined;
+
+    registerGitWatchers({
+      createFileSystemWatcher: () => ({
+        dispose: vi.fn(),
+        onDidChange: vi.fn(),
+        onDidCreate: vi.fn(),
+        onDidDelete: vi.fn()
+      }),
+      createRelativePattern: (_folder, pattern) => ({ pattern }),
+      logger: {
+        debug: vi.fn()
+      },
+      onDidChangeActiveTextEditor: (callback) => {
+        activeEditorChanged = callback;
+        return { dispose: vi.fn() };
+      },
+      refresh,
+      workspaceFolders: []
+    });
+
+    activeEditorChanged?.({ document: { uri: { scheme: "git" } } });
+    activeEditorChanged?.({ document: { uri: { scheme: "guigit-doc-1" } } });
+    vi.advanceTimersByTime(500);
+
+    expect(refresh).not.toHaveBeenCalled();
+
+    activeEditorChanged?.({ document: { uri: { scheme: "file" } } });
+    vi.advanceTimersByTime(500);
+
+    expect(refresh).toHaveBeenCalledWith("watcher");
+  });
 });

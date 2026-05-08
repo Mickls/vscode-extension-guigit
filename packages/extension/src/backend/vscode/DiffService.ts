@@ -1,6 +1,7 @@
 import { commands, ViewColumn, window } from "vscode";
 import { simpleGit } from "simple-git";
 import type { OperationResultViewModel } from "../rpc/contract";
+import type { Logger } from "../../logging/LoggerService";
 import { VirtualDocumentService } from "./VirtualDocumentService";
 
 export interface DiffVirtualDocuments<TUri> {
@@ -10,6 +11,7 @@ export interface DiffVirtualDocuments<TUri> {
 export interface DiffServiceInput<TUri> {
   executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  logger?: Pick<Logger, "debug">;
   showInformationMessage?: (message: string) => Thenable<void>;
   virtualDocuments?: DiffVirtualDocuments<TUri>;
 }
@@ -17,6 +19,7 @@ export interface DiffServiceInput<TUri> {
 export class DiffService<TUri extends { toString(): string } = { toString(): string }> {
   private readonly executeCommand: (command: string, ...args: readonly unknown[]) => Thenable<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  private readonly logger: Pick<Logger, "debug"> | undefined;
   private readonly showInformationMessage: (message: string) => Thenable<void>;
   private readonly virtualDocuments: DiffVirtualDocuments<TUri>;
 
@@ -27,6 +30,7 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
         await commands.executeCommand(command, ...args);
       });
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.logger = input.logger;
     this.showInformationMessage =
       input.showInformationMessage ??
       (async (message) => {
@@ -40,9 +44,16 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
     hash: string,
     filePath: string
   ): Promise<OperationResultViewModel> {
+    this.logger?.debug("diff.commitFile.open", {
+      filePath,
+      hash,
+      repositoryRoot
+    });
     const parent = await this.getFirstParent(repositoryRoot, hash);
-    const oldContent = parent ? await this.getFileContent(repositoryRoot, parent, filePath) : null;
-    const newContent = await this.getFileContent(repositoryRoot, hash, filePath);
+    const [oldContent, newContent] = await Promise.all([
+      parent ? this.getFileContent(repositoryRoot, parent, filePath) : Promise.resolve(null),
+      this.getFileContent(repositoryRoot, hash, filePath)
+    ]);
     const shortHash = hash.slice(0, 8);
     const title = parent
       ? `${baseFileName(filePath)} (${shortHash})`
@@ -54,6 +65,12 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
       rightContent: newContent,
       rightLabel: `${baseFileName(filePath)} (${shortHash})`,
       title
+    });
+    this.logger?.debug("diff.commitFile.opened", {
+      filePath,
+      hash,
+      parent,
+      repositoryRoot
     });
 
     return {
@@ -68,6 +85,12 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
     toHash: string,
     filePath: string
   ): Promise<OperationResultViewModel> {
+    this.logger?.debug("diff.compareFile.open", {
+      filePath,
+      fromHash,
+      repositoryRoot,
+      toHash
+    });
     const [fromContent, toContent] = await Promise.all([
       this.getFileContent(repositoryRoot, fromHash, filePath),
       this.getFileContent(repositoryRoot, toHash, filePath)
@@ -78,6 +101,12 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
     if (fromContent === toContent) {
       const message = `No changes in ${filePath} between these commits`;
       await this.showInformationMessage(message);
+      this.logger?.debug("diff.compareFile.unchanged", {
+        filePath,
+        fromHash,
+        repositoryRoot,
+        toHash
+      });
       return {
         message,
         status: "ok"
@@ -90,6 +119,12 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
       rightContent: toContent,
       rightLabel: toContent === null ? `${baseFileName(filePath)} (deleted)` : `${baseFileName(filePath)} (${shortToHash})`,
       title: compareTitle(filePath, shortFromHash, shortToHash, fromContent, toContent)
+    });
+    this.logger?.debug("diff.compareFile.opened", {
+      filePath,
+      fromHash,
+      repositoryRoot,
+      toHash
     });
 
     return {

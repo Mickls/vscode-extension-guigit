@@ -48,7 +48,7 @@ export function activate(context: ExtensionContext): void {
     logger
   });
   const graphService = new GraphService({ logger });
-  const diffService = new DiffService();
+  const diffService = new DiffService({ logger });
   const router = createRpcRouter(
     createGitHistoryRpcHandlers({
       branchService,
