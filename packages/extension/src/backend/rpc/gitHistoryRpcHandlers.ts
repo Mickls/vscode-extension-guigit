@@ -20,7 +20,10 @@ export interface GitHistoryRpcHandlerInput {
   commitService: Pick<CommitService, "loadHistory">;
   fileService: Pick<FileService, "getCommitDetails" | "getFileChanges">;
   fileHistoryPanel: Pick<FileHistoryPanel, "openHistory" | "openWorkingFile">;
-  gitService: Pick<GitService, "advancedPull" | "advancedPush" | "checkout" | "clone" | "fetch" | "pull" | "push">;
+  gitService: Pick<
+    GitService,
+    "abortOperation" | "advancedPull" | "advancedPush" | "checkout" | "clone" | "continueOperation" | "fetch" | "pull" | "push"
+  >;
   graphService: Pick<GraphService, "getLayout">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
   repositoryService: Pick<
@@ -97,6 +100,16 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.gitService.advancedPull(repository.rootPath);
+    },
+    "git.continueOperation": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.continueOperation(repository.rootPath);
+    },
+    "git.abortOperation": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.abortOperation(repository.rootPath);
     },
     "git.push": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);

@@ -31,6 +31,7 @@ const emptyCompareFiles: readonly FileChangeViewModel[] = [];
 const pageSize = 50;
 const defaultFileViewMode: FileViewMode = "list";
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
+type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation";
 
 const gitOperationLabels = {
   "git.advancedPull": "Advanced Pull",
@@ -69,7 +70,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
   const [operationNotification, setOperationNotification] = useState<OperationNotification | undefined>();
-  const [activeGitOperation, setActiveGitOperation] = useState<PrimaryGitOperationType | undefined>();
+  const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | PrimaryGitOperationType | undefined>();
+  const [conflictOperation, setConflictOperation] = useState<OperationNotification | undefined>();
   const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
   const hasMoreRef = useRef(false);
   const nextCursorRef = useRef<string | undefined>(undefined);
@@ -127,7 +129,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (!response.ok) {
-        if (isPrimaryGitOperationType(response.type)) {
+        if (isGitOperationType(response.type)) {
           setActiveGitOperation(undefined);
         }
         setOperationNotification({ message: response.error.message, state: "error" });
@@ -221,6 +223,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (isPrimaryGitOperationResponse(response)) {
         setActiveGitOperation(undefined);
+        if (response.payload.status === "conflict") {
+          setConflictOperation({ message: response.payload.message, state: "warning" });
+          setOperationNotification({ message: response.payload.message, state: "warning" });
+          return;
+        }
+
+        setConflictOperation(undefined);
         setOperationNotification({
           message: response.payload.message,
           state: response.payload.status === "ok" ? "success" : "warning"
@@ -231,6 +240,25 @@ export function App({ rpcClient }: AppProps): ReactElement {
             repositoryId: selectedRepositoryIdRef.current
           });
         }
+      }
+
+      if (isConflictGitOperationResponse(response)) {
+        setActiveGitOperation(undefined);
+        if (response.payload.status === "conflict") {
+          setConflictOperation({ message: response.payload.message, state: "warning" });
+          setOperationNotification({ message: response.payload.message, state: "warning" });
+          return;
+        }
+
+        setConflictOperation(undefined);
+        setOperationNotification({
+          message: response.payload.message,
+          state: response.payload.status === "ok" ? "success" : "warning"
+        });
+        requestHistory(client, pendingHistoryRequestsRef.current, {
+          preserveSelection: true,
+          repositoryId: selectedRepositoryIdRef.current
+        });
       }
     };
 
@@ -366,7 +394,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   };
 
   const startGitOperation = (type: PrimaryGitOperationType) => {
-    if (!selectedRepositoryIdRef.current || activeGitOperation) {
+    if (!selectedRepositoryIdRef.current || activeGitOperation || conflictOperation) {
       return;
     }
 
@@ -380,10 +408,23 @@ export function App({ rpcClient }: AppProps): ReactElement {
     });
   };
 
+  const sendConflictOperation = (type: ConflictGitOperationType) => {
+    if (!selectedRepositoryIdRef.current || activeGitOperation) {
+      return;
+    }
+
+    setActiveGitOperation(type);
+    client?.post({
+      id: crypto.randomUUID(),
+      repositoryId: selectedRepositoryIdRef.current,
+      type
+    });
+  };
+
   return (
     <main className="flex h-screen overflow-hidden flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
       <Header
-        gitOperationBusy={Boolean(activeGitOperation)}
+        gitOperationBusy={Boolean(activeGitOperation || conflictOperation)}
         graphVisible={graphVisible}
         onAdvancedPull={() => startGitOperation("git.advancedPull")}
         onAdvancedPush={() => startGitOperation("git.advancedPush")}
@@ -403,6 +444,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }}
         settingsOpen={settingsMenuOpen}
       />
+      {conflictOperation ? (
+        <ConflictBanner
+          message={conflictOperation.message}
+          onAbort={() => sendConflictOperation("git.abortOperation")}
+          onContinue={() => sendConflictOperation("git.continueOperation")}
+        />
+      ) : null}
       <SplitPanels
         left={
           <CommitList
@@ -524,6 +572,16 @@ function isPrimaryGitOperationResponse(
   return isPrimaryGitOperationType(response.type);
 }
 
+function isConflictGitOperationResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: ConflictGitOperationType }> {
+  return response.type === "git.abortOperation" || response.type === "git.continueOperation";
+}
+
+function isGitOperationType(type: string): type is ConflictGitOperationType | PrimaryGitOperationType {
+  return isPrimaryGitOperationType(type) || type === "git.abortOperation" || type === "git.continueOperation";
+}
+
 function isPrimaryGitOperationType(type: string): type is PrimaryGitOperationType {
   return (
     type === "git.advancedPull" ||
@@ -552,6 +610,39 @@ function OperationToast({ message, state }: { message: string; state: OperationN
       ) : null}
       {message}
     </div>
+  );
+}
+
+function ConflictBanner({
+  message,
+  onAbort,
+  onContinue
+}: {
+  message: string;
+  onAbort: () => void;
+  onContinue: () => void;
+}): ReactElement {
+  return (
+    <section
+      aria-label="Git Conflict"
+      className="flex shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-notifications-background)] px-3 py-2 text-xs text-[var(--vscode-notifications-foreground)]"
+    >
+      <span className="min-w-0 flex-1">{message}</span>
+      <button
+        className="h-7 whitespace-nowrap rounded-[3px] border border-[var(--vscode-button-border,transparent)] bg-[var(--vscode-button-background)] px-2 text-xs text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)]"
+        onClick={onContinue}
+        type="button"
+      >
+        Resolved and Staged
+      </button>
+      <button
+        className="h-7 whitespace-nowrap rounded-[3px] border border-[var(--vscode-button-secondaryBorder,transparent)] bg-[var(--vscode-button-secondaryBackground)] px-2 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)]"
+        onClick={onAbort}
+        type="button"
+      >
+        Abort
+      </button>
+    </section>
   );
 }
 

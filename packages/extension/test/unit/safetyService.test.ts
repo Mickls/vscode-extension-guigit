@@ -100,12 +100,12 @@ describe("SafetyService", () => {
     ]);
   });
 
-  it("waits for conflict resolution before continuing and popping the auto stash", async () => {
+  it("records a conflict session and waits for explicit continuation before popping the auto stash", async () => {
     const calls: string[] = [];
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
       calls.push(args.join(" "));
       if (args.join(" ") === "status --porcelain") {
-        return calls.includes("operation") ? "UU src/file.ts\n" : " M src/file.ts\n";
+        return calls.includes("operation") && !calls.includes("commit --no-edit") ? "UU src/file.ts\n" : " M src/file.ts\n";
       }
 
       return "";
@@ -114,8 +114,7 @@ describe("SafetyService", () => {
       calls.push("operation");
       throw new Error("CONFLICT (content): Merge conflict in src/file.ts");
     });
-    const showWarningMessage = vi.fn(async () => "Resolved and Staged");
-    const service = new SafetyService({ gitRaw, showWarningMessage });
+    const service = new SafetyService({ gitRaw });
 
     await expect(
       service.runWithAutoStash("/repo", "always", operation, {
@@ -125,10 +124,21 @@ describe("SafetyService", () => {
         operationName: "Pull"
       })
     ).resolves.toEqual({
+      message: "Pull has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.",
+      status: "conflict"
+    });
+
+    expect(calls).toEqual([
+      "status --porcelain",
+      "stash push --include-untracked -m GUI Git History auto stash",
+      "operation",
+      "status --porcelain"
+    ]);
+
+    await expect(service.continueOperation("/repo")).resolves.toEqual({
       message: "Pull conflicts resolved",
       status: "ok"
     });
-
     expect(calls).toEqual([
       "status --porcelain",
       "stash push --include-untracked -m GUI Git History auto stash",
@@ -137,14 +147,9 @@ describe("SafetyService", () => {
       "commit --no-edit",
       "stash pop"
     ]);
-    expect(showWarningMessage).toHaveBeenCalledWith(
-      "Pull has conflicts. Resolve all conflicted files, stage them, then continue here. GUI Git History will finish Pull and restore your stashed changes. Do not create a manual commit.",
-      "Resolved and Staged",
-      "Abort"
-    );
   });
 
-  it("aborts the conflicted operation and restores the auto stash", async () => {
+  it("aborts the active conflict session and restores the auto stash", async () => {
     const calls: string[] = [];
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
       calls.push(args.join(" "));
@@ -158,8 +163,7 @@ describe("SafetyService", () => {
       calls.push("operation");
       throw new Error("Automatic merge failed; fix conflicts and then commit the result.");
     });
-    const showWarningMessage = vi.fn(async () => "Abort");
-    const service = new SafetyService({ gitRaw, showWarningMessage });
+    const service = new SafetyService({ gitRaw });
 
     await expect(
       service.runWithAutoStash("/repo", "always", operation, {
@@ -169,6 +173,11 @@ describe("SafetyService", () => {
         operationName: "Pull"
       })
     ).resolves.toEqual({
+      message: "Pull has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.",
+      status: "conflict"
+    });
+
+    await expect(service.abortOperation("/repo")).resolves.toEqual({
       message: "Pull aborted and stashed changes restored",
       status: "cancelled"
     });
@@ -183,7 +192,7 @@ describe("SafetyService", () => {
     ]);
   });
 
-  it("keeps prompting when continue is clicked before conflicts are resolved", async () => {
+  it("keeps the conflict session active when continue is clicked before conflicts are resolved", async () => {
     const calls: string[] = [];
     let statusCalls = 0;
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
@@ -207,11 +216,7 @@ describe("SafetyService", () => {
       calls.push("operation");
       throw new Error("CONFLICT (content): Merge conflict in app.txt");
     });
-    const showWarningMessage = vi
-      .fn()
-      .mockResolvedValueOnce("Resolved and Staged")
-      .mockResolvedValueOnce("Resolved and Staged");
-    const service = new SafetyService({ gitRaw, showWarningMessage });
+    const service = new SafetyService({ gitRaw });
 
     await expect(
       service.runWithAutoStash("/repo", "always", operation, {
@@ -221,10 +226,18 @@ describe("SafetyService", () => {
         operationName: "Rebase"
       })
     ).resolves.toEqual({
+      message: "Rebase has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.",
+      status: "conflict"
+    });
+
+    await expect(service.continueOperation("/repo")).resolves.toEqual({
+      message: "Rebase still has unresolved conflicts. Resolve all conflicted files and stage them, then continue.",
+      status: "conflict"
+    });
+    await expect(service.continueOperation("/repo")).resolves.toEqual({
       message: "Rebase conflicts resolved",
       status: "ok"
     });
-
     expect(calls).toEqual([
       "status --porcelain",
       "stash push --include-untracked -m GUI Git History auto stash",
@@ -235,15 +248,9 @@ describe("SafetyService", () => {
       "-c core.editor=true rebase --continue",
       "stash pop"
     ]);
-    expect(showWarningMessage).toHaveBeenNthCalledWith(
-      2,
-      "Rebase still has unresolved conflicts. Resolve all conflicted files and stage them, then continue.",
-      "Resolved and Staged",
-      "Abort"
-    );
   });
 
-  it("keeps the conflict workflow open when continue fails while rebase is still in progress", async () => {
+  it("keeps the conflict session active when continue fails while rebase is still in progress", async () => {
     const calls: string[] = [];
     let statusCalls = 0;
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
@@ -275,11 +282,7 @@ describe("SafetyService", () => {
       calls.push("operation");
       throw new Error("CONFLICT (content): Merge conflict in app.txt");
     });
-    const showWarningMessage = vi
-      .fn()
-      .mockResolvedValueOnce("Resolved and Staged")
-      .mockResolvedValueOnce("Resolved and Staged");
-    const service = new SafetyService({ gitRaw, showWarningMessage });
+    const service = new SafetyService({ gitRaw });
 
     await expect(
       service.runWithAutoStash("/repo", "always", operation, {
@@ -289,10 +292,18 @@ describe("SafetyService", () => {
         operationName: "Rebase"
       })
     ).resolves.toEqual({
+      message: "Rebase has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.",
+      status: "conflict"
+    });
+
+    await expect(service.continueOperation("/repo")).resolves.toEqual({
+      message: "Rebase is still in progress. Do not create a manual commit; resolve conflicts, stage the files, then continue from GUI Git History.",
+      status: "conflict"
+    });
+    await expect(service.continueOperation("/repo")).resolves.toEqual({
       message: "Rebase conflicts resolved",
       status: "ok"
     });
-
     expect(calls).toEqual([
       "status --porcelain",
       "stash push --include-untracked -m GUI Git History auto stash",
@@ -304,11 +315,5 @@ describe("SafetyService", () => {
       "-c core.editor=true rebase --continue",
       "stash pop"
     ]);
-    expect(showWarningMessage).toHaveBeenNthCalledWith(
-      2,
-      "Rebase is still in progress. Do not create a manual commit; resolve conflicts, stage the files, then continue from here.",
-      "Resolved and Staged",
-      "Abort"
-    );
   });
 });

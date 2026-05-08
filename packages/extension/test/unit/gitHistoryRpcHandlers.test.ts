@@ -444,6 +444,10 @@ describe("Git history RPC handlers", () => {
           gitCalls.push(["advancedPull", repositoryRoot]);
           return { message: "advanced pull", status: "ok" };
         },
+        abortOperation: async (repositoryRoot) => {
+          gitCalls.push(["abortOperation", repositoryRoot]);
+          return { message: "abort operation", status: "cancelled" };
+        },
         advancedPush: async (repositoryRoot) => {
           gitCalls.push(["advancedPush", repositoryRoot]);
           return { message: "advanced push", status: "ok" };
@@ -455,6 +459,10 @@ describe("Git history RPC handlers", () => {
         clone: async (targetDirectory, url) => {
           gitCalls.push(["clone", targetDirectory, url]);
           return { message: "clone", status: "ok" };
+        },
+        continueOperation: async (repositoryRoot) => {
+          gitCalls.push(["continueOperation", repositoryRoot]);
+          return { message: "continue operation", status: "ok" };
         },
         fetch: async (repositoryRoot) => {
           gitCalls.push(["fetch", repositoryRoot]);
@@ -479,6 +487,8 @@ describe("Git history RPC handlers", () => {
 
     await handlers["git.pull"]!({ id: "8", repositoryId: "/repo", type: "git.pull" });
     await handlers["git.advancedPull"]!({ id: "9", repositoryId: "/repo", type: "git.advancedPull" });
+    await handlers["git.continueOperation"]!({ id: "9a", repositoryId: "/repo", type: "git.continueOperation" });
+    await handlers["git.abortOperation"]!({ id: "9b", repositoryId: "/repo", type: "git.abortOperation" });
     await handlers["git.push"]!({ id: "10", repositoryId: "/repo", type: "git.push" });
     await handlers["git.advancedPush"]!({ id: "11", repositoryId: "/repo", type: "git.advancedPush" });
     await handlers["git.fetch"]!({ id: "12", repositoryId: "/repo", type: "git.fetch" });
@@ -488,6 +498,8 @@ describe("Git history RPC handlers", () => {
     expect(gitCalls).toEqual([
       ["pull", "/repo"],
       ["advancedPull", "/repo"],
+      ["continueOperation", "/repo"],
+      ["abortOperation", "/repo"],
       ["push", "/repo"],
       ["advancedPush", "/repo"],
       ["fetch", "/repo"],
@@ -523,10 +535,12 @@ function createSettingsService() {
 
 function createGitService() {
   return {
+    abortOperation: async () => ({ message: "ok", status: "cancelled" as const }),
     advancedPull: async () => ({ message: "ok", status: "ok" as const }),
     advancedPush: async () => ({ message: "ok", status: "ok" as const }),
     checkout: async () => ({ message: "ok", status: "ok" as const }),
     clone: async () => ({ message: "ok", status: "ok" as const }),
+    continueOperation: async () => ({ message: "ok", status: "ok" as const }),
     fetch: async () => ({ message: "ok", status: "ok" as const }),
     pull: async () => ({ message: "ok", status: "ok" as const }),
     push: async () => ({ message: "ok", status: "ok" as const })

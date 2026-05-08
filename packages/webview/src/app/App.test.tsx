@@ -721,6 +721,50 @@ describe("App", () => {
     setTimeoutSpy.mockRestore();
   });
 
+  it("shows conflict actions and posts explicit continue or abort intents", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }));
+    const pullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.pull")![0];
+    dispatchOperationResponse(pullRequest.id, "git.pull", {
+      message: "Pull has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.",
+      status: "conflict"
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Pull has conflicts");
+    expect(screen.getByRole("button", { name: "Pull" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Resolved and Staged" })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolved and Staged" }));
+    const continueRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.continueOperation")![0];
+    expect(continueRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.continueOperation" }));
+    dispatchOperationResponse(continueRequest.id, "git.continueOperation", {
+      message: "Pull conflicts resolved",
+      status: "ok"
+    });
+    expect(screen.queryByRole("button", { name: "Resolved and Staged" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }));
+    const secondPullRequest = rpcClient.post.mock.calls.filter(([request]) => request.type === "git.pull").at(-1)![0];
+    dispatchOperationResponse(secondPullRequest.id, "git.pull", {
+      message: "Pull has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.",
+      status: "conflict"
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Abort" }));
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryId: "/repo",
+        type: "git.abortOperation"
+      })
+    );
+  });
+
   it("exposes advanced pull and push toolbar actions for branch-specific rebase and force push flows", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -969,7 +1013,11 @@ function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", typ
 
 function dispatchOperationResponse(
   id: string,
-  type: "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push"
+  type: "git.abortOperation" | "git.advancedPull" | "git.advancedPush" | "git.continueOperation" | "git.fetch" | "git.pull" | "git.push",
+  result: { message: string; status: "cancelled" | "conflict" | "ok" } = {
+    message: "Git operation completed",
+    status: "ok"
+  }
 ): void {
   act(() => {
     window.dispatchEvent(
@@ -978,10 +1026,7 @@ function dispatchOperationResponse(
           id,
           ok: true,
           type,
-          payload: {
-            message: "Git operation completed",
-            status: "ok"
-          }
+          payload: result
         } satisfies RpcResponse
       })
     );

@@ -14,7 +14,7 @@ export interface GitServiceInput {
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
-  safetyService: Pick<SafetyService, "runWithAutoStash">;
+  safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
@@ -24,7 +24,7 @@ export class GitService {
   private readonly gitClone: (targetDirectory: string, url: string) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
-  private readonly safetyService: Pick<SafetyService, "runWithAutoStash">;
+  private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly showInformationMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
@@ -46,6 +46,10 @@ export class GitService {
   }
 
   public async pull(repositoryRoot: string): Promise<OperationResultViewModel> {
+    if (!(await this.ensureTrackingBranch(repositoryRoot))) {
+      return { message: "Pull cancelled", status: "cancelled" };
+    }
+
     return this.runPullWithSafety(repositoryRoot, ["pull", "--no-rebase"], "Pull completed");
   }
 
@@ -77,7 +81,12 @@ export class GitService {
   public async push(repositoryRoot: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.push", { repositoryRoot });
     await this.runGitRaw(repositoryRoot, ["push"]);
-    await this.promptPullRequestForCurrentBranch(repositoryRoot);
+    void this.promptPullRequestForCurrentBranch(repositoryRoot).catch((error: unknown) => {
+      this.logger?.debug("git.pullRequestPrompt.failed", {
+        error: error instanceof Error ? error.message : String(error),
+        repositoryRoot
+      });
+    });
 
     return {
       message: "Push completed",
@@ -121,7 +130,12 @@ export class GitService {
 
     this.logger?.debug("git.advancedPush", { args, repositoryRoot });
     await this.runGitRaw(repositoryRoot, args);
-    await this.promptPullRequestForCurrentBranch(repositoryRoot);
+    void this.promptPullRequestForCurrentBranch(repositoryRoot).catch((error: unknown) => {
+      this.logger?.debug("git.pullRequestPrompt.failed", {
+        error: error instanceof Error ? error.message : String(error),
+        repositoryRoot
+      });
+    });
 
     return {
       message: "Advanced push completed",
@@ -160,6 +174,14 @@ export class GitService {
     };
   }
 
+  public async continueOperation(repositoryRoot: string): Promise<OperationResultViewModel> {
+    return this.safetyService.continueOperation(repositoryRoot);
+  }
+
+  public async abortOperation(repositoryRoot: string): Promise<OperationResultViewModel> {
+    return this.safetyService.abortOperation(repositoryRoot);
+  }
+
   private async runPullWithSafety(
     repositoryRoot: string,
     args: readonly string[],
@@ -184,6 +206,27 @@ export class GitService {
       branches.map((branch) => ({ label: branch, value: branch })),
       { placeHolder }
     );
+  }
+
+  private async ensureTrackingBranch(repositoryRoot: string): Promise<boolean> {
+    try {
+      await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
+      return true;
+    } catch (error) {
+      this.logger?.debug("git.pull.missingUpstream", {
+        error: error instanceof Error ? error.message : String(error),
+        repositoryRoot
+      });
+    }
+
+    const currentBranch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+    const branch = await this.pickRemoteBranch(repositoryRoot, `Select upstream branch for ${currentBranch}`);
+    if (!branch) {
+      return false;
+    }
+
+    await this.runGitRaw(repositoryRoot, ["branch", "--set-upstream-to", branch.value, currentBranch]);
+    return true;
   }
 
   private async promptPullRequestForCurrentBranch(repositoryRoot: string): Promise<void> {

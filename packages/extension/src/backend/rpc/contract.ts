@@ -17,6 +17,8 @@ export const allRpcRequestTypes = [
   "settings.update",
   "git.pull",
   "git.advancedPull",
+  "git.continueOperation",
+  "git.abortOperation",
   "git.push",
   "git.advancedPush",
   "git.fetch",
@@ -155,7 +157,7 @@ export interface ProxySettingsViewModel {
 }
 
 export interface OperationResultViewModel {
-  status: "ok" | "cancelled";
+  status: "ok" | "cancelled" | "conflict";
   message: string;
 }
 
@@ -196,6 +198,8 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "settings.update"; settings: Partial<SettingsViewModel> })
   | (RpcEnvelope & { type: "git.pull"; repositoryId: string })
   | (RpcEnvelope & { type: "git.advancedPull"; repositoryId: string })
+  | (RpcEnvelope & { type: "git.continueOperation"; repositoryId: string })
+  | (RpcEnvelope & { type: "git.abortOperation"; repositoryId: string })
   | (RpcEnvelope & { type: "git.push"; repositoryId: string })
   | (RpcEnvelope & { type: "git.advancedPush"; repositoryId: string })
   | (RpcEnvelope & { type: "git.fetch"; repositoryId: string })
@@ -244,6 +248,8 @@ export interface RpcPayloadByType {
   "settings.update": { settings: SettingsViewModel };
   "git.pull": OperationResultViewModel;
   "git.advancedPull": OperationResultViewModel;
+  "git.continueOperation": OperationResultViewModel;
+  "git.abortOperation": OperationResultViewModel;
   "git.push": OperationResultViewModel;
   "git.advancedPush": OperationResultViewModel;
   "git.fetch": OperationResultViewModel;

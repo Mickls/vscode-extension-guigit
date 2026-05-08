@@ -5,8 +5,6 @@ import type { Logger } from "../../logging/LoggerService";
 
 const stashMessage = "GUI Git History auto stash";
 const stashAndContinue = "Stash and Continue";
-const continueOperation = "Resolved and Staged";
-const abortOperation = "Abort";
 const cancel = "Cancel";
 
 export interface ConflictResolutionInput {
@@ -16,6 +14,11 @@ export interface ConflictResolutionInput {
   operationName: string;
 }
 
+interface ConflictSession {
+  autoStashed: boolean;
+  conflict: ConflictResolutionInput;
+}
+
 export interface SafetyServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
@@ -23,6 +26,7 @@ export interface SafetyServiceInput {
 }
 
 export class SafetyService {
+  private readonly conflictSessions = new Map<string, ConflictSession>();
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
@@ -78,6 +82,67 @@ export class SafetyService {
     return this.runOperation(repositoryRoot, operation, conflict, true);
   }
 
+  public async continueOperation(repositoryRoot: string): Promise<OperationResultViewModel> {
+    const session = this.conflictSessions.get(repositoryRoot);
+    if (!session) {
+      return {
+        message: "No active git conflict to continue",
+        status: "cancelled"
+      };
+    }
+
+    try {
+      await this.runLoggedGit(repositoryRoot, session.conflict.continueArgs);
+      if (session.autoStashed) {
+        await this.restoreAutoStash(repositoryRoot);
+      }
+
+      this.conflictSessions.delete(repositoryRoot);
+      return {
+        message: `${session.conflict.operationName} conflicts resolved`,
+        status: "ok"
+      };
+    } catch (error) {
+      const conflictState = await this.getConflictState(repositoryRoot, session.conflict.operationKind);
+      if (conflictState !== "none") {
+        this.logger?.debug("safety.conflict.continueFailed", {
+          error: error instanceof Error ? error.message : String(error),
+          operationName: session.conflict.operationName,
+          repositoryRoot
+        });
+        return {
+          message: this.getContinueFailedPrompt(session.conflict.operationName, conflictState),
+          status: "conflict"
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  public async abortOperation(repositoryRoot: string): Promise<OperationResultViewModel> {
+    const session = this.conflictSessions.get(repositoryRoot);
+    if (!session) {
+      return {
+        message: "No active git conflict to abort",
+        status: "cancelled"
+      };
+    }
+
+    await this.runLoggedGit(repositoryRoot, session.conflict.abortArgs);
+    if (session.autoStashed) {
+      await this.restoreAutoStash(repositoryRoot);
+    }
+
+    this.conflictSessions.delete(repositoryRoot);
+    return {
+      message: session.autoStashed
+        ? `${session.conflict.operationName} aborted and stashed changes restored`
+        : `${session.conflict.operationName} aborted`,
+      status: "cancelled"
+    };
+  }
+
   private async runOperation(
     repositoryRoot: string,
     operation: () => Promise<OperationResultViewModel>,
@@ -86,6 +151,10 @@ export class SafetyService {
   ): Promise<OperationResultViewModel> {
     try {
       const result = await operation();
+      if (conflict && (await this.getConflictState(repositoryRoot, conflict.operationKind)) !== "none") {
+        return this.startConflictSession(repositoryRoot, conflict, autoStashed);
+      }
+
       if (autoStashed) {
         await this.restoreAutoStash(repositoryRoot);
       }
@@ -97,74 +166,26 @@ export class SafetyService {
           operationName: conflict.operationName,
           repositoryRoot
         });
-        return this.resolveConflict(repositoryRoot, conflict, autoStashed);
+        return this.startConflictSession(repositoryRoot, conflict, autoStashed);
       }
 
       throw error;
     }
   }
 
-  private async resolveConflict(
+  private startConflictSession(
     repositoryRoot: string,
     conflict: ConflictResolutionInput,
     autoStashed: boolean
-  ): Promise<OperationResultViewModel> {
-    let prompt = this.getConflictPrompt(conflict.operationName, autoStashed);
-    while (true) {
-      const choice = await this.showWarningMessage(
-        prompt,
-        continueOperation,
-        abortOperation
-      );
-
-      if (choice === abortOperation) {
-        await this.runLoggedGit(repositoryRoot, conflict.abortArgs);
-        if (autoStashed) {
-          await this.restoreAutoStash(repositoryRoot);
-        }
-
-        return {
-          message: autoStashed
-            ? `${conflict.operationName} aborted and stashed changes restored`
-            : `${conflict.operationName} aborted`,
-          status: "cancelled"
-        };
-      }
-
-      if (choice !== continueOperation) {
-        return {
-          message: `${conflict.operationName} still has conflicts`,
-          status: "cancelled"
-        };
-      }
-
-      if (choice === continueOperation) {
-        try {
-          await this.runLoggedGit(repositoryRoot, conflict.continueArgs);
-          if (autoStashed) {
-            await this.restoreAutoStash(repositoryRoot);
-          }
-
-          return {
-            message: `${conflict.operationName} conflicts resolved`,
-            status: "ok"
-          };
-        } catch (error) {
-          const conflictState = await this.getConflictState(repositoryRoot, conflict.operationKind);
-          if (conflictState !== "none") {
-            this.logger?.debug("safety.conflict.continueFailed", {
-              error: error instanceof Error ? error.message : String(error),
-              operationName: conflict.operationName,
-              repositoryRoot
-            });
-            prompt = this.getContinueFailedPrompt(conflict.operationName, conflictState);
-            continue;
-          }
-
-          throw error;
-        }
-      }
-    }
+  ): OperationResultViewModel {
+    this.conflictSessions.set(repositoryRoot, {
+      autoStashed,
+      conflict
+    });
+    return {
+      message: this.getConflictPrompt(conflict.operationName),
+      status: "conflict"
+    };
   }
 
   private async restoreAutoStash(repositoryRoot: string): Promise<void> {
@@ -207,12 +228,8 @@ export class SafetyService {
     return "none";
   }
 
-  private getConflictPrompt(operationName: string, autoStashed: boolean): string {
-    if (autoStashed) {
-      return `${operationName} has conflicts. Resolve all conflicted files, stage them, then continue here. GUI Git History will finish ${operationName} and restore your stashed changes. Do not create a manual commit.`;
-    }
-
-    return `${operationName} has conflicts. Resolve all conflicted files, stage them, then continue here. Do not create a manual commit.`;
+  private getConflictPrompt(operationName: string): string {
+    return `${operationName} has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.`;
   }
 
   private getContinueFailedPrompt(
@@ -223,7 +240,7 @@ export class SafetyService {
       return `${operationName} still has unresolved conflicts. Resolve all conflicted files and stage them, then continue.`;
     }
 
-    return `${operationName} is still in progress. Do not create a manual commit; resolve conflicts, stage the files, then continue from here.`;
+    return `${operationName} is still in progress. Do not create a manual commit; resolve conflicts, stage the files, then continue from GUI Git History.`;
   }
 
   private async runLoggedGit(repositoryRoot: string, args: readonly string[]): Promise<string> {
