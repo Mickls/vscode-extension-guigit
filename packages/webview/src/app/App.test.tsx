@@ -656,7 +656,7 @@ describe("App", () => {
     );
   });
 
-  it("loads and selects a commit requested by the backend", () => {
+  it("loads history context and selects a commit requested by the backend", () => {
     const rpcClient = createTestRpcClient();
 
     render(<App rpcClient={rpcClient} />);
@@ -673,11 +673,34 @@ describe("App", () => {
       );
     });
 
+    const firstRevealRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "history.load")![0] as Extract<
+      RpcRequest,
+      { type: "history.load" }
+    >;
+    expect(firstRevealRequest.search).toBeUndefined();
+
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "first11111111111111", message: "First visible commit" })],
+      hasMore: true,
+      nextCursor: "50",
+      requestId: firstRevealRequest.id
+    });
+
+    const nextRevealRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "history.load" && request.cursor === "50"
+    )![0];
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "abc1234ffffffffffff", message: "Revealed commit" })],
+      requestId: nextRevealRequest.id
+    });
+
+    expect(screen.getByText("First visible commit")).toBeInTheDocument();
+    expect(screen.getAllByText("Revealed commit").length).toBeGreaterThan(0);
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
-        pageSize: 50,
-        search: "abc1234",
-        type: "history.load"
+        hash: "abc1234ffffffffffff",
+        repositoryId: "/repo",
+        type: "commits.getDetails"
       })
     );
   });

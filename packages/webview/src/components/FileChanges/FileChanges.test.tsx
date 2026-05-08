@@ -99,6 +99,10 @@ describe("FileChanges", () => {
     await user.click(screen.getByRole("button", { name: "Open file src/components/FileChanges.tsx" }));
     await user.click(screen.getByRole("button", { name: "Open file history for src/components/FileChanges.tsx" }));
 
+    expect(screen.getByRole("button", { name: "Open file src/components/FileChanges.tsx" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open file history for src/components/FileChanges.tsx" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open file src/components/FileChanges.tsx" })).not.toHaveTextContent("O");
+    expect(screen.getByRole("button", { name: "Open file history for src/components/FileChanges.tsx" })).not.toHaveTextContent("H");
     expect(onOpenFile).toHaveBeenCalledWith("src/components/FileChanges.tsx");
     expect(onOpenFileHistory).toHaveBeenCalledWith("src/components/FileChanges.tsx");
     expect(onOpenFileDiff).not.toHaveBeenCalled();

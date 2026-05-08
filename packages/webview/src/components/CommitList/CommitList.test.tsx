@@ -3,7 +3,7 @@
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommitList } from "./CommitList";
 import type { CommitListItemViewModel, GraphLayoutViewModel } from "../../app/rpcContract.generated";
 
@@ -29,6 +29,27 @@ describe("CommitList", () => {
     expect(graphStrip).toHaveClass("overflow-x-auto");
     expect(graphStrip).toHaveClass("max-w-[240px]");
     expect(screen.getByRole("img", { name: "Git graph" })).toHaveAttribute("width", "360");
+  });
+
+  it("scrolls the selected commit row into view", () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    try {
+      render(<CommitList commits={[createCommit("first"), createCommit("second")]} selectedHash="second" />);
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Element.prototype, "scrollIntoView", originalDescriptor);
+      } else {
+        Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+      }
+    }
   });
 });
 

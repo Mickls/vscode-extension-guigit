@@ -1,4 +1,4 @@
-import type { UIEvent, MouseEvent, ReactElement } from "react";
+import { useEffect, useRef, type UIEvent, type MouseEvent, type ReactElement } from "react";
 import type { CommitListItemViewModel, GraphLayoutViewModel } from "../../app/rpcContract.generated";
 import { GitGraph } from "../GitGraph/GitGraph";
 
@@ -32,6 +32,11 @@ export function CommitList({
   onCommitSelect,
   selectedHash
 }: CommitListProps): ReactElement {
+  const selectedRowRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    selectedRowRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedHash]);
+
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
     if (element.scrollTop + element.clientHeight >= element.scrollHeight - 24) {
@@ -65,6 +70,7 @@ export function CommitList({
             key={commit.hash}
             onContextMenu={(event) => onCommitContextMenu?.(event, commit)}
             onClick={() => onCommitSelect?.(commit)}
+            ref={selectedHash === commit.hash ? selectedRowRef : undefined}
           >
             <div
               className={`grid h-full min-w-[550px] flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] items-center gap-3 px-3 ${selectedHash === commit.hash || (!selectedHash && index === 0) ? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]" : "bg-[var(--vscode-editor-background)]"}`}

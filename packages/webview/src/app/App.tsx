@@ -39,6 +39,7 @@ interface HistoryRequestMeta {
   append: boolean;
   preserveSelection: boolean;
   probeHash?: string;
+  revealHash?: string;
   repositoryId?: string;
 }
 
@@ -93,7 +94,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if (response.type === "history.revealCommit") {
           requestHistory(client, pendingHistoryRequestsRef.current, {
             repositoryId: selectedRepositoryIdRef.current,
-            search: response.hash
+            revealHash: response.hash
           });
         }
 
@@ -118,7 +119,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
           : response.payload.commits;
         const repositoryId = historyRequest?.repositoryId ?? response.payload.repositories[0]?.id;
         const selectedHash = selectedCommitHashRef.current;
-        const commit = selectCommitAfterHistoryLoad(nextCommits, selectedHash, historyRequest?.preserveSelection ?? false);
+        const targetHash = historyRequest?.revealHash ?? selectedHash;
+        const commit = selectCommitAfterHistoryLoad(
+          nextCommits,
+          targetHash,
+          (historyRequest?.preserveSelection ?? false) || Boolean(historyRequest?.revealHash)
+        );
         const shouldProbeSelectedHash = !historyRequest?.append && selectedHash && historyRequest?.preserveSelection && !commit;
         if (shouldProbeSelectedHash) {
           requestHistory(client, pendingHistoryRequestsRef.current, {
@@ -138,7 +144,16 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
         setSelectedRepositoryId(repositoryId);
 
-        if (!historyRequest?.append && !shouldProbeSelectedHash) {
+        if (historyRequest?.revealHash && !commit && response.payload.hasMore && response.payload.nextCursor) {
+          requestHistory(client, pendingHistoryRequestsRef.current, {
+            append: true,
+            cursor: response.payload.nextCursor,
+            repositoryId,
+            revealHash: historyRequest.revealHash
+          });
+        }
+
+        if ((historyRequest?.revealHash && commit) || (!historyRequest?.append && !shouldProbeSelectedHash)) {
           setSelectedCommitHash(commit?.hash);
           selectedCommitHashRef.current = commit?.hash;
           if (!commit) {
@@ -148,7 +163,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           }
         }
 
-        if (repositoryId && commit && !historyRequest?.append) {
+        if (repositoryId && commit && (!historyRequest?.append || historyRequest.revealHash)) {
           requestCommitDetails(client, repositoryId, commit.hash);
         }
 
@@ -392,6 +407,7 @@ function requestHistory(
     cursor?: string;
     preserveSelection?: boolean;
     probeHash?: string;
+    revealHash?: string;
     repositoryId?: string;
     search?: string;
   } = {}
@@ -401,6 +417,7 @@ function requestHistory(
     append: options.append ?? false,
     preserveSelection: options.preserveSelection ?? false,
     probeHash: options.probeHash,
+    revealHash: options.revealHash,
     repositoryId: options.repositoryId
   });
   client?.post({
@@ -433,7 +450,9 @@ function selectCommitAfterHistoryLoad(
   selectedHash: string | undefined,
   preserveSelection: boolean
 ): CommitListItemViewModel | undefined {
-  const selectedCommit = commits.find((commit) => commit.hash === selectedHash);
+  const selectedCommit = selectedHash
+    ? commits.find((commit) => commit.hash.toLowerCase().startsWith(selectedHash.toLowerCase()))
+    : undefined;
   if (preserveSelection && selectedHash) {
     return selectedCommit;
   }
