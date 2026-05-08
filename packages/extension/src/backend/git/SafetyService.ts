@@ -9,13 +9,13 @@ const cancel = "Cancel";
 
 export interface SafetyServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
-  logger?: Pick<Logger, "debug">;
+  logger?: Pick<Logger, "debug" | "info">;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 }
 
 export class SafetyService {
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
-  private readonly logger: Pick<Logger, "debug"> | undefined;
+  private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 
   public constructor(input: SafetyServiceInput = {}) {
@@ -64,12 +64,19 @@ export class SafetyService {
     }
 
     this.logger?.debug("safety.autoStash.push", { repositoryRoot });
-    await this.gitRaw(repositoryRoot, ["stash", "push", "--include-untracked", "-m", stashMessage]);
+    await this.runLoggedGit(repositoryRoot, ["stash", "push", "--include-untracked", "-m", stashMessage]);
     try {
       return await operation();
     } finally {
       this.logger?.debug("safety.autoStash.pop", { repositoryRoot });
-      await this.gitRaw(repositoryRoot, ["stash", "pop"]);
+      await this.runLoggedGit(repositoryRoot, ["stash", "pop"]);
     }
+  }
+
+  private async runLoggedGit(repositoryRoot: string, args: readonly string[]): Promise<string> {
+    this.logger?.info("git.command", {
+      command: `git -C ${repositoryRoot} ${args.join(" ")}`
+    });
+    return this.gitRaw(repositoryRoot, args);
   }
 }

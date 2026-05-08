@@ -13,6 +13,7 @@ vi.mock("vscode", () => ({
 describe("GitHistoryViewProvider notifications", () => {
   it("posts refresh and reveal notifications to the resolved webview", () => {
     const postMessage = vi.fn();
+    const webviewView = createWebviewView(postMessage);
     const provider = new GitHistoryViewProvider(
       {
         extensionUri: { path: "/extension" }
@@ -27,10 +28,14 @@ describe("GitHistoryViewProvider notifications", () => {
       } as never
     );
 
-    provider.resolveWebviewView(createWebviewView(postMessage));
+    provider.resolveWebviewView(webviewView);
     provider.refresh("command");
     provider.revealCommit("abc1234");
 
+    expect(webviewView.webview.options).toEqual({
+      enableScripts: true,
+      localResourceRoots: [{ path: "/extension/webview-dist", toString: expect.any(Function) }]
+    });
     expect(postMessage).toHaveBeenCalledWith({
       reason: "command",
       type: "history.changed"

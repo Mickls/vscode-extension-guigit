@@ -91,7 +91,11 @@ export function activate(context: ExtensionContext): void {
   const git = gitExtension?.exports.getAPI(1);
 
   context.subscriptions.push(
-    window.registerWebviewViewProvider(GitHistoryViewProvider.viewType, viewProvider),
+    window.registerWebviewViewProvider(GitHistoryViewProvider.viewType, viewProvider, {
+      webviewOptions: {
+        retainContextWhenHidden: true
+      }
+    }),
     ...registerGitHistoryCommands({
       blame: {
         toggleBlame: () => logger.info("command.toggleBlame.pending")

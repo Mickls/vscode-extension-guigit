@@ -98,7 +98,12 @@ describe("activate", () => {
 
     expect(vscodeMocks.registerWebviewViewProvider).toHaveBeenCalledWith(
       GitHistoryViewProvider.viewType,
-      expect.any(GitHistoryViewProvider)
+      expect.any(GitHistoryViewProvider),
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
     );
     expect(vscodeMocks.registerCommand).toHaveBeenCalledTimes(5);
     expect(vscodeMocks.onDidChangeActiveTextEditor).toHaveBeenCalled();

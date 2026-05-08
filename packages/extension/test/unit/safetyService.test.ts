@@ -66,6 +66,7 @@ describe("SafetyService", () => {
 
   it("stashes dirty work with untracked files and pops it after the operation", async () => {
     const calls: string[] = [];
+    const logs: unknown[] = [];
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
       calls.push(args.join(" "));
       return args[0] === "status" ? " M src/file.ts\n?? new-file.ts\n" : "";
@@ -74,7 +75,13 @@ describe("SafetyService", () => {
       calls.push("operation");
       return { message: "pulled", status: "ok" as const };
     });
-    const service = new SafetyService({ gitRaw });
+    const service = new SafetyService({
+      gitRaw,
+      logger: {
+        debug: () => undefined,
+        info: (_message, context) => logs.push(context)
+      }
+    });
 
     await expect(service.runWithAutoStash("/repo", "always", operation)).resolves.toEqual({
       message: "pulled",
@@ -86,6 +93,10 @@ describe("SafetyService", () => {
       "stash push --include-untracked -m GUI Git History auto stash",
       "operation",
       "stash pop"
+    ]);
+    expect(logs).toEqual([
+      { command: "git -C /repo stash push --include-untracked -m GUI Git History auto stash" },
+      { command: "git -C /repo stash pop" }
     ]);
   });
 });
