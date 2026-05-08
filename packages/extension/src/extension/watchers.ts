@@ -19,7 +19,14 @@ export interface FileSystemWatcherLike extends Disposable {
   onDidDelete(callback: () => void): Disposable;
 }
 
-export type GitRepositoryLike = object;
+export interface GitRepositoryLike {
+  state: {
+    HEAD?: {
+      commit?: string;
+    };
+    onDidChange(callback: () => void): Disposable;
+  };
+}
 
 export interface GitApiLike {
   onDidOpenRepository(callback: (repository: GitRepositoryLike) => void): Disposable;
@@ -95,11 +102,26 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
   }
 
   if (input.git) {
+    const registerRepository = (repository: GitRepositoryLike) => {
+      let headCommit = repository.state.HEAD?.commit;
+      disposables.push(
+        repository.state.onDidChange(() => {
+          const nextHeadCommit = repository.state.HEAD?.commit;
+          if (nextHeadCommit !== headCommit) {
+            headCommit = nextHeadCommit;
+            scheduleRefresh("repository HEAD changed");
+          }
+        })
+      );
+    };
+
     disposables.push(
-      input.git.onDidOpenRepository(() => {
+      input.git.onDidOpenRepository((repository) => {
+        registerRepository(repository);
         scheduleRefresh("repository opened");
       })
     );
+    input.git.repositories.forEach(registerRepository);
   }
 
   disposables.push({

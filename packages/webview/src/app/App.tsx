@@ -119,13 +119,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
         const repositoryId = historyRequest?.repositoryId ?? response.payload.repositories[0]?.id;
         const selectedHash = selectedCommitHashRef.current;
         const commit = selectCommitAfterHistoryLoad(nextCommits, selectedHash, historyRequest?.preserveSelection ?? false);
-        if (!historyRequest?.append && selectedHash && historyRequest?.preserveSelection && !commit) {
+        const shouldProbeSelectedHash = !historyRequest?.append && selectedHash && historyRequest?.preserveSelection && !commit;
+        if (shouldProbeSelectedHash) {
           requestHistory(client, pendingHistoryRequestsRef.current, {
             probeHash: selectedHash,
             repositoryId,
             search: selectedHash
           });
-          return;
         }
 
         commitsRef.current = nextCommits;
@@ -138,7 +138,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
         setSelectedRepositoryId(repositoryId);
 
-        if (!historyRequest?.append) {
+        if (!historyRequest?.append && !shouldProbeSelectedHash) {
           setSelectedCommitHash(commit?.hash);
           selectedCommitHashRef.current = commit?.hash;
           if (!commit) {

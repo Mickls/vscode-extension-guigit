@@ -245,7 +245,7 @@ describe("App", () => {
     });
 
     expect(screen.getByText("Second commit details")).toBeInTheDocument();
-    expect(screen.queryByText("New top commit")).not.toBeInTheDocument();
+    expect(screen.getByText("New top commit")).toBeInTheDocument();
     expect(screen.getAllByText("Second real commit").length).toBeGreaterThan(0);
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({

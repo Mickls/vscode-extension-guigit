@@ -67,10 +67,20 @@ describe("git watchers", () => {
     expect(refresh).toHaveBeenCalledWith("watcher");
   });
 
-  it("ignores broad git repository state changes and refreshes when a repository opens", () => {
+  it("refreshes for git repository state only when the head commit changes", () => {
     vi.useFakeTimers();
-    const onRepositoryStateChange = vi.fn();
-    let repositoryOpened: ((repository: { state: { onDidChange(callback: () => void): { dispose(): void } } }) => void) | undefined;
+    let repositoryStateChanged: (() => void) | undefined;
+    const repository = {
+      state: {
+        HEAD: {
+          commit: "old-head"
+        },
+        onDidChange: (callback: () => void) => {
+          repositoryStateChanged = callback;
+          return { dispose: vi.fn() };
+        }
+      }
+    };
     const refresh = vi.fn();
 
     registerGitWatchers({
@@ -82,16 +92,11 @@ describe("git watchers", () => {
       }),
       createRelativePattern: (_folder, pattern) => ({ pattern }),
       git: {
-        onDidOpenRepository: (callback) => {
-          repositoryOpened = callback;
+        onDidOpenRepository: () => {
           return { dispose: vi.fn() };
         },
         repositories: [
-          {
-            state: {
-              onDidChange: onRepositoryStateChange
-            }
-          }
+          repository
         ]
       },
       logger: {
@@ -102,16 +107,14 @@ describe("git watchers", () => {
       workspaceFolders: []
     });
 
-    expect(onRepositoryStateChange).not.toHaveBeenCalled();
+    repositoryStateChanged?.();
+    vi.advanceTimersByTime(500);
+    expect(refresh).not.toHaveBeenCalled();
 
-    repositoryOpened?.({
-      state: {
-        onDidChange: onRepositoryStateChange
-      }
-    });
+    repository.state.HEAD.commit = "new-head";
+    repositoryStateChanged?.();
     vi.advanceTimersByTime(500);
 
-    expect(onRepositoryStateChange).not.toHaveBeenCalled();
     expect(refresh).toHaveBeenCalledWith("watcher");
   });
 
