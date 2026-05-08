@@ -207,6 +207,56 @@ describe("App", () => {
     );
   });
 
+  it("keeps selected commit details and probes the selected hash when watcher reload misses it", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+
+    await user.click(screen.getByText("Second real commit"));
+    const detailsRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "commits.getDetails" && request.hash === "def4567890abcdefabc"
+    )![0];
+    dispatchDetailsResponse(detailsRequest.id, {
+      body: "Second commit details",
+      hash: "def4567890abcdefabc",
+      message: "Second real commit"
+    });
+    expect(await screen.findByText("Second commit details")).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            reason: "watcher",
+            type: "history.changed"
+          }
+        })
+      );
+    });
+    const reloadRequest = rpcClient.post.mock.calls.find(
+      ([request]) => request.type === "history.load" && request.repositoryId === "/repo"
+    )![0];
+    dispatchHistoryResponse(rpcClient, {
+      commits: [createCommit({ hash: "new1234567890abcdef", message: "New top commit" })],
+      requestId: reloadRequest.id
+    });
+
+    expect(screen.getByText("Second commit details")).toBeInTheDocument();
+    expect(screen.queryByText("New top commit")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Second real commit").length).toBeGreaterThan(0);
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageSize: 50,
+        repositoryId: "/repo",
+        search: "def4567890abcdefabc",
+        type: "history.load"
+      })
+    );
+  });
+
   it("sends commit file diff intents from commit details", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

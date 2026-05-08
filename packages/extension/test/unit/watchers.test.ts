@@ -49,7 +49,13 @@ describe("git watchers", () => {
       workspaceFolders: [{ name: "repo", uri: { fsPath: "/workspace/repo" } }]
     });
 
-    expect(patterns).toEqual([".git/HEAD", ".git/refs/heads/**"]);
+    expect(patterns).toEqual([
+      ".git/HEAD",
+      ".git/refs/heads/**",
+      ".git/refs/tags/**",
+      ".git/refs/remotes/**",
+      ".git/packed-refs"
+    ]);
 
     callbacks.change[0]!();
     callbacks.change[0]!();
@@ -61,9 +67,11 @@ describe("git watchers", () => {
     expect(refresh).toHaveBeenCalledWith("watcher");
   });
 
-  it("registers git repository state listeners", () => {
+  it("ignores broad git repository state changes and refreshes when a repository opens", () => {
+    vi.useFakeTimers();
     const onRepositoryStateChange = vi.fn();
-    const onDidOpenRepository = vi.fn();
+    let repositoryOpened: ((repository: { state: { onDidChange(callback: () => void): { dispose(): void } } }) => void) | undefined;
+    const refresh = vi.fn();
 
     registerGitWatchers({
       createFileSystemWatcher: () => ({
@@ -74,7 +82,10 @@ describe("git watchers", () => {
       }),
       createRelativePattern: (_folder, pattern) => ({ pattern }),
       git: {
-        onDidOpenRepository,
+        onDidOpenRepository: (callback) => {
+          repositoryOpened = callback;
+          return { dispose: vi.fn() };
+        },
         repositories: [
           {
             state: {
@@ -87,12 +98,21 @@ describe("git watchers", () => {
         debug: vi.fn()
       },
       onDidChangeActiveTextEditor: vi.fn(),
-      refresh: vi.fn(),
+      refresh,
       workspaceFolders: []
     });
 
-    expect(onRepositoryStateChange).toHaveBeenCalled();
-    expect(onDidOpenRepository).toHaveBeenCalled();
+    expect(onRepositoryStateChange).not.toHaveBeenCalled();
+
+    repositoryOpened?.({
+      state: {
+        onDidChange: onRepositoryStateChange
+      }
+    });
+    vi.advanceTimersByTime(500);
+
+    expect(onRepositoryStateChange).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledWith("watcher");
   });
 
   it("ignores active editor changes for diff and virtual documents", () => {

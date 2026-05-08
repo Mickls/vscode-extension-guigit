@@ -287,8 +287,8 @@ gui-git-history/
 - Modify: `packages/extension/src/extension/activate.ts`
 
 - [x] Register all `guigit.*` commands.
-- [x] Register Git state listeners.
-- [x] Watch `.git/HEAD` and `.git/refs/heads/**`.
+- [x] Register repository open listener without broad Git state refresh noise.
+- [x] Watch `.git/HEAD`, local refs, tag refs, remote refs, and packed refs.
 - [x] Debounce refresh.
 - [x] Preserve `showCommitDetails` jump behavior.
 - [x] Commit with `feat: wire vscode commands and git watchers`.

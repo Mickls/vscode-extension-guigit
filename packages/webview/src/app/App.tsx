@@ -37,6 +37,8 @@ export interface AppProps {
 
 interface HistoryRequestMeta {
   append: boolean;
+  preserveSelection: boolean;
+  probeHash?: string;
   repositoryId?: string;
 }
 
@@ -83,6 +85,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       if (isBackendNotification(response)) {
         if (response.type === "history.changed") {
           requestHistory(client, pendingHistoryRequestsRef.current, {
+            preserveSelection: response.reason === "watcher",
             repositoryId: selectedRepositoryIdRef.current
           });
         }
@@ -106,11 +109,25 @@ export function App({ rpcClient }: AppProps): ReactElement {
         pendingHistoryRequestsRef.current.delete(response.id);
         loadingMoreRef.current = false;
 
+        if (historyRequest?.probeHash) {
+          return;
+        }
+
         const nextCommits = historyRequest?.append
           ? [...commitsRef.current, ...response.payload.commits]
           : response.payload.commits;
         const repositoryId = historyRequest?.repositoryId ?? response.payload.repositories[0]?.id;
-        const commit = selectCommitAfterHistoryLoad(nextCommits, selectedCommitHashRef.current);
+        const selectedHash = selectedCommitHashRef.current;
+        const commit = selectCommitAfterHistoryLoad(nextCommits, selectedHash, historyRequest?.preserveSelection ?? false);
+        if (!historyRequest?.append && selectedHash && historyRequest?.preserveSelection && !commit) {
+          requestHistory(client, pendingHistoryRequestsRef.current, {
+            probeHash: selectedHash,
+            repositoryId,
+            search: selectedHash
+          });
+          return;
+        }
+
         commitsRef.current = nextCommits;
         hasMoreRef.current = response.payload.hasMore;
         nextCursorRef.current = response.payload.nextCursor;
@@ -345,6 +362,8 @@ function requestHistory(
   options: {
     append?: boolean;
     cursor?: string;
+    preserveSelection?: boolean;
+    probeHash?: string;
     repositoryId?: string;
     search?: string;
   } = {}
@@ -352,6 +371,8 @@ function requestHistory(
   const id = crypto.randomUUID();
   pendingRequests.set(id, {
     append: options.append ?? false,
+    preserveSelection: options.preserveSelection ?? false,
+    probeHash: options.probeHash,
     repositoryId: options.repositoryId
   });
   client?.post({
@@ -381,9 +402,15 @@ function isBackendNotification(message: BackendNotification | RpcResponse): mess
 
 function selectCommitAfterHistoryLoad(
   commits: readonly CommitListItemViewModel[],
-  selectedHash: string | undefined
+  selectedHash: string | undefined,
+  preserveSelection: boolean
 ): CommitListItemViewModel | undefined {
-  return commits.find((commit) => commit.hash === selectedHash) ?? commits[0];
+  const selectedCommit = commits.find((commit) => commit.hash === selectedHash);
+  if (preserveSelection && selectedHash) {
+    return selectedCommit;
+  }
+
+  return selectedCommit ?? commits[0];
 }
 
 function createPendingCommitDetails(commit: CommitListItemViewModel): CommitDetailsViewModel {

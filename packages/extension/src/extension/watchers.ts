@@ -19,11 +19,7 @@ export interface FileSystemWatcherLike extends Disposable {
   onDidDelete(callback: () => void): Disposable;
 }
 
-export interface GitRepositoryLike {
-  state: {
-    onDidChange(callback: () => void): Disposable;
-  };
-}
+export type GitRepositoryLike = object;
 
 export interface GitApiLike {
   onDidOpenRepository(callback: (repository: GitRepositoryLike) => void): Disposable;
@@ -83,25 +79,27 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
     headWatcher.onDidChange(() => scheduleRefresh("HEAD changed"));
     disposables.push(headWatcher);
 
-    const refsWatcher = input.createFileSystemWatcher(input.createRelativePattern(folder, ".git/refs/heads/**"));
-    refsWatcher.onDidChange(() => scheduleRefresh("refs changed"));
-    refsWatcher.onDidCreate(() => scheduleRefresh("refs created"));
-    refsWatcher.onDidDelete(() => scheduleRefresh("refs deleted"));
-    disposables.push(refsWatcher);
+    for (const pattern of [".git/refs/heads/**", ".git/refs/tags/**", ".git/refs/remotes/**"]) {
+      const refsWatcher = input.createFileSystemWatcher(input.createRelativePattern(folder, pattern));
+      refsWatcher.onDidChange(() => scheduleRefresh(`${pattern} changed`));
+      refsWatcher.onDidCreate(() => scheduleRefresh(`${pattern} created`));
+      refsWatcher.onDidDelete(() => scheduleRefresh(`${pattern} deleted`));
+      disposables.push(refsWatcher);
+    }
+
+    const packedRefsWatcher = input.createFileSystemWatcher(input.createRelativePattern(folder, ".git/packed-refs"));
+    packedRefsWatcher.onDidChange(() => scheduleRefresh("packed refs changed"));
+    packedRefsWatcher.onDidCreate(() => scheduleRefresh("packed refs created"));
+    packedRefsWatcher.onDidDelete(() => scheduleRefresh("packed refs deleted"));
+    disposables.push(packedRefsWatcher);
   }
 
   if (input.git) {
-    const registerRepository = (repository: GitRepositoryLike) => {
-      disposables.push(repository.state.onDidChange(() => scheduleRefresh("repository state changed")));
-    };
-
     disposables.push(
-      input.git.onDidOpenRepository((repository) => {
-        registerRepository(repository);
+      input.git.onDidOpenRepository(() => {
         scheduleRefresh("repository opened");
       })
     );
-    input.git.repositories.forEach(registerRepository);
   }
 
   disposables.push({

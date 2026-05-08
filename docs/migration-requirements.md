@@ -131,7 +131,7 @@
 - readonly virtual document diff
 - Git blame decoration
 - show commit details command 跳转
-- Git repository state watcher
+- Git repository ref watcher without broad state refresh noise
 - active editor repository switching
 
 ### 设置菜单
