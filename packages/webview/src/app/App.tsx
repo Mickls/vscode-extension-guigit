@@ -54,6 +54,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
+  const [operationNotification, setOperationNotification] = useState<string | undefined>();
   const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
   const hasMoreRef = useRef(false);
   const nextCursorRef = useRef<string | undefined>(undefined);
@@ -81,6 +82,15 @@ export function App({ rpcClient }: AppProps): ReactElement {
   }, [client]);
 
   useEffect(() => {
+    if (!operationNotification) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setOperationNotification(undefined), 3500);
+    return () => window.clearTimeout(timeout);
+  }, [operationNotification]);
+
+  useEffect(() => {
     const handleMessage = (event: MessageEvent<BackendNotification | RpcResponse>) => {
       const response = event.data;
       if (isBackendNotification(response)) {
@@ -102,6 +112,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (!response.ok) {
+        setOperationNotification(response.error.message);
         return;
       }
 
@@ -190,11 +201,14 @@ export function App({ rpcClient }: AppProps): ReactElement {
         setFileViewMode(response.payload.settings.fileViewMode);
       }
 
-      if (isPrimaryGitOperationResponse(response) && response.payload.status === "ok") {
-        requestHistory(client, pendingHistoryRequestsRef.current, {
-          preserveSelection: true,
-          repositoryId: selectedRepositoryIdRef.current
-        });
+      if (isPrimaryGitOperationResponse(response)) {
+        setOperationNotification(response.payload.message);
+        if (response.payload.status === "ok") {
+          requestHistory(client, pendingHistoryRequestsRef.current, {
+            preserveSelection: true,
+            repositoryId: selectedRepositoryIdRef.current
+          });
+        }
       }
     };
 
@@ -333,6 +347,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
     <main className="flex h-screen overflow-hidden flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
       <Header
         graphVisible={graphVisible}
+        onAdvancedPull={() => postRepositoryGitOperation(client, selectedRepositoryIdRef.current, "git.advancedPull")}
+        onAdvancedPush={() => postRepositoryGitOperation(client, selectedRepositoryIdRef.current, "git.advancedPush")}
         onGraphToggle={() => setGraphVisible((visible) => !visible)}
         onFetch={() => postRepositoryGitOperation(client, selectedRepositoryIdRef.current, "git.fetch")}
         onPull={() => postRepositoryGitOperation(client, selectedRepositoryIdRef.current, "git.pull")}
@@ -395,6 +411,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         open={compareOverlayOpen}
         toHash={commits[1]?.hash ?? ""}
       />
+      {operationNotification ? <OperationToast message={operationNotification} /> : null}
     </main>
   );
 }
@@ -460,7 +477,7 @@ function requestGraphLayout(client: RpcClient | undefined, repositoryId: string,
 function postRepositoryGitOperation(
   client: RpcClient | undefined,
   repositoryId: string | undefined,
-  type: "git.fetch" | "git.pull" | "git.push"
+  type: "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push"
 ): void {
   if (!repositoryId) {
     return;
@@ -479,8 +496,25 @@ function isBackendNotification(message: BackendNotification | RpcResponse): mess
 
 function isPrimaryGitOperationResponse(
   response: RpcResponse
-): response is Extract<RpcResponse, { type: "git.fetch" | "git.pull" | "git.push" }> {
-  return response.type === "git.fetch" || response.type === "git.pull" || response.type === "git.push";
+): response is Extract<RpcResponse, { type: "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push" }> {
+  return (
+    response.type === "git.advancedPull" ||
+    response.type === "git.advancedPush" ||
+    response.type === "git.fetch" ||
+    response.type === "git.pull" ||
+    response.type === "git.push"
+  );
+}
+
+function OperationToast({ message }: { message: string }): ReactElement {
+  return (
+    <div
+      className="fixed bottom-4 right-4 max-w-[360px] rounded-[4px] border border-[var(--vscode-notifications-border)] bg-[var(--vscode-notifications-background)] px-3 py-2 text-xs text-[var(--vscode-notifications-foreground)] shadow-lg"
+      role="status"
+    >
+      {message}
+    </div>
+  );
 }
 
 function selectCommitAfterHistoryLoad(

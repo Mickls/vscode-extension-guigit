@@ -12,6 +12,7 @@ vi.mock("vscode", () => ({
 describe("GitService", () => {
   it("runs pull through safety auto-stash handling", async () => {
     const calls: string[] = [];
+    const logs: unknown[] = [];
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -25,11 +26,16 @@ describe("GitService", () => {
       },
       settingsService: {
         getSettings: () => ({ autoStashOnPull: "always" })
+      },
+      logger: {
+        debug: () => undefined,
+        info: (_message, context) => logs.push(context)
       }
     });
 
     await expect(service.pull("/repo")).resolves.toEqual({ message: "Pull completed", status: "ok" });
     expect(calls).toEqual(["safety /repo always", "pull"]);
+    expect(logs).toContainEqual({ command: "git -C /repo pull" });
   });
 
   it("runs push, prompts pull request creation for non-main branches, and fetches", async () => {
@@ -56,6 +62,7 @@ describe("GitService", () => {
 
   it("clones into the target directory and checks out branches", async () => {
     const calls: string[] = [];
+    const logs: unknown[] = [];
     const service = createService({
       gitClone: async (targetDirectory, url) => {
         calls.push(`clone ${url} ${targetDirectory}`);
@@ -63,6 +70,10 @@ describe("GitService", () => {
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
         return "";
+      },
+      logger: {
+        debug: () => undefined,
+        info: (_message, context) => logs.push(context)
       }
     });
 
@@ -76,6 +87,10 @@ describe("GitService", () => {
     });
 
     expect(calls).toEqual(["clone https://example.com/repo.git /target", "checkout feature/demo"]);
+    expect(logs).toEqual([
+      { command: "git -C /target clone https://example.com/repo.git ." },
+      { command: "git -C /repo checkout feature/demo" }
+    ]);
   });
 
   it("uses backend quick picks for advanced pull and push", async () => {
@@ -170,6 +185,10 @@ function createService(input: {
     items: readonly { label: string; value: string }[],
     options: { placeHolder: string }
   ) => Thenable<{ label: string; value: string } | undefined> | Promise<{ label: string; value: string } | undefined>;
+  logger?: {
+    debug(message: string, context?: unknown): void;
+    info(message: string, context?: unknown): void;
+  };
 }): GitService {
   return new GitService({
     gitClone: input.gitClone,
@@ -184,6 +203,7 @@ function createService(input: {
       ({
         getSettings: () => ({ autoStashOnPull: "ask" })
       } as never),
+    logger: input.logger,
     showInformationMessage: input.showInformationMessage,
     showQuickPick: input.showQuickPick
   });

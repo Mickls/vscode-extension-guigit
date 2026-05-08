@@ -656,20 +656,21 @@ describe("App", () => {
     );
   });
 
-  it("posts toolbar git operations and reloads history after they complete", async () => {
-    const user = userEvent.setup();
+  it("posts toolbar git operations, shows status notifications, and reloads history after they complete", async () => {
     const rpcClient = createTestRpcClient();
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
 
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
     await waitForCommitRows();
-    await user.click(screen.getByText("Second real commit"));
+    fireEvent.click(screen.getByText("Second real commit"));
     rpcClient.post.mockClear();
 
-    await user.click(screen.getByRole("button", { name: "Pull" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }));
     const pullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.pull")![0];
     expect(pullRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.pull" }));
     dispatchOperationResponse(pullRequest.id, "git.pull");
+    expect(screen.getByRole("status")).toHaveTextContent("Git operation completed");
 
     const pullReloadRequest = rpcClient.post.mock.calls.find(
       ([request]) => request.type === "history.load" && request.repositoryId === "/repo"
@@ -678,7 +679,7 @@ describe("App", () => {
     expect(screen.getAllByText("Second real commit").length).toBeGreaterThan(0);
 
     rpcClient.post.mockClear();
-    await user.click(screen.getByRole("button", { name: "Push" }));
+    fireEvent.click(screen.getByRole("button", { name: "Push" }));
     const pushRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.push")![0];
     expect(pushRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.push" }));
     dispatchOperationResponse(pushRequest.id, "git.push");
@@ -691,7 +692,7 @@ describe("App", () => {
     );
 
     rpcClient.post.mockClear();
-    await user.click(screen.getByRole("button", { name: "Fetch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fetch" }));
     const fetchRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.fetch")![0];
     expect(fetchRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.fetch" }));
     dispatchOperationResponse(fetchRequest.id, "git.fetch");
@@ -700,6 +701,40 @@ describe("App", () => {
       expect.objectContaining({
         repositoryId: "/repo",
         type: "history.load"
+      })
+    );
+
+    const closeNotification = setTimeoutSpy.mock.calls.at(-1)?.[0];
+    expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 3500);
+    act(() => {
+      closeNotification?.();
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    setTimeoutSpy.mockRestore();
+  });
+
+  it("exposes advanced pull and push toolbar actions for branch-specific rebase and force push flows", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Advanced Pull" }));
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryId: "/repo",
+        type: "git.advancedPull"
+      })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Advanced Push" }));
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryId: "/repo",
+        type: "git.advancedPush"
       })
     );
   });

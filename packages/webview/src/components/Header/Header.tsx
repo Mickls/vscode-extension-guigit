@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 
-type ToolbarAction = "fetch" | "pull" | "push" | "refresh" | "settings";
+type ToolbarAction = "advancedPull" | "advancedPush" | "fetch" | "pull" | "push" | "refresh" | "settings";
 
 interface ToolbarActionItem {
   action: ToolbarAction;
@@ -20,9 +20,19 @@ const toolbarActions: readonly ToolbarActionItem[] = [
     label: "Pull"
   },
   {
+    action: "advancedPull",
+    icon: <PullIcon />,
+    label: "Advanced Pull"
+  },
+  {
     action: "push",
     icon: <PushIcon />,
     label: "Push"
+  },
+  {
+    action: "advancedPush",
+    icon: <PushIcon />,
+    label: "Advanced Push"
   },
   {
     action: "fetch",
@@ -39,6 +49,8 @@ const toolbarActions: readonly ToolbarActionItem[] = [
 export interface HeaderProps {
   graphVisible?: boolean;
   onGraphToggle?: () => void;
+  onAdvancedPull?: () => void;
+  onAdvancedPush?: () => void;
   onRefresh?: () => void;
   onFetch?: () => void;
   onPull?: () => void;
@@ -49,6 +61,8 @@ export interface HeaderProps {
 
 export function Header({
   graphVisible = true,
+  onAdvancedPull,
+  onAdvancedPush,
   onGraphToggle,
   onFetch,
   onPull,
@@ -59,6 +73,8 @@ export function Header({
 }: HeaderProps): ReactElement {
   const graphLabel = graphVisible ? "Hide Git Graph" : "Show Git Graph";
   const actionHandlers: Record<ToolbarAction, (() => void) | undefined> = {
+    advancedPull: onAdvancedPull,
+    advancedPush: onAdvancedPush,
     fetch: onFetch,
     pull: onPull,
     push: onPush,
@@ -90,24 +106,26 @@ export function Header({
         <button
           aria-label={graphLabel}
           aria-pressed={graphVisible}
-          className="flex h-7 min-w-7 items-center justify-center rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+          className="flex h-7 items-center justify-center gap-1 rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
           onClick={onGraphToggle}
           title={graphLabel}
           type="button"
         >
           <GraphIcon />
+          <span>Graph</span>
         </button>
         {toolbarActions.map((item) => (
           <button
             aria-label={item.label}
             aria-expanded={item.action === "settings" ? settingsOpen : undefined}
-            className="flex h-7 min-w-7 items-center justify-center rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+            className="flex h-7 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             key={item.action}
             onClick={actionHandlers[item.action]}
             title={item.label}
             type="button"
           >
             {item.icon}
+            <span>{item.label}</span>
           </button>
         ))}
       </div>

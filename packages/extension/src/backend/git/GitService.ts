@@ -13,7 +13,7 @@ interface QuickPickItem {
 export interface GitServiceInput {
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
-  logger?: Pick<Logger, "debug">;
+  logger?: Pick<Logger, "debug" | "info">;
   safetyService: Pick<SafetyService, "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
@@ -23,7 +23,7 @@ export interface GitServiceInput {
 export class GitService {
   private readonly gitClone: (targetDirectory: string, url: string) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
-  private readonly logger: Pick<Logger, "debug"> | undefined;
+  private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly safetyService: Pick<SafetyService, "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly showInformationMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
@@ -76,7 +76,7 @@ export class GitService {
 
   public async push(repositoryRoot: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.push", { repositoryRoot });
-    await this.gitRaw(repositoryRoot, ["push"]);
+    await this.runGitRaw(repositoryRoot, ["push"]);
     await this.promptPullRequestForCurrentBranch(repositoryRoot);
 
     return {
@@ -120,7 +120,7 @@ export class GitService {
         : ["push", remoteTarget.remote, `HEAD:${remoteTarget.branch}`];
 
     this.logger?.debug("git.advancedPush", { args, repositoryRoot });
-    await this.gitRaw(repositoryRoot, args);
+    await this.runGitRaw(repositoryRoot, args);
     await this.promptPullRequestForCurrentBranch(repositoryRoot);
 
     return {
@@ -131,7 +131,7 @@ export class GitService {
 
   public async fetch(repositoryRoot: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.fetch", { repositoryRoot });
-    await this.gitRaw(repositoryRoot, ["fetch", "--all", "--prune"]);
+    await this.runGitRaw(repositoryRoot, ["fetch", "--all", "--prune"]);
 
     return {
       message: "Fetch completed",
@@ -141,6 +141,7 @@ export class GitService {
 
   public async clone(targetDirectory: string, url: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.clone", { targetDirectory, url });
+    this.logGitCommand(targetDirectory, ["clone", url, "."]);
     await this.gitClone(targetDirectory, url);
 
     return {
@@ -151,7 +152,7 @@ export class GitService {
 
   public async checkout(repositoryRoot: string, branch: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.checkout", { branch, repositoryRoot });
-    await this.gitRaw(repositoryRoot, ["checkout", branch]);
+    await this.runGitRaw(repositoryRoot, ["checkout", branch]);
 
     return {
       message: `Checked out ${branch}`,
@@ -167,7 +168,7 @@ export class GitService {
     const preference = this.settingsService.getSettings().autoStashOnPull;
     return this.safetyService.runWithAutoStash(repositoryRoot, preference, async () => {
       this.logger?.debug("git.pull", { args, repositoryRoot });
-      await this.gitRaw(repositoryRoot, args);
+      await this.runGitRaw(repositoryRoot, args);
 
       return {
         message,
@@ -177,7 +178,7 @@ export class GitService {
   }
 
   private async pickRemoteBranch(repositoryRoot: string, placeHolder: string): Promise<QuickPickItem | undefined> {
-    const branches = parseRemoteBranches(await this.gitRaw(repositoryRoot, ["branch", "-r"]));
+    const branches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
     return this.showQuickPick(
       branches.map((branch) => ({ label: branch, value: branch })),
       { placeHolder }
@@ -185,10 +186,21 @@ export class GitService {
   }
 
   private async promptPullRequestForCurrentBranch(repositoryRoot: string): Promise<void> {
-    const branch = (await this.gitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+    const branch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
     if (branch !== "main" && branch !== "master") {
       await this.showInformationMessage(`Pushed ${branch}. Create a pull request?`, "Create Pull Request", "Dismiss");
     }
+  }
+
+  private async runGitRaw(repositoryRoot: string, args: readonly string[]): Promise<string> {
+    this.logGitCommand(repositoryRoot, args);
+    return this.gitRaw(repositoryRoot, args);
+  }
+
+  private logGitCommand(repositoryRoot: string, args: readonly string[]): void {
+    this.logger?.info("git.command", {
+      command: `git -C ${repositoryRoot} ${args.join(" ")}`
+    });
   }
 }
 
