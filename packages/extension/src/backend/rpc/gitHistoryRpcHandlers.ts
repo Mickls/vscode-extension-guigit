@@ -4,6 +4,7 @@ import type { FileService } from "../git/FileService";
 import type { GraphService } from "../git/GraphService";
 import type { RepositoryService } from "../git/RepositoryService";
 import type { DiffService } from "../vscode/DiffService";
+import type { FileHistoryPanel } from "../vscode/FileHistoryPanel";
 import type { SettingsService } from "../../state/SettingsService";
 import type { BranchesViewModel, RepositoryViewModel } from "./contract";
 import type { RpcHandlerMap } from "./router";
@@ -17,6 +18,7 @@ export interface GitHistoryRpcHandlerInput {
   branchService: Pick<BranchService, "listBranches">;
   commitService: Pick<CommitService, "loadHistory">;
   fileService: Pick<FileService, "getCommitDetails" | "getFileChanges">;
+  fileHistoryPanel: Pick<FileHistoryPanel, "openHistory" | "openWorkingFile">;
   graphService: Pick<GraphService, "getLayout">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
   repositoryService: Pick<
@@ -46,6 +48,16 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.fileService.getFileChanges(repository.rootPath, request.hash, request.mode);
+    },
+    "files.openWorkingFile": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.fileHistoryPanel.openWorkingFile(repository.rootPath, request.filePath);
+    },
+    "files.openHistory": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.fileHistoryPanel.openHistory(repository.rootPath, request.filePath);
     },
     "graph.getLayout": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);

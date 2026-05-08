@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Uri } from "vscode";
 import type { BackendNotification, RpcRequest } from "../backend/rpc/contract";
 import { createRpcRouter, type RpcRouter } from "../backend/rpc/router";
+import type { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
 import { createWebviewShellHtml } from "./webviewShellHtml";
 
 export class GitHistoryViewProvider implements WebviewViewProvider {
@@ -12,7 +13,8 @@ export class GitHistoryViewProvider implements WebviewViewProvider {
 
   public constructor(
     private readonly context: ExtensionContext,
-    private readonly router: RpcRouter = createRpcRouter({})
+    private readonly router: RpcRouter = createRpcRouter({}),
+    private readonly fileHistoryPanel?: Pick<FileHistoryPanel, "openHistoryForUri">
   ) {}
 
   public resolveWebviewView(webviewView: WebviewView): void {
@@ -44,9 +46,7 @@ export class GitHistoryViewProvider implements WebviewViewProvider {
   }
 
   public showFileHistoryForUri(resource?: Uri): Promise<void> {
-    void resource;
-    this.refresh("command");
-    return Promise.resolve();
+    return this.fileHistoryPanel?.openHistoryForUri(resource).then(() => undefined) ?? Promise.resolve();
   }
 
   private async postNotification(notification: BackendNotification): Promise<void> {

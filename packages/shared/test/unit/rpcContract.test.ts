@@ -12,6 +12,8 @@ const requiredRequestTypes = [
   "branches.list",
   "commits.getDetails",
   "files.getChanges",
+  "files.openWorkingFile",
+  "files.openHistory",
   "graph.getLayout",
   "remotes.list",
   "settings.get",

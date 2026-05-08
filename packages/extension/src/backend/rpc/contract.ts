@@ -4,6 +4,8 @@ export const allRpcRequestTypes = [
   "branches.list",
   "commits.getDetails",
   "files.getChanges",
+  "files.openWorkingFile",
+  "files.openHistory",
   "graph.getLayout",
   "diff.openCommitFile",
   "diff.openCompareFile",
@@ -175,6 +177,8 @@ export type RpcRequest =
       hash: string;
       mode: FileViewMode;
     })
+  | (RpcEnvelope & { type: "files.openWorkingFile"; repositoryId: string; filePath: string })
+  | (RpcEnvelope & { type: "files.openHistory"; repositoryId: string; filePath: string })
   | (RpcEnvelope & { type: "graph.getLayout"; repositoryId: string; hashes: readonly string[] })
   | (RpcEnvelope & { type: "diff.openCommitFile"; repositoryId: string; hash: string; filePath: string })
   | (RpcEnvelope & {
@@ -227,6 +231,8 @@ export interface RpcPayloadByType {
   "branches.list": { branches: BranchesViewModel };
   "commits.getDetails": { commit: CommitDetailsViewModel };
   "files.getChanges": { files: readonly FileChangeViewModel[]; mode: FileViewMode };
+  "files.openWorkingFile": OperationResultViewModel;
+  "files.openHistory": OperationResultViewModel;
   "graph.getLayout": { graph: GraphLayoutViewModel };
   "diff.openCommitFile": OperationResultViewModel;
   "diff.openCompareFile": OperationResultViewModel;

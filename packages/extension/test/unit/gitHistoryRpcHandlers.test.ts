@@ -86,6 +86,10 @@ describe("Git history RPC handlers", () => {
         openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
         openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
       },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" }),
@@ -127,6 +131,10 @@ describe("Git history RPC handlers", () => {
       diffService: {
         openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
         openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
       repositoryService: {
         discoverRepositories: async () => [],
@@ -181,6 +189,10 @@ describe("Git history RPC handlers", () => {
         openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
         openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
       },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
@@ -226,6 +238,10 @@ describe("Git history RPC handlers", () => {
       diffService: {
         openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
         openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
@@ -282,6 +298,10 @@ describe("Git history RPC handlers", () => {
           return { message: "compare opened", status: "ok" };
         }
       },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
       repositoryService: {
         discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
         getCurrentRepository: () => undefined,
@@ -313,6 +333,73 @@ describe("Git history RPC handlers", () => {
     expect(diffCalls).toEqual([
       ["commit", "/repo", "abc1234567890abcdef", "src/file.ts"],
       ["compare", "/repo", "abc1234567890abcdef", "def4567890abcdefabc", "src/file.ts"]
+    ]);
+  });
+
+  it("opens working files and file history for the requested repository", async () => {
+    const fileCalls: unknown[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async (...args) => {
+          fileCalls.push(["history", ...args]);
+          return { message: "history opened", status: "ok" };
+        },
+        openWorkingFile: async (...args) => {
+          fileCalls.push(["open", ...args]);
+          return { message: "file opened", status: "ok" };
+        }
+      },
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      settingsService: createSettingsService()
+    });
+
+    await expect(
+      handlers["files.openWorkingFile"]!({
+        filePath: "src/file.ts",
+        id: "6",
+        repositoryId: "/repo",
+        type: "files.openWorkingFile"
+      })
+    ).resolves.toEqual({ message: "file opened", status: "ok" });
+    await expect(
+      handlers["files.openHistory"]!({
+        filePath: "src/file.ts",
+        id: "7",
+        repositoryId: "/repo",
+        type: "files.openHistory"
+      })
+    ).resolves.toEqual({ message: "history opened", status: "ok" });
+
+    expect(fileCalls).toEqual([
+      ["open", "/repo", "src/file.ts"],
+      ["history", "/repo", "src/file.ts"]
     ]);
   });
 });

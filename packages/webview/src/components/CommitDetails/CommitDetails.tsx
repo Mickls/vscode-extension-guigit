@@ -6,14 +6,18 @@ export interface CommitDetailsProps {
   commit?: CommitDetailsViewModel;
   fileViewMode: FileViewMode;
   onFileViewModeChange?: (mode: FileViewMode) => void;
+  onOpenFile?: (path: string) => void;
   onOpenFileDiff?: (path: string) => void;
+  onOpenFileHistory?: (path: string) => void;
 }
 
 export function CommitDetails({
   commit,
   fileViewMode,
   onFileViewModeChange,
-  onOpenFileDiff
+  onOpenFile,
+  onOpenFileDiff,
+  onOpenFileHistory
 }: CommitDetailsProps): ReactElement {
   if (!commit) {
     return (
@@ -41,7 +45,9 @@ export function CommitDetails({
         files={commit.files}
         mode={fileViewMode}
         onModeChange={onFileViewModeChange}
+        onOpenFile={onOpenFile}
         onOpenFileDiff={onOpenFileDiff}
+        onOpenFileHistory={onOpenFileHistory}
       />
     </div>
   );

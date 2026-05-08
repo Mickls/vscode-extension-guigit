@@ -291,6 +291,47 @@ describe("App", () => {
     );
   });
 
+  it("sends changed file open and history intents from commit details", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    dispatchDetailsResponse(rpcClient.post.mock.calls[1]![0].id, {
+      body: "First commit details",
+      files: [
+        {
+          binary: false,
+          deletions: 1,
+          insertions: 3,
+          path: "src/app/App.tsx",
+          status: "modified"
+        }
+      ],
+      hash: "abc1234567890abcdef",
+      message: "Wire real data"
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Open file src/app/App.tsx" }));
+    await user.click(screen.getByRole("button", { name: "Open file history for src/app/App.tsx" }));
+
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: "src/app/App.tsx",
+        repositoryId: "/repo",
+        type: "files.openWorkingFile"
+      })
+    );
+    expect(rpcClient.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: "src/app/App.tsx",
+        repositoryId: "/repo",
+        type: "files.openHistory"
+      })
+    );
+  });
+
   it("uses backend file view mode settings and sends update intents from changed files", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

@@ -253,6 +253,32 @@ export function App({ rpcClient }: AppProps): ReactElement {
     });
   };
 
+  const openWorkingFile = (filePath: string) => {
+    if (!selectedRepositoryIdRef.current) {
+      return;
+    }
+
+    client?.post({
+      filePath,
+      id: crypto.randomUUID(),
+      repositoryId: selectedRepositoryIdRef.current,
+      type: "files.openWorkingFile"
+    });
+  };
+
+  const openFileHistory = (filePath: string) => {
+    if (!selectedRepositoryIdRef.current) {
+      return;
+    }
+
+    client?.post({
+      filePath,
+      id: crypto.randomUUID(),
+      repositoryId: selectedRepositoryIdRef.current,
+      type: "files.openHistory"
+    });
+  };
+
   const openCompareFileDiff = (filePath: string) => {
     const fromHash = commits[0]?.hash;
     const toHash = commits[1]?.hash;
@@ -310,7 +336,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
             commit={commitDetails}
             fileViewMode={fileViewMode}
             onFileViewModeChange={updateFileViewMode}
+            onOpenFile={openWorkingFile}
             onOpenFileDiff={openCommitFileDiff}
+            onOpenFileHistory={openFileHistory}
           />
         }
       />

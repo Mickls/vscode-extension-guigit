@@ -9,6 +9,7 @@ import { FileService } from "../backend/git/FileService";
 import { GraphService } from "../backend/git/GraphService";
 import { RepositoryService } from "../backend/git/RepositoryService";
 import { DiffService } from "../backend/vscode/DiffService";
+import { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
 import { LoggerService, type LogLevel } from "../logging/LoggerService";
 import { CacheService } from "../state/CacheService";
 import { SettingsService, type SettingsConfigurationKey } from "../state/SettingsService";
@@ -58,11 +59,17 @@ export function activate(context: ExtensionContext): void {
   });
   const graphService = new GraphService({ logger });
   const diffService = new DiffService({ logger });
+  const fileHistoryPanel = new FileHistoryPanel({
+    activeEditorUri: () => window.activeTextEditor?.document.uri,
+    logger,
+    repositoryService
+  });
   const router = createRpcRouter(
     createGitHistoryRpcHandlers({
       branchService,
       commitService,
       diffService,
+      fileHistoryPanel,
       fileService,
       graphService,
       repositoryService,
@@ -70,7 +77,7 @@ export function activate(context: ExtensionContext): void {
     }),
     logger
   );
-  const viewProvider = new GitHistoryViewProvider(context, router);
+  const viewProvider = new GitHistoryViewProvider(context, router, fileHistoryPanel);
   const gitExtension = extensions.getExtension<GitExtensionExports>("vscode.git");
   const git = gitExtension?.exports.getAPI(1);
 

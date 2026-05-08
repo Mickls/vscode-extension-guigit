@@ -313,11 +313,11 @@ gui-git-history/
 
 - Create: `packages/extension/src/backend/vscode/FileHistoryPanel.ts`
 
-- [ ] Open file history from explorer, editor, and commit details.
-- [ ] Resolve file path relative to current repository.
-- [ ] Clicking a commit jumps the main view to that commit.
-- [ ] Keep panel HTML small and generated from backend data only.
-- [ ] Commit with `feat: add file history panel`.
+- [x] Open file history from explorer, editor, and commit details.
+- [x] Resolve file path relative to current repository.
+- [x] Clicking a commit jumps the main view to that commit.
+- [x] Keep panel HTML small and generated from backend data only.
+- [x] Commit with `feat: add file history panel`.
 
 ## Phase 5: Git Write Operations
 
