@@ -31,7 +31,7 @@ const emptyCompareFiles: readonly FileChangeViewModel[] = [];
 const pageSize = 50;
 const defaultFileViewMode: FileViewMode = "list";
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
-type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation";
+type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
 
 const gitOperationLabels = {
   "git.advancedPull": "Advanced Pull",
@@ -106,6 +106,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
     const timeout = window.setTimeout(() => setOperationNotification(undefined), 3500);
     return () => window.clearTimeout(timeout);
   }, [operationNotification]);
+
+  useEffect(() => {
+    if (!conflictOperation) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      sendConflictOperation("git.operationState");
+    }, 2500);
+    return () => window.clearInterval(interval);
+  }, [conflictOperation]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<BackendNotification | RpcResponse>) => {
@@ -413,7 +424,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
       return;
     }
 
-    setActiveGitOperation(type);
+    if (type !== "git.operationState") {
+      setActiveGitOperation(type);
+    }
     client?.post({
       id: crypto.randomUUID(),
       repositoryId: selectedRepositoryIdRef.current,
@@ -575,11 +588,20 @@ function isPrimaryGitOperationResponse(
 function isConflictGitOperationResponse(
   response: RpcResponse
 ): response is Extract<RpcResponse, { type: ConflictGitOperationType }> {
-  return response.type === "git.abortOperation" || response.type === "git.continueOperation";
+  return (
+    response.type === "git.abortOperation" ||
+    response.type === "git.continueOperation" ||
+    response.type === "git.operationState"
+  );
 }
 
 function isGitOperationType(type: string): type is ConflictGitOperationType | PrimaryGitOperationType {
-  return isPrimaryGitOperationType(type) || type === "git.abortOperation" || type === "git.continueOperation";
+  return (
+    isPrimaryGitOperationType(type) ||
+    type === "git.abortOperation" ||
+    type === "git.continueOperation" ||
+    type === "git.operationState"
+  );
 }
 
 function isPrimaryGitOperationType(type: string): type is PrimaryGitOperationType {

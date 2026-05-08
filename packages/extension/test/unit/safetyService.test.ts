@@ -107,6 +107,9 @@ describe("SafetyService", () => {
       if (args.join(" ") === "status --porcelain") {
         return calls.includes("operation") && !calls.includes("commit --no-edit") ? "UU src/file.ts\n" : " M src/file.ts\n";
       }
+      if (args.join(" ") === "stash list --format=%gd%x00%s") {
+        return "stash@{0}\u0000On main: GUI Git History auto stash\n";
+      }
 
       return "";
     });
@@ -144,8 +147,10 @@ describe("SafetyService", () => {
       "stash push --include-untracked -m GUI Git History auto stash",
       "operation",
       "status --porcelain",
+      "status --porcelain",
       "commit --no-edit",
-      "stash pop"
+      "stash list --format=%gd%x00%s",
+      "stash pop stash@{0}"
     ]);
   });
 
@@ -155,6 +160,9 @@ describe("SafetyService", () => {
       calls.push(args.join(" "));
       if (args.join(" ") === "status --porcelain") {
         return calls.includes("operation") ? "UU src/file.ts\n" : " M src/file.ts\n";
+      }
+      if (args.join(" ") === "stash list --format=%gd%x00%s") {
+        return "stash@{0}\u0000On main: GUI Git History auto stash\n";
       }
 
       return "";
@@ -187,8 +195,10 @@ describe("SafetyService", () => {
       "stash push --include-untracked -m GUI Git History auto stash",
       "operation",
       "status --porcelain",
+      "status --porcelain",
       "merge --abort",
-      "stash pop"
+      "stash list --format=%gd%x00%s",
+      "stash pop stash@{0}"
     ]);
   });
 
@@ -202,12 +212,15 @@ describe("SafetyService", () => {
         return statusCalls === 1 ? " M app.txt\n" : "UU app.txt\n";
       }
 
-      if (args.join(" ") === "-c core.editor=true rebase --continue") {
-        if (calls.filter((call) => call === "-c core.editor=true rebase --continue").length === 1) {
+      if (args.join(" ") === "rebase --continue") {
+        if (calls.filter((call) => call === "rebase --continue").length === 1) {
           throw new Error("app.txt: needs merge");
         }
 
         return "";
+      }
+      if (args.join(" ") === "stash list --format=%gd%x00%s") {
+        return "stash@{0}\u0000On main: GUI Git History auto stash\n";
       }
 
       return "";
@@ -221,7 +234,7 @@ describe("SafetyService", () => {
     await expect(
       service.runWithAutoStash("/repo", "always", operation, {
         abortArgs: ["rebase", "--abort"],
-        continueArgs: ["-c", "core.editor=true", "rebase", "--continue"],
+        continueArgs: ["rebase", "--continue"],
         operationKind: "rebase",
         operationName: "Rebase"
       })
@@ -243,10 +256,13 @@ describe("SafetyService", () => {
       "stash push --include-untracked -m GUI Git History auto stash",
       "operation",
       "status --porcelain",
-      "-c core.editor=true rebase --continue",
       "status --porcelain",
-      "-c core.editor=true rebase --continue",
-      "stash pop"
+      "rebase --continue",
+      "status --porcelain",
+      "status --porcelain",
+      "rebase --continue",
+      "stash list --format=%gd%x00%s",
+      "stash pop stash@{0}"
     ]);
   });
 
@@ -264,8 +280,8 @@ describe("SafetyService", () => {
         return statusCalls === 2 ? "UU app.txt\n" : "";
       }
 
-      if (args.join(" ") === "-c core.editor=true rebase --continue") {
-        if (calls.filter((call) => call === "-c core.editor=true rebase --continue").length === 1) {
+      if (args.join(" ") === "rebase --continue") {
+        if (calls.filter((call) => call === "rebase --continue").length === 1) {
           throw new Error("No changes - did you forget to use 'git add'?");
         }
 
@@ -274,6 +290,9 @@ describe("SafetyService", () => {
 
       if (args.join(" ") === "status --untracked-files=no") {
         return "interactive rebase in progress; onto abc123\n";
+      }
+      if (args.join(" ") === "stash list --format=%gd%x00%s") {
+        return "stash@{0}\u0000On main: GUI Git History auto stash\n";
       }
 
       return "";
@@ -287,7 +306,7 @@ describe("SafetyService", () => {
     await expect(
       service.runWithAutoStash("/repo", "always", operation, {
         abortArgs: ["rebase", "--abort"],
-        continueArgs: ["-c", "core.editor=true", "rebase", "--continue"],
+        continueArgs: ["rebase", "--continue"],
         operationKind: "rebase",
         operationName: "Rebase"
       })
@@ -309,11 +328,73 @@ describe("SafetyService", () => {
       "stash push --include-untracked -m GUI Git History auto stash",
       "operation",
       "status --porcelain",
-      "-c core.editor=true rebase --continue",
       "status --porcelain",
       "status --untracked-files=no",
-      "-c core.editor=true rebase --continue",
-      "stash pop"
+      "rebase --continue",
+      "status --porcelain",
+      "status --untracked-files=no",
+      "status --porcelain",
+      "status --untracked-files=no",
+      "rebase --continue",
+      "stash list --format=%gd%x00%s",
+      "stash pop stash@{0}"
+    ]);
+  });
+
+  it("clears a conflict session when git operation was completed outside the extension", async () => {
+    const calls: string[] = [];
+    let statusCalls = 0;
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      calls.push(args.join(" "));
+      if (args.join(" ") === "status --porcelain") {
+        statusCalls += 1;
+        return statusCalls === 1 ? " M app.txt\n" : statusCalls === 2 ? "UU app.txt\n" : "";
+      }
+
+      if (args.join(" ") === "status --untracked-files=no") {
+        return "";
+      }
+
+      if (args.join(" ") === "stash list --format=%gd%x00%s") {
+        return "";
+      }
+
+      return "";
+    });
+    const operation = vi.fn(async () => {
+      calls.push("operation");
+      throw new Error("CONFLICT (content): Merge conflict in app.txt");
+    });
+    const service = new SafetyService({ gitRaw });
+
+    await expect(
+      service.runWithAutoStash("/repo", "always", operation, {
+        abortArgs: ["rebase", "--abort"],
+        continueArgs: ["rebase", "--continue"],
+        operationKind: "rebase",
+        operationName: "Rebase"
+      })
+    ).resolves.toEqual({
+      message: "Rebase has conflicts. Resolve all conflicted files, stage them, then continue from GUI Git History.",
+      status: "conflict"
+    });
+
+    await expect(service.getOperationState("/repo")).resolves.toEqual({
+      message: "Rebase already completed",
+      status: "ok"
+    });
+    await expect(service.abortOperation("/repo")).resolves.toEqual({
+      message: "No active git conflict to abort",
+      status: "cancelled"
+    });
+    expect(calls).toEqual([
+      "status --porcelain",
+      "stash push --include-untracked -m GUI Git History auto stash",
+      "operation",
+      "status --porcelain",
+      "status --porcelain",
+      "status --untracked-files=no",
+      "stash list --format=%gd%x00%s"
     ]);
   });
 });

@@ -32,7 +32,7 @@ export class SafetyService {
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 
   public constructor(input: SafetyServiceInput = {}) {
-    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).env("GIT_EDITOR", "true").raw([...args]));
     this.logger = input.logger;
     this.showWarningMessage =
       input.showWarningMessage ??
@@ -91,10 +91,19 @@ export class SafetyService {
       };
     }
 
+    const state = await this.getConflictState(repositoryRoot, session.conflict.operationKind);
+    if (state === "none") {
+      await this.finishExternallyResolvedSession(repositoryRoot, session);
+      return {
+        message: `${session.conflict.operationName} already completed`,
+        status: "ok"
+      };
+    }
+
     try {
       await this.runLoggedGit(repositoryRoot, session.conflict.continueArgs);
       if (session.autoStashed) {
-        await this.restoreAutoStash(repositoryRoot);
+        await this.restoreAutoStashIfPresent(repositoryRoot);
       }
 
       this.conflictSessions.delete(repositoryRoot);
@@ -129,9 +138,17 @@ export class SafetyService {
       };
     }
 
+    if ((await this.getConflictState(repositoryRoot, session.conflict.operationKind)) === "none") {
+      await this.finishExternallyResolvedSession(repositoryRoot, session);
+      return {
+        message: `${session.conflict.operationName} already completed`,
+        status: "ok"
+      };
+    }
+
     await this.runLoggedGit(repositoryRoot, session.conflict.abortArgs);
     if (session.autoStashed) {
-      await this.restoreAutoStash(repositoryRoot);
+      await this.restoreAutoStashIfPresent(repositoryRoot);
     }
 
     this.conflictSessions.delete(repositoryRoot);
@@ -140,6 +157,29 @@ export class SafetyService {
         ? `${session.conflict.operationName} aborted and stashed changes restored`
         : `${session.conflict.operationName} aborted`,
       status: "cancelled"
+    };
+  }
+
+  public async getOperationState(repositoryRoot: string): Promise<OperationResultViewModel> {
+    const session = this.conflictSessions.get(repositoryRoot);
+    if (!session) {
+      return {
+        message: "No active git conflict",
+        status: "ok"
+      };
+    }
+
+    if ((await this.getConflictState(repositoryRoot, session.conflict.operationKind)) === "none") {
+      await this.finishExternallyResolvedSession(repositoryRoot, session);
+      return {
+        message: `${session.conflict.operationName} already completed`,
+        status: "ok"
+      };
+    }
+
+    return {
+      message: this.getConflictPrompt(session.conflict.operationName),
+      status: "conflict"
     };
   }
 
@@ -191,6 +231,26 @@ export class SafetyService {
   private async restoreAutoStash(repositoryRoot: string): Promise<void> {
     this.logger?.debug("safety.autoStash.pop", { repositoryRoot });
     await this.runLoggedGit(repositoryRoot, ["stash", "pop"]);
+  }
+
+  private async restoreAutoStashIfPresent(repositoryRoot: string): Promise<void> {
+    const stashList = await this.runLoggedGit(repositoryRoot, ["stash", "list", "--format=%gd%x00%s"]);
+    const stashRef = stashList
+      .split("\n")
+      .map((line) => line.split("\u0000"))
+      .find((entry) => entry[1]?.includes(stashMessage))?.[0];
+    if (stashRef) {
+      this.logger?.debug("safety.autoStash.pop", { repositoryRoot, stashRef });
+      await this.runLoggedGit(repositoryRoot, ["stash", "pop", stashRef]);
+    }
+  }
+
+  private async finishExternallyResolvedSession(repositoryRoot: string, session: ConflictSession): Promise<void> {
+    if (session.autoStashed) {
+      await this.restoreAutoStashIfPresent(repositoryRoot);
+    }
+
+    this.conflictSessions.delete(repositoryRoot);
   }
 
   private async hasUnmergedConflicts(repositoryRoot: string): Promise<boolean> {

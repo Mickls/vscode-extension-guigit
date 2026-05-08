@@ -102,11 +102,20 @@ describe("GitService", () => {
     });
 
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
-    expect(calls).toEqual(["push", "rev-parse --abbrev-ref HEAD"]);
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "push",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
     await Promise.resolve();
     await expect(service.fetch("/repo")).resolves.toEqual({ message: "Fetch completed", status: "ok" });
 
-    expect(calls).toEqual(["push", "rev-parse --abbrev-ref HEAD", "fetch --all --prune"]);
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "push",
+      "rev-parse --abbrev-ref HEAD",
+      "fetch --all --prune"
+    ]);
     expect(showInformationMessage).toHaveBeenCalledWith(
       "Pushed feature/demo. Create a pull request?",
       "Create Pull Request",
@@ -126,11 +135,53 @@ describe("GitService", () => {
     });
 
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
-    expect(calls).toEqual(["push", "rev-parse --abbrev-ref HEAD"]);
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "push",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
     expect(showInformationMessage).toHaveBeenCalledWith(
       "Pushed feature/demo. Create a pull request?",
       "Create Pull Request",
       "Dismiss"
+    );
+  });
+
+  it("publishes the current branch before pushing when no upstream exists", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "origin", value: "origin" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          throw new Error("fatal: no upstream configured for branch 'feature'");
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        if (args.join(" ") === "remote") {
+          return "origin\n";
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
+      "remote",
+      "push -u origin feature",
+      "push",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [{ label: "origin", value: "origin" }],
+      { placeHolder: "Select remote to publish feature" }
     );
   });
 
@@ -216,7 +267,7 @@ describe("GitService", () => {
     ]);
     expect(conflictContext).toEqual({
       abortArgs: ["rebase", "--abort"],
-      continueArgs: ["-c", "core.editor=true", "rebase", "--continue"],
+      continueArgs: ["rebase", "--continue"],
       operationKind: "rebase",
       operationName: "Rebase"
     });
@@ -263,13 +314,18 @@ describe("GitService", () => {
           calls.push(`continue ${repositoryRoot}`);
           return { message: "continued", status: "ok" };
         },
+        getOperationState: async (repositoryRoot) => {
+          calls.push(`state ${repositoryRoot}`);
+          return { message: "ok", status: "ok" };
+        },
         runWithAutoStash: async (_repositoryRoot, _preference, operation) => operation()
       }
     });
 
     await expect(service.continueOperation("/repo")).resolves.toEqual({ message: "continued", status: "ok" });
     await expect(service.abortOperation("/repo")).resolves.toEqual({ message: "aborted", status: "cancelled" });
-    expect(calls).toEqual(["continue /repo", "abort /repo"]);
+    await expect(service.getOperationState("/repo")).resolves.toEqual({ message: "ok", status: "ok" });
+    expect(calls).toEqual(["continue /repo", "abort /repo", "state /repo"]);
   });
 });
 
@@ -279,6 +335,7 @@ function createService(input: {
   safetyService?: {
     abortOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
     continueOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
+    getOperationState(repositoryRoot: string): Promise<OperationResultViewModel>;
     runWithAutoStash(
       repositoryRoot: string,
       preference: "ask" | "always" | "never",
@@ -312,6 +369,7 @@ function createService(input: {
       ({
         abortOperation: async () => ({ message: "aborted", status: "cancelled" }),
         continueOperation: async () => ({ message: "continued", status: "ok" }),
+        getOperationState: async () => ({ message: "ok", status: "ok" }),
         runWithAutoStash: async (_repositoryRoot, _preference, operation) => operation()
       } as never),
     settingsService:

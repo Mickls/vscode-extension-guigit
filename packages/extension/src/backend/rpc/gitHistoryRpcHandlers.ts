@@ -22,7 +22,16 @@ export interface GitHistoryRpcHandlerInput {
   fileHistoryPanel: Pick<FileHistoryPanel, "openHistory" | "openWorkingFile">;
   gitService: Pick<
     GitService,
-    "abortOperation" | "advancedPull" | "advancedPush" | "checkout" | "clone" | "continueOperation" | "fetch" | "pull" | "push"
+    | "abortOperation"
+    | "advancedPull"
+    | "advancedPush"
+    | "checkout"
+    | "clone"
+    | "continueOperation"
+    | "fetch"
+    | "getOperationState"
+    | "pull"
+    | "push"
   >;
   graphService: Pick<GraphService, "getLayout">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
@@ -105,6 +114,11 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.gitService.continueOperation(repository.rootPath);
+    },
+    "git.operationState": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.getOperationState(repository.rootPath);
     },
     "git.abortOperation": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);

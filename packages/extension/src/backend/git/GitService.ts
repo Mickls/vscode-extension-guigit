@@ -14,7 +14,7 @@ export interface GitServiceInput {
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
-  safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "runWithAutoStash">;
+  safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
@@ -24,7 +24,7 @@ export class GitService {
   private readonly gitClone: (targetDirectory: string, url: string) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
-  private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "runWithAutoStash">;
+  private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly showInformationMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
@@ -33,7 +33,7 @@ export class GitService {
     this.gitClone = input.gitClone ?? (async (targetDirectory, url) => {
       await simpleGit(targetDirectory).clone(url, ".");
     });
-    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).env("GIT_EDITOR", "true").raw([...args]));
     this.logger = input.logger;
     this.safetyService = input.safetyService;
     this.settingsService = input.settingsService;
@@ -80,6 +80,7 @@ export class GitService {
 
   public async push(repositoryRoot: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.push", { repositoryRoot });
+    await this.ensurePushTarget(repositoryRoot);
     await this.runGitRaw(repositoryRoot, ["push"]);
     void this.promptPullRequestForCurrentBranch(repositoryRoot).catch((error: unknown) => {
       this.logger?.debug("git.pullRequestPrompt.failed", {
@@ -182,6 +183,10 @@ export class GitService {
     return this.safetyService.abortOperation(repositoryRoot);
   }
 
+  public async getOperationState(repositoryRoot: string): Promise<OperationResultViewModel> {
+    return this.safetyService.getOperationState(repositoryRoot);
+  }
+
   private async runPullWithSafety(
     repositoryRoot: string,
     args: readonly string[],
@@ -229,6 +234,37 @@ export class GitService {
     return true;
   }
 
+  private async ensurePushTarget(repositoryRoot: string): Promise<void> {
+    try {
+      await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
+      return;
+    } catch (error) {
+      this.logger?.debug("git.push.missingUpstream", {
+        error: error instanceof Error ? error.message : String(error),
+        repositoryRoot
+      });
+    }
+
+    const currentBranch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+    const remote = await this.pickRemote(repositoryRoot, `Select remote to publish ${currentBranch}`);
+    if (!remote) {
+      throw new Error("Push cancelled");
+    }
+
+    await this.runGitRaw(repositoryRoot, ["push", "-u", remote.value, currentBranch]);
+  }
+
+  private async pickRemote(repositoryRoot: string, placeHolder: string): Promise<QuickPickItem | undefined> {
+    const remotes = (await this.runGitRaw(repositoryRoot, ["remote"]))
+      .split("\n")
+      .map((remote) => remote.trim())
+      .filter((remote) => remote.length > 0);
+    return this.showQuickPick(
+      remotes.map((remote) => ({ label: remote, value: remote })),
+      { placeHolder }
+    );
+  }
+
   private async promptPullRequestForCurrentBranch(repositoryRoot: string): Promise<void> {
     const branch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
     if (branch !== "main" && branch !== "master") {
@@ -267,7 +303,7 @@ function getPullConflictResolution(args: readonly string[]): ConflictResolutionI
   if (args.includes("--rebase")) {
     return {
       abortArgs: ["rebase", "--abort"],
-      continueArgs: ["-c", "core.editor=true", "rebase", "--continue"],
+      continueArgs: ["rebase", "--continue"],
       operationKind: "rebase",
       operationName: "Rebase"
     };

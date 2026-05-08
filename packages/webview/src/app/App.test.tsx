@@ -723,6 +723,7 @@ describe("App", () => {
 
   it("shows conflict actions and posts explicit continue or abort intents", async () => {
     const rpcClient = createTestRpcClient();
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
 
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
@@ -739,6 +740,14 @@ describe("App", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Pull has conflicts");
     expect(screen.getByRole("button", { name: "Pull" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Resolved and Staged" })).not.toBeDisabled();
+    expect(setIntervalSpy).toHaveBeenLastCalledWith(expect.any(Function), 2500);
+
+    const pollOperationState = setIntervalSpy.mock.calls.at(-1)?.[0];
+    act(() => {
+      pollOperationState?.();
+    });
+    const stateRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.operationState")![0];
+    expect(stateRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.operationState" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Resolved and Staged" }));
     const continueRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.continueOperation")![0];
@@ -763,6 +772,7 @@ describe("App", () => {
         type: "git.abortOperation"
       })
     );
+    setIntervalSpy.mockRestore();
   });
 
   it("exposes advanced pull and push toolbar actions for branch-specific rebase and force push flows", async () => {
@@ -1013,7 +1023,15 @@ function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", typ
 
 function dispatchOperationResponse(
   id: string,
-  type: "git.abortOperation" | "git.advancedPull" | "git.advancedPush" | "git.continueOperation" | "git.fetch" | "git.pull" | "git.push",
+  type:
+    | "git.abortOperation"
+    | "git.advancedPull"
+    | "git.advancedPush"
+    | "git.continueOperation"
+    | "git.fetch"
+    | "git.operationState"
+    | "git.pull"
+    | "git.push",
   result: { message: string; status: "cancelled" | "conflict" | "ok" } = {
     message: "Git operation completed",
     status: "ok"

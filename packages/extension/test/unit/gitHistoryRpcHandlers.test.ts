@@ -464,6 +464,10 @@ describe("Git history RPC handlers", () => {
           gitCalls.push(["continueOperation", repositoryRoot]);
           return { message: "continue operation", status: "ok" };
         },
+        getOperationState: async (repositoryRoot) => {
+          gitCalls.push(["operationState", repositoryRoot]);
+          return { message: "operation state", status: "ok" };
+        },
         fetch: async (repositoryRoot) => {
           gitCalls.push(["fetch", repositoryRoot]);
           return { message: "fetch", status: "ok" };
@@ -489,6 +493,7 @@ describe("Git history RPC handlers", () => {
     await handlers["git.advancedPull"]!({ id: "9", repositoryId: "/repo", type: "git.advancedPull" });
     await handlers["git.continueOperation"]!({ id: "9a", repositoryId: "/repo", type: "git.continueOperation" });
     await handlers["git.abortOperation"]!({ id: "9b", repositoryId: "/repo", type: "git.abortOperation" });
+    await handlers["git.operationState"]!({ id: "9c", repositoryId: "/repo", type: "git.operationState" });
     await handlers["git.push"]!({ id: "10", repositoryId: "/repo", type: "git.push" });
     await handlers["git.advancedPush"]!({ id: "11", repositoryId: "/repo", type: "git.advancedPush" });
     await handlers["git.fetch"]!({ id: "12", repositoryId: "/repo", type: "git.fetch" });
@@ -500,6 +505,7 @@ describe("Git history RPC handlers", () => {
       ["advancedPull", "/repo"],
       ["continueOperation", "/repo"],
       ["abortOperation", "/repo"],
+      ["operationState", "/repo"],
       ["push", "/repo"],
       ["advancedPush", "/repo"],
       ["fetch", "/repo"],
@@ -542,6 +548,7 @@ function createGitService() {
     clone: async () => ({ message: "ok", status: "ok" as const }),
     continueOperation: async () => ({ message: "ok", status: "ok" as const }),
     fetch: async () => ({ message: "ok", status: "ok" as const }),
+    getOperationState: async () => ({ message: "ok", status: "ok" as const }),
     pull: async () => ({ message: "ok", status: "ok" as const }),
     push: async () => ({ message: "ok", status: "ok" as const })
   };
