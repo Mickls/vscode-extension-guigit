@@ -288,17 +288,67 @@ describe("GraphService", () => {
       { column: 0, hash: "main", row: 2 },
       { column: 0, hash: "merge", row: 3 },
       { column: 2, hash: "branch-b", row: 4 },
-      { column: 2, hash: "shared-parent", row: 5 }
+      { column: 1, hash: "shared-parent", row: 5 }
     ]);
     expect(graph.edges.find((edge) => edge.fromHash === "branch-a" && edge.toHash === "shared-parent")?.points).toEqual([
       { x: 20, y: 54 },
-      { x: 20, y: 198 },
-      { x: 32, y: 198 }
+      { x: 20, y: 198 }
     ]);
     expect(graph.edges.find((edge) => edge.fromHash === "branch-b" && edge.toHash === "shared-parent")?.points).toEqual([
       { x: 32, y: 162 },
-      { x: 32, y: 198 }
+      { x: 32, y: 198 },
+      { x: 20, y: 198 }
     ]);
+  });
+
+  it("keeps an earlier inner shared-parent continuation as the merge lane", async () => {
+    const service = new GraphService({
+      gitRaw: async () =>
+        [
+          "head\x1fmain branch-b-tip",
+          "branch-b-tip\x1fshared-parent",
+          "main\x1fmerge",
+          "merge\x1fmain-parent branch-a-tip",
+          "branch-a-tip\x1fshared-parent",
+          "shared-parent\x1fbase",
+          "base\x1f"
+        ].join("\x1e")
+    });
+
+    const graph = await service.getLayout("/workspace/repo", [
+      "head",
+      "branch-b-tip",
+      "main",
+      "merge",
+      "branch-a-tip",
+      "shared-parent",
+      "base"
+    ]);
+
+    expect(graph.nodes.map((node) => ({ column: node.column, hash: node.hash, row: node.row }))).toEqual([
+      { column: 0, hash: "head", row: 0 },
+      { column: 1, hash: "branch-b-tip", row: 1 },
+      { column: 0, hash: "main", row: 2 },
+      { column: 0, hash: "merge", row: 3 },
+      { column: 2, hash: "branch-a-tip", row: 4 },
+      { column: 1, hash: "shared-parent", row: 5 },
+      { column: 1, hash: "base", row: 6 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-b-tip" && edge.toHash === "shared-parent")?.points).toEqual([
+      { x: 20, y: 54 },
+      { x: 20, y: 198 }
+    ]);
+    expect(graph.edges.find((edge) => edge.fromHash === "branch-a-tip" && edge.toHash === "shared-parent")?.points).toEqual([
+      { x: 32, y: 162 },
+      { x: 32, y: 198 },
+      { x: 20, y: 198 }
+    ]);
+    expect(graph.nodes.find((node) => node.hash === "shared-parent")?.color).toBe(
+      graph.nodes.find((node) => node.hash === "branch-b-tip")?.color
+    );
+    expect(graph.edges.find((edge) => edge.fromHash === "shared-parent" && edge.toHash === "base")?.color).toBe(
+      graph.nodes.find((node) => node.hash === "branch-b-tip")?.color
+    );
   });
 
   it("moves continuations inward when an inner lane has been released", async () => {
@@ -333,12 +383,11 @@ describe("GraphService", () => {
       { column: 0, hash: "main", row: 2 },
       { column: 0, hash: "merge", row: 3 },
       { column: 2, hash: "branch-b", row: 4 },
-      { column: 2, hash: "shared-parent", row: 5 },
+      { column: 1, hash: "shared-parent", row: 5 },
       { column: 2, hash: "side", row: 6 },
       { column: 1, hash: "base", row: 7 }
     ]);
     expect(graph.edges.find((edge) => edge.fromHash === "shared-parent" && edge.toHash === "base")?.points).toEqual([
-      { x: 32, y: 198 },
       { x: 20, y: 198 },
       { x: 20, y: 270 }
     ]);

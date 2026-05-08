@@ -270,13 +270,18 @@ function updateActiveColumns(
       if (firstParentColumn >= 0 && firstParentColumn !== column && !mainline.has(firstParent)) {
         activeColumns[column] = undefined;
       } else {
+        const innerEdgeKey =
+          firstParentColumn >= 0 ? undefined : findInnerEdgeTargeting(activeColumns, firstParent, column);
+        const innerEdgeColumn = innerEdgeKey === undefined ? undefined : activeColumns.indexOf(innerEdgeKey);
         const innerColumn = firstParentColumn >= 0 ? undefined : findAvailableInnerColumn(activeColumns, column);
-        const parentColumn = firstParentColumn >= 0 ? firstParentColumn : (innerColumn ?? column);
+        const parentColumn = firstParentColumn >= 0 ? firstParentColumn : (innerEdgeColumn ?? innerColumn ?? column);
         activeColumns[parentColumn] = firstParent;
         columnByHash.set(firstParent, parentColumn);
         colorByHash.set(
           firstParent,
-          mainline.has(firstParent) ? graphColors[0]! : colorByHash.get(firstParent) ?? color
+          mainline.has(firstParent)
+            ? graphColors[0]!
+            : (innerEdgeKey === undefined ? colorByHash.get(firstParent) : hiddenColorByEdge.get(innerEdgeKey)) ?? color
         );
         if (parentColumn !== column) {
           if (innerColumn !== undefined) {
@@ -294,6 +299,7 @@ function updateActiveColumns(
       activeColumns[column] = edgeKey;
       columnByEdge.set(edgeKey, column);
       routeByEdge.set(edgeKey, []);
+      hiddenColorByEdge.set(edgeKey, color);
       releaseCurrentColumn = false;
     }
   }
@@ -380,6 +386,20 @@ function findAvailableInnerColumn(columns: readonly (string | undefined)[], curr
   for (let index = 1; index < currentColumn; index += 1) {
     if (columns[index] === undefined) {
       return index;
+    }
+  }
+
+  return undefined;
+}
+
+function findInnerEdgeTargeting(
+  columns: readonly (string | undefined)[],
+  targetHash: string,
+  currentColumn: number
+): string | undefined {
+  for (let index = 1; index < currentColumn; index += 1) {
+    if (columns[index]?.endsWith(`\0${targetHash}`)) {
+      return columns[index];
     }
   }
 
