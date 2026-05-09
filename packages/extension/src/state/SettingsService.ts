@@ -47,8 +47,8 @@ export class SettingsService {
     return {
       autoStashOnPull: (this.configuration.get("guigit.autoStashOnPull") ?? "ask") as AutoStashPreference,
       blameEnabled: (this.configuration.get("guigit.blame.enabled") ?? true) as boolean,
-      blameFormat: (this.configuration.get("guigit.blame.format") ?? "${author}, ${time}: ${summary}") as string,
-      blameShowOnlyCurrentLine: (this.configuration.get("guigit.blame.showOnlyCurrentLine") ?? false) as boolean,
+      blameFormat: (this.configuration.get("guigit.blame.format") ?? "${author}: ${summary}") as string,
+      blameShowOnlyCurrentLine: (this.configuration.get("guigit.blame.showOnlyCurrentLine") ?? true) as boolean,
       fileViewMode: (this.configuration.get("guigit.fileViewMode") ?? "tree") as FileViewMode,
       language: (this.configuration.get("guigit.language") ?? "auto") as LanguagePreference,
       proxy: {

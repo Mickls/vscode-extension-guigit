@@ -1,6 +1,6 @@
+import { createHash } from "crypto";
 import { relative } from "path";
 import type { RepositoryService } from "../git/RepositoryService";
-import type { SettingsViewModel } from "../rpc/contract";
 import type { SettingsService } from "../../state/SettingsService";
 
 interface DisposableLike {
@@ -28,7 +28,7 @@ interface TextEditorLike {
 }
 
 interface BlameDecoration {
-  hoverMessage: string;
+  hoverMessage: unknown;
   range: unknown;
   renderOptions: {
     after: {
@@ -51,6 +51,7 @@ interface BlameLine {
 export interface BlameControllerInput {
   activeEditor: () => TextEditorLike | undefined;
   createDecorationType: () => unknown;
+  createMarkdownString: (value: string) => MarkdownStringLike;
   createRange: (startLine: number, startCharacter: number, endLine: number, endCharacter: number) => unknown;
   gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   onDidChangeActiveTextEditor?: (listener: (editor: TextEditorLike | undefined) => void) => DisposableLike;
@@ -62,8 +63,13 @@ export interface BlameControllerInput {
   updateBlameEnabled: (enabled: boolean) => Promise<void>;
 }
 
+interface MarkdownStringLike {
+  isTrusted?: boolean | { readonly enabledCommands: readonly string[] };
+}
+
 export class BlameController {
   private readonly activeEditor: () => TextEditorLike | undefined;
+  private readonly createMarkdownString: BlameControllerInput["createMarkdownString"];
   private readonly createRange: BlameControllerInput["createRange"];
   private readonly decorationType: unknown;
   private readonly disposables: DisposableLike[];
@@ -74,6 +80,7 @@ export class BlameController {
 
   public constructor(input: BlameControllerInput) {
     this.activeEditor = input.activeEditor;
+    this.createMarkdownString = input.createMarkdownString;
     this.createRange = input.createRange;
     this.decorationType = input.createDecorationType();
     this.gitRaw = input.gitRaw;
@@ -123,13 +130,11 @@ export class BlameController {
     const relativePath = relative(repository.rootPath, editor.document.uri.fsPath);
     const blameOutput = await this.gitRaw(repository.rootPath, ["blame", "--line-porcelain", "--", relativePath]);
     const lines = parseBlameOutput(blameOutput);
-    const targetLines = settings.blameShowOnlyCurrentLine
-      ? lines.filter((line) => line.line === editor.selection.active.line + 1)
-      : lines;
+    const targetLines = lines.filter((line) => line.line === editor.selection.active.line + 1);
 
     editor.setDecorations(
       this.decorationType,
-      targetLines.filter((line) => !line.hash.startsWith("0000000")).map((line) => this.createDecoration(editor, line, settings))
+      targetLines.filter((line) => !line.hash.startsWith("0000000")).map((line) => this.createDecoration(editor, line))
     );
   }
 
@@ -141,16 +146,16 @@ export class BlameController {
     (this.decorationType as DecorationTypeLike).dispose?.();
   }
 
-  private createDecoration(editor: TextEditorLike, line: BlameLine, settings: SettingsViewModel): BlameDecoration {
+  private createDecoration(editor: TextEditorLike, line: BlameLine): BlameDecoration {
     const lineIndex = line.line - 1;
     const endCharacter = editor.document.lineAt(lineIndex).range.end.character;
     return {
-      hoverMessage: createHover(line),
+      hoverMessage: createHover(line, this.createMarkdownString),
       range: this.createRange(lineIndex, endCharacter, lineIndex, endCharacter),
       renderOptions: {
         after: {
-          color: "editorCodeLens.foreground",
-          contentText: `  ${formatBlame(settings.blameFormat, line)}`,
+          color: "rgba(127, 127, 127, 0.72)",
+          contentText: `  ${createInlineBlameText(line)}`,
           fontStyle: "italic"
         }
       }
@@ -196,23 +201,42 @@ function parseBlameOutput(output: string): readonly BlameLine[] {
   return lines;
 }
 
-function formatBlame(format: string, line: BlameLine): string {
-  return format
-    .replaceAll("${author}", line.author)
-    .replaceAll("${time}", line.date)
-    .replaceAll("${summary}", line.summary)
-    .replaceAll("${hash}", line.hash.slice(0, 7));
+function createInlineBlameText(line: BlameLine): string {
+  return truncateText(`${line.author}: ${line.summary}`, 86);
 }
 
-function createHover(line: BlameLine): string {
-  const commandUri = `command:guigit.showCommitDetails?${encodeURIComponent(JSON.stringify([line.hash]))}`;
-  return [
-    `**Commit:** ${line.summary}`,
+function createHover(line: BlameLine, createMarkdownString: BlameControllerInput["createMarkdownString"]): MarkdownStringLike {
+  const showCommitUri = createCommandUri("guigit.showCommitDetails", line.hash);
+  const copyHashUri = createCommandUri("guigit.copyCommitHash", line.hash);
+  const markdown = createMarkdownString([
+    `![Author avatar](${createAvatarUri(line.email)})`,
     `**Author:** ${line.author} <${line.email}>`,
+    `**Commit:** ${line.summary}`,
     `**Date:** ${line.date}`,
     `**Hash:** \`${line.hash}\``,
-    `[View Commit Details](${commandUri})`
-  ].join("\n\n");
+    `[Open Commit](${showCommitUri}) | [Copy Hash](${copyHashUri})`
+  ].join("\n\n"));
+  markdown.isTrusted = {
+    enabledCommands: ["guigit.showCommitDetails", "guigit.copyCommitHash"]
+  };
+  return markdown;
+}
+
+function createCommandUri(command: string, hash: string): string {
+  return `command:${command}?${encodeURIComponent(JSON.stringify([hash]))}`;
+}
+
+function createAvatarUri(email: string): string {
+  const digest = createHash("md5").update(email.trim().toLowerCase()).digest("hex");
+  return `https://www.gravatar.com/avatar/${digest}?s=48&d=identicon`;
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength - 3)}...`;
 }
 
 function formatAuthorDate(timestamp: number, timezone: string): string {

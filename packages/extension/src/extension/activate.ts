@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "vscode";
-import { commands as vscodeCommands, ConfigurationTarget, Disposable, extensions, Range, RelativePattern, window, workspace } from "vscode";
+import { commands as vscodeCommands, ConfigurationTarget, Disposable, env, extensions, MarkdownString, Range, RelativePattern, window, workspace } from "vscode";
 import type { FileViewMode } from "../backend/rpc/contract";
 import { createGitHistoryRpcHandlers } from "../backend/rpc/gitHistoryRpcHandlers";
 import { createRpcRouter } from "../backend/rpc/router";
@@ -88,11 +88,12 @@ export function activate(context: ExtensionContext): void {
     activeEditor: () => window.activeTextEditor as never,
     createDecorationType: () => window.createTextEditorDecorationType({
       after: {
-        color: "editorCodeLens.foreground",
+        color: "rgba(127, 127, 127, 0.72)",
         fontStyle: "italic",
         margin: "0 0 0 3em"
       }
     }),
+    createMarkdownString: (value) => new MarkdownString(value),
     createRange: (startLine, startCharacter, endLine, endCharacter) => new Range(startLine, startCharacter, endLine, endCharacter),
     gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
     onDidChangeActiveTextEditor: (listener) => window.onDidChangeActiveTextEditor(listener as never),
@@ -138,6 +139,7 @@ export function activate(context: ExtensionContext): void {
         }
       },
       executeCommand: vscodeCommands.executeCommand,
+      writeClipboardText: (value) => env.clipboard.writeText(value),
       logger,
       registerCommand: vscodeCommands.registerCommand,
       view: viewProvider

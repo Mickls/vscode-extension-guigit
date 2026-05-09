@@ -88,12 +88,12 @@
         },
         "guigit.blame.showOnlyCurrentLine": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Show Git blame annotations only for the current editor line"
         },
         "guigit.blame.format": {
           "type": "string",
-          "default": "${author}, ${time}: ${summary}",
+          "default": "${author}: ${summary}",
           "description": "Git blame annotation format"
         },
         "guigit.language": {

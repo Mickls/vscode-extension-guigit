@@ -3,13 +3,19 @@ import { BlameController } from "../../src/backend/vscode/BlameController";
 import type { SettingsViewModel } from "../../src/backend/rpc/contract";
 
 describe("BlameController", () => {
-  it("decorates only the active line when configured", async () => {
+  it("decorates only the active line with subdued truncated author and summary text", async () => {
     const editor = createEditor(1);
+    const hoverMessages: unknown[] = [];
     const controller = createController({
+      createMarkdownString: (value) => {
+        const markdown = { isTrusted: false, value };
+        hoverMessages.push(markdown);
+        return markdown;
+      },
       editor,
       settings: createSettings({
         blameFormat: "${author}, ${time}: ${summary}",
-        blameShowOnlyCurrentLine: true
+        blameShowOnlyCurrentLine: false
       })
     });
 
@@ -17,20 +23,31 @@ describe("BlameController", () => {
 
     expect(editor.setDecorations).toHaveBeenCalledWith("decoration", [
       expect.objectContaining({
-        hoverMessage: expect.stringContaining("command:guigit.showCommitDetails"),
+        hoverMessage: hoverMessages[0],
         range: { endCharacter: 13, line: 1, startCharacter: 13 },
         renderOptions: {
           after: {
-            contentText: "  Grace, 2026-05-07 09:00:00 +0800: Add graph",
-            color: "editorCodeLens.foreground",
+            contentText: "  Grace: Add graph with an intentionally long commit summary that should be trimmed b...",
+            color: "rgba(127, 127, 127, 0.72)",
             fontStyle: "italic"
           }
         }
       })
     ]);
+    expect(hoverMessages).toEqual([
+      expect.objectContaining({
+        isTrusted: {
+          enabledCommands: ["guigit.showCommitDetails", "guigit.copyCommitHash"]
+        },
+        value: expect.stringContaining("command:guigit.showCommitDetails")
+      })
+    ]);
+    expect(hoverMessages[0]).toEqual(expect.objectContaining({
+      value: expect.stringContaining("command:guigit.copyCommitHash")
+    }));
   });
 
-  it("decorates all committed lines when current-line mode is disabled", async () => {
+  it("keeps blame scoped to the cursor line even when legacy all-line mode is disabled", async () => {
     const editor = createEditor(0);
     const controller = createController({
       editor,
@@ -43,10 +60,9 @@ describe("BlameController", () => {
     await controller.refreshEditor(editor);
 
     const decorations = editor.setDecorations.mock.calls.at(-1)![1];
-    expect(decorations).toHaveLength(2);
+    expect(decorations).toHaveLength(1);
     expect(decorations.map((item) => item.renderOptions.after.contentText)).toEqual([
-      "  abc1234 Ada: Wire data",
-      "  def4567 Grace: Add graph"
+      "  Ada: Wire data"
     ]);
   });
 
@@ -81,7 +97,7 @@ describe("BlameController", () => {
     expect(editor.setDecorations).toHaveBeenCalledWith("decoration", [
       expect.objectContaining({
         renderOptions: expect.objectContaining({
-          after: expect.objectContaining({ contentText: "  Ada, 2026-05-07 10:00:00 +0800: Wire data" })
+          after: expect.objectContaining({ contentText: "  Ada: Wire data" })
         })
       })
     ]);
@@ -92,6 +108,7 @@ function createController(input: {
   editor: ReturnType<typeof createEditor>;
   settings: SettingsViewModel;
   updateBlameEnabled?: (enabled: boolean) => Promise<void>;
+  createMarkdownString?: (value: string) => unknown;
 }): BlameController {
   return new BlameController({
     activeEditor: () => input.editor,
@@ -101,6 +118,7 @@ function createController(input: {
       line,
       startCharacter
     }),
+    createMarkdownString: input.createMarkdownString ?? ((value) => ({ isTrusted: true, value })),
     gitRaw: async () => blameOutput,
     repositoryService: {
       discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }]
@@ -167,6 +185,6 @@ const blameOutput = [
   "author-mail <grace@example.com>",
   "author-time 1778115600",
   "author-tz +0800",
-  "summary Add graph",
+  "summary Add graph with an intentionally long commit summary that should be trimmed before it consumes the whole editor row",
   "\tconst two = 2;"
 ].join("\n");

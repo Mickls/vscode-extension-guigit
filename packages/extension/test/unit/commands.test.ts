@@ -9,9 +9,11 @@ describe("git history commands", () => {
     const revealCommit = vi.fn();
     const showFileHistoryForUri = vi.fn();
     const toggleBlame = vi.fn();
+    const writeClipboardText = vi.fn();
 
     registerGitHistoryCommands({
       executeCommand,
+      writeClipboardText,
       logger: {
         debug: vi.fn(),
         info: vi.fn()
@@ -35,7 +37,8 @@ describe("git history commands", () => {
       "guigit.refresh",
       "guigit.viewFileHistory",
       "guigit.toggleBlame",
-      "guigit.showCommitDetails"
+      "guigit.showCommitDetails",
+      "guigit.copyCommitHash"
     ]);
 
     await callbacks.get("guigit.showHistory")!();
@@ -43,11 +46,13 @@ describe("git history commands", () => {
     await callbacks.get("guigit.viewFileHistory")!("file-uri");
     callbacks.get("guigit.toggleBlame")!();
     await callbacks.get("guigit.showCommitDetails")!("abc1234");
+    await callbacks.get("guigit.copyCommitHash")!("abc1234");
 
     expect(executeCommand).toHaveBeenCalledWith("workbench.view.extension.guigit");
     expect(refresh).toHaveBeenCalledWith("command");
     expect(showFileHistoryForUri).toHaveBeenCalledWith("file-uri");
     expect(toggleBlame).toHaveBeenCalled();
     expect(revealCommit).toHaveBeenCalledWith("abc1234");
+    expect(writeClipboardText).toHaveBeenCalledWith("abc1234");
   });
 });

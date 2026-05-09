@@ -15,6 +15,7 @@ export interface GitHistoryCommandInput {
   logger: Pick<Logger, "debug" | "info">;
   registerCommand(command: string, callback: (...args: readonly unknown[]) => unknown): Disposable;
   view: GitHistoryCommandView;
+  writeClipboardText(value: string): Thenable<void>;
 }
 
 export function registerGitHistoryCommands(input: GitHistoryCommandInput): readonly Disposable[] {
@@ -39,6 +40,10 @@ export function registerGitHistoryCommands(input: GitHistoryCommandInput): reado
       input.logger.debug("command.showCommitDetails", { hash });
       await input.executeCommand("workbench.view.extension.guigit");
       input.view.revealCommit(hash as string);
+    }),
+    input.registerCommand("guigit.copyCommitHash", async (hash) => {
+      input.logger.debug("command.copyCommitHash", { hash });
+      await input.writeClipboardText(hash as string);
     })
   ];
 }

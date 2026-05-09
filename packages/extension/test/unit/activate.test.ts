@@ -32,6 +32,7 @@ const vscodeMocks = vi.hoisted(() => {
       dispose: vi.fn()
     })),
     createTextEditorDecorationType: vi.fn(() => ({ dispose: vi.fn() })),
+    clipboardWriteText: vi.fn(),
     onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
     onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
     onDidChangeTextEditorSelection: vi.fn(() => ({ dispose: vi.fn() })),
@@ -51,6 +52,11 @@ vi.mock("vscode", () => ({
   Disposable: class {
     public constructor(public readonly dispose: () => void) {}
   },
+  env: {
+    clipboard: {
+      writeText: vscodeMocks.clipboardWriteText
+    }
+  },
   extensions: {
     getExtension: vscodeMocks.getExtension
   },
@@ -67,6 +73,11 @@ vi.mock("vscode", () => ({
       public readonly endLine: number,
       public readonly endCharacter: number
     ) {}
+  },
+  MarkdownString: class {
+    public isTrusted = false;
+
+    public constructor(public readonly value: string) {}
   },
   Uri: {
     joinPath: vi.fn((base: { path: string }, ...paths: readonly string[]) => ({
@@ -122,7 +133,7 @@ describe("activate", () => {
         }
       }
     );
-    expect(vscodeMocks.registerCommand).toHaveBeenCalledTimes(5);
+    expect(vscodeMocks.registerCommand).toHaveBeenCalledTimes(6);
     expect(vscodeMocks.onDidChangeActiveTextEditor).toHaveBeenCalled();
     expect(vscodeMocks.createOutputChannel).toHaveBeenCalledWith("GUI Git History", "guigit-log");
     expect(subscriptions).toContain(vscodeMocks.providerDisposable);
