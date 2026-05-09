@@ -108,6 +108,7 @@ describe("GitService", () => {
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
       "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD"
     ]);
@@ -116,6 +117,7 @@ describe("GitService", () => {
 
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
       "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD",
       "fetch --all --prune"
@@ -145,6 +147,7 @@ describe("GitService", () => {
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
       "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD"
     ]);
@@ -155,9 +158,12 @@ describe("GitService", () => {
     );
   });
 
-  it("publishes the current branch before pushing when no upstream exists", async () => {
+  it("publishes the current branch to a same-name remote branch when selected", async () => {
     const calls: string[] = [];
-    const showQuickPick = vi.fn().mockResolvedValue({ label: "origin", value: "origin" });
+    const showQuickPick = vi.fn().mockResolvedValue({
+      label: "Create or update origin/feature",
+      value: "same-name:origin"
+    });
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -173,6 +179,10 @@ describe("GitService", () => {
           return "origin\n";
         }
 
+        if (args.join(" ") === "branch -r") {
+          return "  origin/chore/all-my-stuffs\n";
+        }
+
         return "";
       },
       showQuickPick
@@ -183,17 +193,66 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "rev-parse --abbrev-ref HEAD",
       "remote",
-      "push -u origin feature",
+      "branch -r",
+      "push -u origin HEAD:feature",
       "rev-parse --abbrev-ref HEAD"
     ]);
     expect(showQuickPick).toHaveBeenCalledWith(
-      [{ label: "origin", value: "origin" }],
-      { placeHolder: "Select remote to publish feature" }
+      [
+        { label: "Create or update origin/feature", value: "same-name:origin" },
+        { label: "Push to origin/chore/all-my-stuffs", value: "branch:origin/chore/all-my-stuffs" }
+      ],
+      { placeHolder: "Select push target for feature" }
     );
   });
 
-  it("pushes explicitly to a differently named upstream branch", async () => {
+  it("pushes to a selected remote branch when no upstream exists", async () => {
     const calls: string[] = [];
+    const showQuickPick = vi.fn().mockResolvedValue({
+      label: "Push to origin/chore/all-my-stuffs",
+      value: "branch:origin/chore/all-my-stuffs"
+    });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          throw new Error("fatal: no upstream configured for branch 'feature'");
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        if (args.join(" ") === "remote") {
+          return "origin\n";
+        }
+
+        if (args.join(" ") === "branch -r") {
+          return "  origin/chore/all-my-stuffs\n";
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
+      "remote",
+      "branch -r",
+      "push -u origin HEAD:chore/all-my-stuffs",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
+  });
+
+  it("prompts before pushing to a differently named upstream branch", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi.fn().mockResolvedValue({
+      label: "Push to upstream origin/chore/all-my-stuffs",
+      value: "upstream:origin/chore/all-my-stuffs"
+    });
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -205,18 +264,72 @@ describe("GitService", () => {
           return "feature\n";
         }
 
+        if (args.join(" ") === "remote") {
+          return "origin\n";
+        }
+
+        if (args.join(" ") === "branch -r") {
+          return "  origin/chore/all-my-stuffs\n";
+        }
+
         return "";
-      }
+      },
+      showQuickPick
     });
 
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
+      "remote",
+      "branch -r",
       "push origin HEAD:chore/all-my-stuffs",
       "rev-parse --abbrev-ref HEAD"
     ]);
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "Push to upstream origin/chore/all-my-stuffs", value: "upstream:origin/chore/all-my-stuffs" },
+        { label: "Create or update origin/feature", value: "same-name:origin" }
+      ],
+      { placeHolder: "Select push target for feature" }
+    );
   });
 
+  it("cancels push when the target picker is dismissed", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi.fn().mockResolvedValue(undefined);
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          throw new Error("fatal: no upstream configured for branch 'feature'");
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        if (args.join(" ") === "remote") {
+          return "origin\n";
+        }
+
+        if (args.join(" ") === "branch -r") {
+          return "";
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.push("/repo")).resolves.toEqual({ message: "Push cancelled", status: "cancelled" });
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
+      "remote",
+      "branch -r"
+    ]);
+  });
 
   it("clones into the target directory and checks out branches", async () => {
     const calls: string[] = [];

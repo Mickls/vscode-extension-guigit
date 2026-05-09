@@ -80,7 +80,12 @@ export class GitService {
 
   public async push(repositoryRoot: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.push", { repositoryRoot });
-    await this.runGitRaw(repositoryRoot, await this.getPushArgs(repositoryRoot));
+    const args = await this.getPushArgs(repositoryRoot);
+    if (!args) {
+      return { message: "Push cancelled", status: "cancelled" };
+    }
+
+    await this.runGitRaw(repositoryRoot, args);
     void this.promptPullRequestForCurrentBranch(repositoryRoot).catch((error: unknown) => {
       this.logger?.debug("git.pullRequestPrompt.failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -233,11 +238,10 @@ export class GitService {
     return true;
   }
 
-  private async getPushArgs(repositoryRoot: string): Promise<readonly string[]> {
+  private async getPushArgs(repositoryRoot: string): Promise<readonly string[] | undefined> {
+    let upstream: string | undefined;
     try {
-      const upstream = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])).trim();
-      const remoteTarget = splitRemoteBranch(upstream);
-      return ["push", remoteTarget.remote, `HEAD:${remoteTarget.branch}`];
+      upstream = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])).trim();
     } catch (error) {
       this.logger?.debug("git.push.missingUpstream", {
         error: error instanceof Error ? error.message : String(error),
@@ -246,23 +250,60 @@ export class GitService {
     }
 
     const currentBranch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
-    const remote = await this.pickRemote(repositoryRoot, `Select remote to publish ${currentBranch}`);
-    if (!remote) {
-      throw new Error("Push cancelled");
+    if (upstream) {
+      const remoteTarget = splitRemoteBranch(upstream);
+      if (remoteTarget.branch === currentBranch) {
+        return ["push", remoteTarget.remote, `HEAD:${remoteTarget.branch}`];
+      }
     }
 
-    return ["push", "-u", remote.value, currentBranch];
+    return this.pickPushTarget(repositoryRoot, currentBranch, upstream);
   }
 
-  private async pickRemote(repositoryRoot: string, placeHolder: string): Promise<QuickPickItem | undefined> {
-    const remotes = (await this.runGitRaw(repositoryRoot, ["remote"]))
+  private async pickPushTarget(
+    repositoryRoot: string,
+    currentBranch: string,
+    upstream: string | undefined
+  ): Promise<readonly string[] | undefined> {
+    const remotes = await this.getRemotes(repositoryRoot);
+    const remoteBranches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
+    const items: QuickPickItem[] = [
+      ...(upstream ? [{ label: `Push to upstream ${upstream}`, value: `upstream:${upstream}` }] : []),
+      ...remotes.map((remote) => ({
+        label: `Create or update ${remote}/${currentBranch}`,
+        value: `same-name:${remote}`
+      })),
+      ...remoteBranches
+        .filter((branch) => branch !== upstream)
+        .map((branch) => ({
+          label: `Push to ${branch}`,
+          value: `branch:${branch}`
+        }))
+    ];
+    const target = await this.showQuickPick(items, { placeHolder: `Select push target for ${currentBranch}` });
+    if (!target) {
+      return undefined;
+    }
+
+    if (target.value.startsWith("same-name:")) {
+      const remote = target.value.slice("same-name:".length);
+      return ["push", "-u", remote, `HEAD:${currentBranch}`];
+    }
+
+    const remoteBranch = target.value.startsWith("upstream:")
+      ? target.value.slice("upstream:".length)
+      : target.value.slice("branch:".length);
+    const remoteTarget = splitRemoteBranch(remoteBranch);
+    return target.value.startsWith("upstream:")
+      ? ["push", remoteTarget.remote, `HEAD:${remoteTarget.branch}`]
+      : ["push", "-u", remoteTarget.remote, `HEAD:${remoteTarget.branch}`];
+  }
+
+  private async getRemotes(repositoryRoot: string): Promise<readonly string[]> {
+    return (await this.runGitRaw(repositoryRoot, ["remote"]))
       .split("\n")
       .map((remote) => remote.trim())
       .filter((remote) => remote.length > 0);
-    return this.showQuickPick(
-      remotes.map((remote) => ({ label: remote, value: remote })),
-      { placeHolder }
-    );
   }
 
   private async promptPullRequestForCurrentBranch(repositoryRoot: string): Promise<void> {
