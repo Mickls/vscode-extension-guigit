@@ -35,6 +35,7 @@ const pageSize = 50;
 const defaultFileViewMode: FileViewMode = "list";
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
 type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
+type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type ContextGitOperationType =
   | "git.cherryPick"
   | "git.compareCommits"
@@ -99,6 +100,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
   const [compareFiles, setCompareFiles] = useState<readonly FileChangeViewModel[]>(emptyCompareFiles);
   const [compareHashes, setCompareHashes] = useState<readonly [string, string] | undefined>();
+  const [remotes, setRemotes] = useState<readonly RemoteViewModel[]>(emptyRemotes);
+  const [remoteStatus, setRemoteStatus] = useState<OperationNotification | undefined>();
   const [operationNotification, setOperationNotification] = useState<OperationNotification | undefined>();
   const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | undefined>();
   const [conflictOperation, setConflictOperation] = useState<OperationNotification | undefined>();
@@ -191,6 +194,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if (isGitOperationType(response.type)) {
           setActiveGitOperation(undefined);
         }
+        if (isRemoteOperationType(response.type) || response.type === "remotes.list") {
+          setRemoteStatus({ message: response.error.message, state: "error" });
+        }
         setOperationNotification({ message: response.error.message, state: "error" });
         return;
       }
@@ -279,6 +285,21 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (response.type === "settings.get" || response.type === "settings.update") {
         setFileViewMode(response.payload.settings.fileViewMode);
+      }
+
+      if (response.type === "remotes.list") {
+        setRemotes(response.payload.remotes);
+        setRemoteStatus(undefined);
+      }
+
+      if (isRemoteOperationResponse(response)) {
+        setRemoteStatus({
+          message: response.payload.message,
+          state: response.payload.status === "ok" ? "success" : "warning"
+        });
+        if (response.payload.status === "ok") {
+          requestRemotes(client, selectedRepositoryIdRef.current);
+        }
       }
 
       if (isPrimaryGitOperationResponse(response)) {
@@ -453,6 +474,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
     if (action === "manageRemotes") {
       setRemoteManagerOpen(true);
+      requestRemotes(client, selectedRepositoryIdRef.current);
     }
   };
 
@@ -520,6 +542,29 @@ export function App({ rpcClient }: AppProps): ReactElement {
         fileViewMode: mode
       },
       type: "settings.update"
+    });
+  };
+
+  const addRemote = (name: string, url: string) => {
+    postRemoteOperation(client, selectedRepositoryIdRef.current, {
+      name,
+      type: "remotes.add",
+      url
+    });
+  };
+
+  const updateRemote = (name: string, url: string) => {
+    postRemoteOperation(client, selectedRepositoryIdRef.current, {
+      name,
+      type: "remotes.update",
+      url
+    });
+  };
+
+  const deleteRemote = (name: string) => {
+    postRemoteOperation(client, selectedRepositoryIdRef.current, {
+      name,
+      type: "remotes.delete"
     });
   };
 
@@ -633,9 +678,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
       />
       <SettingsMenu onAction={handleSettingsMenuAction} visible={settingsMenuOpen} x={0} y={44} />
       <RemoteManager
+        onAddRemote={addRemote}
         onClose={() => setRemoteManagerOpen(false)}
+        onDeleteRemote={deleteRemote}
+        onUpdateRemote={updateRemote}
         open={remoteManagerOpen}
-        remotes={emptyRemotes}
+        remotes={remotes}
+        status={remoteStatus ? { kind: remoteStatusKind(remoteStatus.state), message: remoteStatus.message } : undefined}
       />
       <CompareOverlay
         files={compareFiles}
@@ -665,6 +714,36 @@ function requestSettings(client: RpcClient | undefined): void {
   client?.post({
     id: crypto.randomUUID(),
     type: "settings.get"
+  });
+}
+
+function requestRemotes(client: RpcClient | undefined, repositoryId: string | undefined): void {
+  if (!repositoryId) {
+    return;
+  }
+
+  client?.post({
+    id: crypto.randomUUID(),
+    repositoryId,
+    type: "remotes.list"
+  });
+}
+
+function postRemoteOperation(
+  client: RpcClient | undefined,
+  repositoryId: string | undefined,
+  input:
+    | { name: string; type: "remotes.delete" }
+    | { name: string; type: "remotes.add" | "remotes.update"; url: string }
+): void {
+  if (!repositoryId) {
+    return;
+  }
+
+  client?.post({
+    ...input,
+    id: crypto.randomUUID(),
+    repositoryId
   });
 }
 
@@ -736,6 +815,12 @@ function isContextGitOperationResponse(
   return isContextGitOperationType(response.type);
 }
 
+function isRemoteOperationResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: RemoteOperationType }> {
+  return isRemoteOperationType(response.type);
+}
+
 function isGitOperationType(type: string): type is ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType {
   return (
     isPrimaryGitOperationType(type) ||
@@ -744,6 +829,10 @@ function isGitOperationType(type: string): type is ConflictGitOperationType | Co
     type === "git.continueOperation" ||
     type === "git.operationState"
   );
+}
+
+function isRemoteOperationType(type: string): type is RemoteOperationType {
+  return type === "remotes.add" || type === "remotes.delete" || type === "remotes.update";
 }
 
 function isContextGitOperationType(type: string): type is ContextGitOperationType {
@@ -758,6 +847,18 @@ function isContextGitOperationType(type: string): type is ContextGitOperationTyp
     type === "git.revert" ||
     type === "git.squashCommits"
   );
+}
+
+function remoteStatusKind(state: OperationNotification["state"]): "error" | "info" | "success" {
+  if (state === "error") {
+    return "error";
+  }
+
+  if (state === "success") {
+    return "success";
+  }
+
+  return "info";
 }
 
 function isPrimaryGitOperationType(type: string): type is PrimaryGitOperationType {

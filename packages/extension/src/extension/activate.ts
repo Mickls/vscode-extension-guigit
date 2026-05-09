@@ -8,6 +8,7 @@ import { CommitService } from "../backend/git/CommitService";
 import { FileService } from "../backend/git/FileService";
 import { GitService } from "../backend/git/GitService";
 import { GraphService } from "../backend/git/GraphService";
+import { RemoteService } from "../backend/git/RemoteService";
 import { RepositoryService } from "../backend/git/RepositoryService";
 import { SafetyService } from "../backend/git/SafetyService";
 import { DiffService } from "../backend/vscode/DiffService";
@@ -60,6 +61,7 @@ export function activate(context: ExtensionContext): void {
     }
   });
   const graphService = new GraphService({ logger });
+  const remoteService = new RemoteService();
   const diffService = new DiffService({ logger });
   const safetyService = new SafetyService({ logger });
   const gitService = new GitService({
@@ -81,6 +83,7 @@ export function activate(context: ExtensionContext): void {
       fileService,
       gitService,
       graphService,
+      remoteService,
       repositoryService,
       settingsService
     }),

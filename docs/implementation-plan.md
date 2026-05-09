@@ -373,12 +373,12 @@ gui-git-history/
 - Create: `packages/extension/src/backend/git/RemoteService.ts`
 - Modify: `packages/webview/src/components/RemoteManager/RemoteManager.tsx`
 
-- [ ] Load remote details.
-- [ ] Add remote.
-- [ ] Update remote.
-- [ ] Remove remote with VS Code modal confirmation.
-- [ ] Return status messages to Webview.
-- [ ] Commit with `feat: add remote manager`.
+- [x] Load remote details.
+- [x] Add remote.
+- [x] Update remote.
+- [x] Remove remote with VS Code modal confirmation.
+- [x] Return status messages to Webview.
+- [x] Commit with `feat: add remote manager`.
 
 ### Task 6.2: Proxy service
 

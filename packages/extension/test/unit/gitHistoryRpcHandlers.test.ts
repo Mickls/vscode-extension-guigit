@@ -4,7 +4,8 @@ import type {
   BranchesViewModel,
   CommitDetailsViewModel,
   CommitListItemViewModel,
-  GraphLayoutViewModel
+  GraphLayoutViewModel,
+  RemoteViewModel
 } from "../../src/backend/rpc/contract";
 
 const branches = {
@@ -60,6 +61,14 @@ const graph = {
   width: 120
 } satisfies GraphLayoutViewModel;
 
+const remotes = [
+  {
+    fetchUrl: "https://example.com/repo.git",
+    name: "origin",
+    pushUrl: "https://example.com/repo.git"
+  }
+] satisfies readonly RemoteViewModel[];
+
 describe("Git history RPC handlers", () => {
   it("loads repositories, branches, and commit history", async () => {
     const handlers = createGitHistoryRpcHandlers({
@@ -96,6 +105,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" }),
         switchToActiveEditorRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" })
       },
+      remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
 
@@ -143,6 +153,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      remoteService: createRemoteService(),
       settingsService: {
         getSettings: () => createSettings("tree"),
         updateSettings: async (settings) => {
@@ -201,6 +212,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
 
@@ -252,6 +264,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
 
@@ -312,6 +325,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
 
@@ -383,6 +397,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
 
@@ -406,6 +421,101 @@ describe("Git history RPC handlers", () => {
     expect(fileCalls).toEqual([
       ["open", "/repo", "src/file.ts"],
       ["history", "/repo", "src/file.ts"]
+    ]);
+  });
+
+  it("loads and updates remotes for the requested repository", async () => {
+    const remoteCalls: unknown[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: createGitService(),
+      remoteService: {
+        addRemote: async (repositoryRoot, name, url) => {
+          remoteCalls.push(["add", repositoryRoot, name, url]);
+          return { message: "remote added", status: "ok" };
+        },
+        deleteRemote: async (repositoryRoot, name) => {
+          remoteCalls.push(["delete", repositoryRoot, name]);
+          return { message: "remote deleted", status: "ok" };
+        },
+        listRemotes: async (repositoryRoot) => {
+          remoteCalls.push(["list", repositoryRoot]);
+          return remotes;
+        },
+        updateRemote: async (repositoryRoot, name, url) => {
+          remoteCalls.push(["update", repositoryRoot, name, url]);
+          return { message: "remote updated", status: "ok" };
+        }
+      },
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      settingsService: createSettingsService()
+    });
+
+    await expect(handlers["remotes.list"]!({ id: "remote-1", repositoryId: "/repo", type: "remotes.list" })).resolves.toEqual({
+      remotes
+    });
+    await expect(
+      handlers["remotes.add"]!({
+        id: "remote-2",
+        name: "upstream",
+        repositoryId: "/repo",
+        type: "remotes.add",
+        url: "https://example.com/up.git"
+      })
+    ).resolves.toEqual({ message: "remote added", status: "ok" });
+    await expect(
+      handlers["remotes.update"]!({
+        id: "remote-3",
+        name: "origin",
+        repositoryId: "/repo",
+        type: "remotes.update",
+        url: "https://example.com/new.git"
+      })
+    ).resolves.toEqual({ message: "remote updated", status: "ok" });
+    await expect(
+      handlers["remotes.delete"]!({
+        id: "remote-4",
+        name: "origin",
+        repositoryId: "/repo",
+        type: "remotes.delete"
+      })
+    ).resolves.toEqual({ message: "remote deleted", status: "ok" });
+
+    expect(remoteCalls).toEqual([
+      ["list", "/repo"],
+      ["add", "/repo", "upstream", "https://example.com/up.git"],
+      ["update", "/repo", "origin", "https://example.com/new.git"],
+      ["delete", "/repo", "origin"]
     ]);
   });
 
@@ -522,6 +632,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
 
@@ -614,5 +725,14 @@ function createGitService() {
     reset: async () => ({ message: "ok", status: "ok" as const }),
     revert: async () => ({ message: "ok", status: "ok" as const }),
     squashCommits: async () => ({ message: "ok", status: "ok" as const })
+  };
+}
+
+function createRemoteService() {
+  return {
+    addRemote: async () => ({ message: "ok", status: "ok" as const }),
+    deleteRemote: async () => ({ message: "ok", status: "ok" as const }),
+    listRemotes: async () => remotes,
+    updateRemote: async () => ({ message: "ok", status: "ok" as const })
   };
 }

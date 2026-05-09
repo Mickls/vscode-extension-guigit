@@ -24,6 +24,56 @@ describe("App", () => {
     expect(screen.getByRole("dialog", { name: "Remote Manager" })).toBeInTheDocument();
   });
 
+  it("loads and updates remotes through the remote manager", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Manage Remotes" }));
+    const listRequest = latestRequest(rpcClient, "remotes.list");
+    expect(listRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "remotes.list" }));
+    dispatchRemoteListResponse(listRequest.id);
+
+    expect(screen.getByDisplayValue("https://example.com/repo.git")).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("Remote name"), "upstream");
+    await user.type(screen.getByPlaceholderText("Remote URL (https://... or git@...)"), "https://example.com/up.git");
+    await user.click(screen.getByRole("button", { name: "Add Remote" }));
+    const addRequest = latestRequest(rpcClient, "remotes.add");
+    expect(addRequest).toEqual(expect.objectContaining({
+      name: "upstream",
+      repositoryId: "/repo",
+      type: "remotes.add",
+      url: "https://example.com/up.git"
+    }));
+    dispatchRemoteOperationResponse(addRequest.id, "remotes.add", "Added remote upstream");
+    expect(screen.getByRole("status")).toHaveTextContent("Added remote upstream");
+    expect(rpcClient.post).toHaveBeenCalledWith(expect.objectContaining({ repositoryId: "/repo", type: "remotes.list" }));
+
+    const remoteUrl = screen.getByLabelText("origin URL");
+    await user.clear(remoteUrl);
+    await user.type(remoteUrl, "https://example.com/new.git");
+    await user.click(screen.getByRole("button", { name: "Save origin" }));
+    expect(latestRequest(rpcClient, "remotes.update")).toEqual(expect.objectContaining({
+      name: "origin",
+      repositoryId: "/repo",
+      type: "remotes.update",
+      url: "https://example.com/new.git"
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Delete origin" }));
+    expect(latestRequest(rpcClient, "remotes.delete")).toEqual(expect.objectContaining({
+      name: "origin",
+      repositoryId: "/repo",
+      type: "remotes.delete"
+    }));
+  });
+
   it("loads history from the backend and requests details for the first commit", async () => {
     const rpcClient = createTestRpcClient();
 
@@ -1215,6 +1265,51 @@ function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", typ
                 noProxy: ""
               }
             }
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchRemoteListResponse(id: string): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type: "remotes.list",
+          payload: {
+            remotes: [
+              {
+                fetchUrl: "https://example.com/repo.git",
+                name: "origin",
+                pushUrl: "https://example.com/repo.git"
+              }
+            ]
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchRemoteOperationResponse(
+  id: string,
+  type: "remotes.add" | "remotes.delete" | "remotes.update",
+  message: string
+): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type,
+          payload: {
+            message,
+            status: "ok"
           }
         } satisfies RpcResponse
       })

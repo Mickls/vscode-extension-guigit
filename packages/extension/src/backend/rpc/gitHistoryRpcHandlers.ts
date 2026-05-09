@@ -3,6 +3,7 @@ import type { CommitService } from "../git/CommitService";
 import type { FileService } from "../git/FileService";
 import type { GitService } from "../git/GitService";
 import type { GraphService } from "../git/GraphService";
+import type { RemoteService } from "../git/RemoteService";
 import type { RepositoryService } from "../git/RepositoryService";
 import type { DiffService } from "../vscode/DiffService";
 import type { FileHistoryPanel } from "../vscode/FileHistoryPanel";
@@ -43,6 +44,7 @@ export interface GitHistoryRpcHandlerInput {
     | "squashCommits"
   >;
   graphService: Pick<GraphService, "getLayout">;
+  remoteService: Pick<RemoteService, "addRemote" | "deleteRemote" | "listRemotes" | "updateRemote">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
   repositoryService: Pick<
     RepositoryService,
@@ -98,6 +100,28 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.diffService.openCompareFileDiff(repository.rootPath, request.fromHash, request.toHash, request.filePath);
+    },
+    "remotes.list": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return {
+        remotes: await input.remoteService.listRemotes(repository.rootPath)
+      };
+    },
+    "remotes.add": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.remoteService.addRemote(repository.rootPath, request.name, request.url);
+    },
+    "remotes.update": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.remoteService.updateRemote(repository.rootPath, request.name, request.url);
+    },
+    "remotes.delete": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.remoteService.deleteRemote(repository.rootPath, request.name);
     },
     "settings.get": () => ({
       settings: input.settingsService.getSettings()
