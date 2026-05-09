@@ -76,7 +76,7 @@ function parseStatusPath(
   workTreeStatus: string
 ): Pick<WorkingTreeFileChangeViewModel, "path" | "previousPath"> {
   if (![indexStatus, workTreeStatus].some((status) => status === "R" || status === "C")) {
-    return { path };
+    return { path: unquotePorcelainPath(path) };
   }
 
   const parsedPath = parseRenameOrCopyPath(path);
@@ -130,19 +130,63 @@ function unquotePorcelainPath(path: string): string {
     return path;
   }
 
-  let unquoted = "";
+  const bytes: number[] = [];
   for (let index = 1; index < path.length - 1; index += 1) {
     const character = path.charAt(index);
     if (character === "\\") {
+      const nextCharacter = path.charAt(index + 1);
+      if (isOctalDigit(nextCharacter)) {
+        const octal = path.slice(index + 1, index + 4);
+        bytes.push(Number.parseInt(octal, 8));
+        index += 3;
+        continue;
+      }
+
+      bytes.push(escapedByte(nextCharacter));
       index += 1;
-      unquoted += path.charAt(index);
       continue;
     }
 
-    unquoted += character;
+    bytes.push(...new TextEncoder().encode(character));
   }
 
-  return unquoted;
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
+function isOctalDigit(character: string): boolean {
+  return character >= "0" && character <= "7";
+}
+
+function escapedByte(character: string): number {
+  if (character === "a") {
+    return 7;
+  }
+
+  if (character === "b") {
+    return 8;
+  }
+
+  if (character === "t") {
+    return 9;
+  }
+
+  if (character === "n") {
+    return 10;
+  }
+
+  if (character === "v") {
+    return 11;
+  }
+
+  if (character === "f") {
+    return 12;
+  }
+
+  if (character === "r") {
+    return 13;
+  }
+
+  return character.charCodeAt(0);
 }
 
 function mapStatusCode(statusCode: string): WorkingTreeFileChangeViewModel["status"] {

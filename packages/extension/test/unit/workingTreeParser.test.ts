@@ -66,6 +66,30 @@ describe("WorkingTreeParser", () => {
     ]);
   });
 
+  it("unquotes untracked paths", () => {
+    const result = parsePorcelainStatus('?? "src/space name.ts"');
+
+    expect(result.unstaged).toMatchObject([
+      {
+        area: "untracked",
+        path: "src/space name.ts",
+        status: "added"
+      }
+    ]);
+  });
+
+  it("decodes octal UTF-8 path escapes", () => {
+    const result = parsePorcelainStatus(String.raw`?? "src/unicode-\303\251.ts"`);
+
+    expect(result.unstaged).toMatchObject([
+      {
+        area: "untracked",
+        path: "src/unicode-é.ts",
+        status: "added"
+      }
+    ]);
+  });
+
   it("parses stash list entries", () => {
     expect(parseStashList("stash@{0}: WIP on main: abc1234 message\nstash@{1}: On feature: save work")).toEqual([
       {
