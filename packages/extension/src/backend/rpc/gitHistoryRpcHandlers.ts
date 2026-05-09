@@ -25,13 +25,22 @@ export interface GitHistoryRpcHandlerInput {
     | "abortOperation"
     | "advancedPull"
     | "advancedPush"
+    | "cherryPick"
     | "checkout"
     | "clone"
+    | "compareCommits"
     | "continueOperation"
+    | "copyHash"
+    | "createBranchFromCommit"
+    | "editCommitMessage"
     | "fetch"
     | "getOperationState"
     | "pull"
     | "push"
+    | "pushAllCommitsToHere"
+    | "reset"
+    | "revert"
+    | "squashCommits"
   >;
   graphService: Pick<GraphService, "getLayout">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
@@ -145,6 +154,47 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.gitService.checkout(repository.rootPath, request.branch);
+    },
+    "git.copyHash": async (request) => input.gitService.copyHash(request.hash),
+    "git.cherryPick": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.cherryPick(repository.rootPath, request.hash);
+    },
+    "git.revert": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.revert(repository.rootPath, request.hash);
+    },
+    "git.reset": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.reset(repository.rootPath, request.hash, request.mode);
+    },
+    "git.compareCommits": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.compareCommits(repository.rootPath, request.hashes);
+    },
+    "git.squashCommits": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.squashCommits(repository.rootPath, request.hashes);
+    },
+    "git.createBranchFromCommit": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.createBranchFromCommit(repository.rootPath, request.hash);
+    },
+    "git.pushAllCommitsToHere": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.pushAllCommitsToHere(repository.rootPath, request.hash);
+    },
+    "git.editCommitMessage": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.gitService.editCommitMessage(repository.rootPath, request.hash);
     },
     "history.load": async (request) => {
       const repositories = await input.repositoryService.discoverRepositories();

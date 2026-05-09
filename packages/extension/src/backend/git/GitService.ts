@@ -1,6 +1,6 @@
 import { simpleGit } from "simple-git";
-import { window } from "vscode";
-import type { OperationResultViewModel } from "../rpc/contract";
+import { env, window } from "vscode";
+import type { GitResetMode, OperationResultViewModel } from "../rpc/contract";
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
 import type { SettingsService } from "../../state/SettingsService";
 import type { Logger } from "../../logging/LoggerService";
@@ -11,25 +11,32 @@ interface QuickPickItem {
 }
 
 export interface GitServiceInput {
+  clipboardWrite?: (text: string) => Thenable<void>;
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
   safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
+  showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
+  showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 }
 
 export class GitService {
+  private readonly clipboardWrite: (text: string) => Thenable<void>;
   private readonly gitClone: (targetDirectory: string, url: string) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly showInformationMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
+  private readonly showInputBox: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
+  private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 
   public constructor(input: GitServiceInput) {
+    this.clipboardWrite = input.clipboardWrite ?? ((text) => env.clipboard.writeText(text));
     this.gitClone = input.gitClone ?? (async (targetDirectory, url) => {
       await simpleGit(targetDirectory).clone(url, ".");
     });
@@ -40,9 +47,15 @@ export class GitService {
     this.showInformationMessage =
       input.showInformationMessage ??
       ((message, ...items) => window.showInformationMessage(message, ...items));
+    this.showInputBox =
+      input.showInputBox ??
+      ((options) => window.showInputBox(options));
     this.showQuickPick =
       input.showQuickPick ??
       ((items, options) => window.showQuickPick([...items], options));
+    this.showWarningMessage =
+      input.showWarningMessage ??
+      ((message, ...items) => window.showWarningMessage(message, ...items));
   }
 
   public async pull(repositoryRoot: string): Promise<OperationResultViewModel> {
@@ -179,6 +192,153 @@ export class GitService {
     };
   }
 
+  public async copyHash(hash: string): Promise<OperationResultViewModel> {
+    await this.clipboardWrite(hash);
+
+    return {
+      message: `Copied ${hash.slice(0, 8)}`,
+      status: "ok"
+    };
+  }
+
+  public async cherryPick(repositoryRoot: string, hash: string): Promise<OperationResultViewModel> {
+    if (!(await this.confirmCommitOperation(`Cherry-pick commit ${hash.slice(0, 8)}?`))) {
+      return { message: "Cherry-pick cancelled", status: "cancelled" };
+    }
+
+    await this.runGitRaw(repositoryRoot, ["cherry-pick", hash]);
+    return {
+      message: "Cherry-pick completed",
+      status: "ok"
+    };
+  }
+
+  public async revert(repositoryRoot: string, hash: string): Promise<OperationResultViewModel> {
+    if (!(await this.confirmCommitOperation(`Revert commit ${hash.slice(0, 8)}?`))) {
+      return { message: "Revert cancelled", status: "cancelled" };
+    }
+
+    await this.runGitRaw(repositoryRoot, ["revert", "--no-edit", hash]);
+    return {
+      message: "Revert completed",
+      status: "ok"
+    };
+  }
+
+  public async reset(repositoryRoot: string, hash: string, mode: GitResetMode): Promise<OperationResultViewModel> {
+    if (!(await this.confirmCommitOperation(`Reset --${mode} to commit ${hash.slice(0, 8)}?`))) {
+      return { message: `Reset ${mode} cancelled`, status: "cancelled" };
+    }
+
+    await this.runGitRaw(repositoryRoot, ["reset", `--${mode}`, hash]);
+    return {
+      message: `Reset ${mode} completed`,
+      status: "ok"
+    };
+  }
+
+  public async compareCommits(repositoryRoot: string, hashes: readonly string[]): Promise<OperationResultViewModel> {
+    if (hashes.length !== 2) {
+      return { message: "Select exactly 2 commits to compare", status: "cancelled" };
+    }
+
+    await this.runGitRaw(repositoryRoot, ["diff", "--name-status", hashes[0]!, hashes[1]!]);
+
+    return {
+      message: `Compared ${hashes[0]!.slice(0, 8)} and ${hashes[1]!.slice(0, 8)}`,
+      status: "ok"
+    };
+  }
+
+  public async createBranchFromCommit(repositoryRoot: string, hash: string): Promise<OperationResultViewModel> {
+    const branchName = await this.showInputBox({
+      placeHolder: "feature/new-branch",
+      prompt: "Enter new branch name"
+    });
+    if (!branchName) {
+      return { message: "Create branch cancelled", status: "cancelled" };
+    }
+
+    await this.runGitRaw(repositoryRoot, ["branch", branchName.trim(), hash]);
+    return {
+      message: `Created branch ${branchName.trim()}`,
+      status: "ok"
+    };
+  }
+
+  public async pushAllCommitsToHere(repositoryRoot: string, hash: string): Promise<OperationResultViewModel> {
+    const target = await this.pickPushAllCommitsTarget(repositoryRoot);
+    if (!target) {
+      return { message: "Push commits cancelled", status: "cancelled" };
+    }
+
+    if (!(await this.confirmCommitOperation(`Push commits up to ${hash.slice(0, 8)} to ${target}?`))) {
+      return { message: "Push commits cancelled", status: "cancelled" };
+    }
+
+    const remoteTarget = splitRemoteBranch(target);
+    await this.runGitRaw(repositoryRoot, ["push", remoteTarget.remote, `${hash}:refs/heads/${remoteTarget.branch}`]);
+    return {
+      message: `Pushed commits to ${target}`,
+      status: "ok"
+    };
+  }
+
+  public async editCommitMessage(repositoryRoot: string, hash: string): Promise<OperationResultViewModel> {
+    const currentMessage = (await this.runGitRaw(repositoryRoot, ["show", "--no-patch", "--format=%s", hash])).trim();
+    const message = await this.showInputBox({
+      placeHolder: "Enter new commit message",
+      prompt: "Edit commit message",
+      value: currentMessage
+    });
+    if (!message || message.trim() === currentMessage) {
+      return { message: "Edit commit message cancelled", status: "cancelled" };
+    }
+
+    const head = (await this.runGitRaw(repositoryRoot, ["rev-parse", "HEAD"])).trim();
+    if (head !== hash) {
+      throw new Error("Only the current HEAD commit message can be edited");
+    }
+
+    await this.runGitRaw(repositoryRoot, ["commit", "--amend", "-m", message.trim()]);
+    return {
+      message: "Commit message updated",
+      status: "ok"
+    };
+  }
+
+  public async squashCommits(repositoryRoot: string, hashes: readonly string[]): Promise<OperationResultViewModel> {
+    if (hashes.length < 2) {
+      return { message: "Select at least 2 commits to squash", status: "cancelled" };
+    }
+
+    if (!(await this.confirmCommitOperation(`Squash ${hashes.length} commits into one?`))) {
+      return { message: "Squash cancelled", status: "cancelled" };
+    }
+
+    const message = await this.showInputBox({
+      placeHolder: "Enter squashed commit message",
+      prompt: "Squash commit message"
+    });
+    if (!message) {
+      return { message: "Squash cancelled", status: "cancelled" };
+    }
+
+    const head = (await this.runGitRaw(repositoryRoot, ["rev-parse", "HEAD"])).trim();
+    if (head !== hashes[0]) {
+      throw new Error("Only a range ending at HEAD can be squashed");
+    }
+
+    const oldestHash = hashes.at(-1)!;
+    const parent = (await this.runGitRaw(repositoryRoot, ["rev-parse", `${oldestHash}^`])).trim();
+    await this.runGitRaw(repositoryRoot, ["reset", "--soft", parent]);
+    await this.runGitRaw(repositoryRoot, ["commit", "-m", message.trim()]);
+    return {
+      message: `Squashed ${hashes.length} commits`,
+      status: "ok"
+    };
+  }
+
   public async continueOperation(repositoryRoot: string): Promise<OperationResultViewModel> {
     return this.safetyService.continueOperation(repositoryRoot);
   }
@@ -304,6 +464,33 @@ export class GitService {
       .split("\n")
       .map((remote) => remote.trim())
       .filter((remote) => remote.length > 0);
+  }
+
+  private async confirmCommitOperation(message: string): Promise<boolean> {
+    return (await this.showWarningMessage(message, "Continue", "Cancel")) === "Continue";
+  }
+
+  private async pickPushAllCommitsTarget(repositoryRoot: string): Promise<string | undefined> {
+    const remoteBranches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
+    const target = await this.showQuickPick(
+      [
+        ...remoteBranches.map((branch) => ({ label: branch, value: branch })),
+        { label: "+ Create new remote branch", value: "__create__" }
+      ],
+      { placeHolder: "Select target remote branch" }
+    );
+    if (!target) {
+      return undefined;
+    }
+
+    if (target.value !== "__create__") {
+      return target.value;
+    }
+
+    return this.showInputBox({
+      placeHolder: "origin/feature-branch",
+      prompt: "Enter new remote branch name"
+    });
   }
 
   private async promptPullRequestForCurrentBranch(repositoryRoot: string): Promise<void> {

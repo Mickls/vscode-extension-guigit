@@ -456,13 +456,33 @@ describe("Git history RPC handlers", () => {
           gitCalls.push(["checkout", repositoryRoot, branch]);
           return { message: "checkout", status: "ok" };
         },
+        cherryPick: async (repositoryRoot, hash) => {
+          gitCalls.push(["cherryPick", repositoryRoot, hash]);
+          return { message: "cherry pick", status: "ok" };
+        },
         clone: async (targetDirectory, url) => {
           gitCalls.push(["clone", targetDirectory, url]);
           return { message: "clone", status: "ok" };
         },
+        compareCommits: async (repositoryRoot, hashes) => {
+          gitCalls.push(["compareCommits", repositoryRoot, hashes]);
+          return { message: "compare commits", status: "ok" };
+        },
         continueOperation: async (repositoryRoot) => {
           gitCalls.push(["continueOperation", repositoryRoot]);
           return { message: "continue operation", status: "ok" };
+        },
+        copyHash: async (hash) => {
+          gitCalls.push(["copyHash", hash]);
+          return { message: "copy hash", status: "ok" };
+        },
+        createBranchFromCommit: async (repositoryRoot, hash) => {
+          gitCalls.push(["createBranchFromCommit", repositoryRoot, hash]);
+          return { message: "create branch", status: "ok" };
+        },
+        editCommitMessage: async (repositoryRoot, hash) => {
+          gitCalls.push(["editCommitMessage", repositoryRoot, hash]);
+          return { message: "edit commit message", status: "ok" };
         },
         getOperationState: async (repositoryRoot) => {
           gitCalls.push(["operationState", repositoryRoot]);
@@ -479,6 +499,22 @@ describe("Git history RPC handlers", () => {
         push: async (repositoryRoot) => {
           gitCalls.push(["push", repositoryRoot]);
           return { message: "push", status: "ok" };
+        },
+        pushAllCommitsToHere: async (repositoryRoot, hash) => {
+          gitCalls.push(["pushAllCommitsToHere", repositoryRoot, hash]);
+          return { message: "push commits", status: "ok" };
+        },
+        reset: async (repositoryRoot, hash, mode) => {
+          gitCalls.push(["reset", repositoryRoot, hash, mode]);
+          return { message: "reset", status: "ok" };
+        },
+        revert: async (repositoryRoot, hash) => {
+          gitCalls.push(["revert", repositoryRoot, hash]);
+          return { message: "revert", status: "ok" };
+        },
+        squashCommits: async (repositoryRoot, hashes) => {
+          gitCalls.push(["squashCommits", repositoryRoot, hashes]);
+          return { message: "squash commits", status: "ok" };
         }
       },
       repositoryService: {
@@ -499,6 +535,15 @@ describe("Git history RPC handlers", () => {
     await handlers["git.fetch"]!({ id: "12", repositoryId: "/repo", type: "git.fetch" });
     await handlers["git.checkout"]!({ branch: "feature", id: "13", repositoryId: "/repo", type: "git.checkout" });
     await handlers["git.clone"]!({ id: "14", targetDirectory: "/target", type: "git.clone", url: "https://example.com/repo.git" });
+    await handlers["git.copyHash"]!({ hash: "abc123", id: "15", repositoryId: "/repo", type: "git.copyHash" });
+    await handlers["git.cherryPick"]!({ hash: "abc123", id: "16", repositoryId: "/repo", type: "git.cherryPick" });
+    await handlers["git.revert"]!({ hash: "abc123", id: "17", repositoryId: "/repo", type: "git.revert" });
+    await handlers["git.reset"]!({ hash: "abc123", id: "18", mode: "hard", repositoryId: "/repo", type: "git.reset" });
+    await handlers["git.compareCommits"]!({ hashes: ["abc123", "def456"], id: "19", repositoryId: "/repo", type: "git.compareCommits" });
+    await handlers["git.squashCommits"]!({ hashes: ["abc123", "def456"], id: "20", repositoryId: "/repo", type: "git.squashCommits" });
+    await handlers["git.createBranchFromCommit"]!({ hash: "abc123", id: "21", repositoryId: "/repo", type: "git.createBranchFromCommit" });
+    await handlers["git.pushAllCommitsToHere"]!({ hash: "abc123", id: "22", repositoryId: "/repo", type: "git.pushAllCommitsToHere" });
+    await handlers["git.editCommitMessage"]!({ hash: "abc123", id: "23", repositoryId: "/repo", type: "git.editCommitMessage" });
 
     expect(gitCalls).toEqual([
       ["pull", "/repo"],
@@ -510,7 +555,16 @@ describe("Git history RPC handlers", () => {
       ["advancedPush", "/repo"],
       ["fetch", "/repo"],
       ["checkout", "/repo", "feature"],
-      ["clone", "/target", "https://example.com/repo.git"]
+      ["clone", "/target", "https://example.com/repo.git"],
+      ["copyHash", "abc123"],
+      ["cherryPick", "/repo", "abc123"],
+      ["revert", "/repo", "abc123"],
+      ["reset", "/repo", "abc123", "hard"],
+      ["compareCommits", "/repo", ["abc123", "def456"]],
+      ["squashCommits", "/repo", ["abc123", "def456"]],
+      ["createBranchFromCommit", "/repo", "abc123"],
+      ["pushAllCommitsToHere", "/repo", "abc123"],
+      ["editCommitMessage", "/repo", "abc123"]
     ]);
   });
 });
@@ -544,12 +598,21 @@ function createGitService() {
     abortOperation: async () => ({ message: "ok", status: "cancelled" as const }),
     advancedPull: async () => ({ message: "ok", status: "ok" as const }),
     advancedPush: async () => ({ message: "ok", status: "ok" as const }),
+    cherryPick: async () => ({ message: "ok", status: "ok" as const }),
     checkout: async () => ({ message: "ok", status: "ok" as const }),
     clone: async () => ({ message: "ok", status: "ok" as const }),
+    compareCommits: async () => ({ message: "ok", status: "ok" as const }),
     continueOperation: async () => ({ message: "ok", status: "ok" as const }),
+    copyHash: async () => ({ message: "ok", status: "ok" as const }),
+    createBranchFromCommit: async () => ({ message: "ok", status: "ok" as const }),
+    editCommitMessage: async () => ({ message: "ok", status: "ok" as const }),
     fetch: async () => ({ message: "ok", status: "ok" as const }),
     getOperationState: async () => ({ message: "ok", status: "ok" as const }),
     pull: async () => ({ message: "ok", status: "ok" as const }),
-    push: async () => ({ message: "ok", status: "ok" as const })
+    push: async () => ({ message: "ok", status: "ok" as const }),
+    pushAllCommitsToHere: async () => ({ message: "ok", status: "ok" as const }),
+    reset: async () => ({ message: "ok", status: "ok" as const }),
+    revert: async () => ({ message: "ok", status: "ok" as const }),
+    squashCommits: async () => ({ message: "ok", status: "ok" as const })
   };
 }

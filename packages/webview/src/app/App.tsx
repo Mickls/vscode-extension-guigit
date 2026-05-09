@@ -6,7 +6,9 @@ import type {
   CommitListItemViewModel,
   FileChangeViewModel,
   FileViewMode,
+  GitResetMode,
   GraphLayoutViewModel,
+  RpcRequest,
   RemoteViewModel,
   RpcResponse
 } from "./rpcContract.generated";
@@ -32,6 +34,18 @@ const pageSize = 50;
 const defaultFileViewMode: FileViewMode = "list";
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
 type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
+type ContextGitOperationType =
+  | "git.cherryPick"
+  | "git.compareCommits"
+  | "git.copyHash"
+  | "git.createBranchFromCommit"
+  | "git.editCommitMessage"
+  | "git.pushAllCommitsToHere"
+  | "git.reset"
+  | "git.revert"
+  | "git.squashCommits";
+type DistributiveOmit<T, TKey extends PropertyKey> = T extends unknown ? Omit<T, TKey> : never;
+type ContextGitOperationRequest = DistributiveOmit<Extract<RpcRequest, { type: ContextGitOperationType }>, "id">;
 
 const gitOperationLabels = {
   "git.advancedPull": "Advanced Pull",
@@ -40,6 +54,18 @@ const gitOperationLabels = {
   "git.pull": "Pull",
   "git.push": "Push"
 } as const satisfies Record<PrimaryGitOperationType, string>;
+
+const contextGitOperationLabels = {
+  "git.cherryPick": "Cherry Pick",
+  "git.compareCommits": "Compare Commits",
+  "git.copyHash": "Copy Hash",
+  "git.createBranchFromCommit": "Create Branch",
+  "git.editCommitMessage": "Edit Commit Message",
+  "git.pushAllCommitsToHere": "Push Commits",
+  "git.reset": "Reset",
+  "git.revert": "Revert",
+  "git.squashCommits": "Squash Commits"
+} as const satisfies Record<ContextGitOperationType, string>;
 
 export interface AppProps {
   rpcClient?: RpcClient;
@@ -70,7 +96,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
   const [operationNotification, setOperationNotification] = useState<OperationNotification | undefined>();
-  const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | PrimaryGitOperationType | undefined>();
+  const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | undefined>();
   const [conflictOperation, setConflictOperation] = useState<OperationNotification | undefined>();
   const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
   const hasMoreRef = useRef(false);
@@ -82,6 +108,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const commitDetailsRef = useRef<CommitDetailsViewModel | undefined>(undefined);
   const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState({
+    hash: undefined as string | undefined,
     visible: false,
     x: 0,
     y: 0
@@ -271,6 +298,20 @@ export function App({ rpcClient }: AppProps): ReactElement {
           repositoryId: selectedRepositoryIdRef.current
         });
       }
+
+      if (isContextGitOperationResponse(response)) {
+        setActiveGitOperation(undefined);
+        setOperationNotification({
+          message: response.payload.message,
+          state: response.payload.status === "ok" ? "success" : "warning"
+        });
+        if (response.payload.status === "ok" && response.type !== "git.copyHash" && response.type !== "git.compareCommits") {
+          requestHistory(client, pendingHistoryRequestsRef.current, {
+            preserveSelection: true,
+            repositoryId: selectedRepositoryIdRef.current
+          });
+        }
+      }
     };
 
     window.addEventListener("message", handleMessage);
@@ -311,9 +352,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const openCommitContextMenu = (event: MouseEvent<HTMLElement>, commit: CommitListItemViewModel) => {
     event.preventDefault();
     setSettingsMenuOpen(false);
-    setSelectedCommitHash(commit.hash);
-    selectedCommitHashRef.current = commit.hash;
     setContextMenu({
+      hash: commit.hash,
       visible: true,
       x: event.clientX,
       y: event.clientY
@@ -321,10 +361,27 @@ export function App({ rpcClient }: AppProps): ReactElement {
   };
 
   const handleContextMenuAction = (action: ContextMenuAction) => {
+    const contextHash = contextMenu.hash;
+    const selectedPair = getSelectedPair(selectedCommitHashRef.current, contextHash);
     setContextMenu((current) => ({ ...current, visible: false }));
 
+    if (!selectedRepositoryIdRef.current || !contextHash || activeGitOperation || conflictOperation) {
+      return;
+    }
+
     if (action === "compare") {
+      startContextOperation({
+        hashes: selectedPair,
+        repositoryId: selectedRepositoryIdRef.current,
+        type: "git.compareCommits"
+      });
       setCompareOverlayOpen(true);
+      return;
+    }
+
+    const request = contextActionRequest(action, selectedRepositoryIdRef.current, contextHash, selectedPair);
+    if (request) {
+      startContextOperation(request);
     }
   };
 
@@ -377,8 +434,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   };
 
   const openCompareFileDiff = (filePath: string) => {
-    const fromHash = commits[0]?.hash;
-    const toHash = commits[1]?.hash;
+    const [fromHash, toHash] = getSelectedPair(selectedCommitHashRef.current, contextMenu.hash);
     if (!selectedRepositoryIdRef.current || !fromHash || !toHash) {
       return;
     }
@@ -431,6 +487,20 @@ export function App({ rpcClient }: AppProps): ReactElement {
       id: crypto.randomUUID(),
       repositoryId: selectedRepositoryIdRef.current,
       type
+    });
+  };
+
+  const startContextOperation = (request: ContextGitOperationRequest) => {
+    if (activeGitOperation || conflictOperation) {
+      return;
+    }
+
+    const label = contextGitOperationLabels[request.type];
+    setActiveGitOperation(request.type);
+    setOperationNotification({ message: `${label} is running...`, state: "running" });
+    client?.post({
+      ...request,
+      id: crypto.randomUUID()
     });
   };
 
@@ -489,9 +559,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
       />
       <ContextMenu
-        canEditCommitMessage={commits.find((commit) => commit.hash === selectedCommitHash)?.canEditMessage ?? false}
+        canEditCommitMessage={commits.find((commit) => commit.hash === contextMenu.hash)?.canEditMessage ?? false}
         onAction={handleContextMenuAction}
-        selectedCommitCount={selectedCommitHash ? Math.min(commits.length, 2) : 0}
+        selectedCommitCount={getSelectedPair(selectedCommitHash, contextMenu.hash).length}
         visible={contextMenu.visible}
         x={contextMenu.x}
         y={contextMenu.y}
@@ -504,11 +574,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
       />
       <CompareOverlay
         files={emptyCompareFiles}
-        fromHash={commits[0]?.hash ?? ""}
+        fromHash={getSelectedPair(selectedCommitHash, contextMenu.hash)[0] ?? ""}
         onClose={() => setCompareOverlayOpen(false)}
         onOpenFileDiff={openCompareFileDiff}
         open={compareOverlayOpen}
-        toHash={commits[1]?.hash ?? ""}
+        toHash={getSelectedPair(selectedCommitHash, contextMenu.hash)[1] ?? ""}
       />
       {operationNotification ? (
         <OperationToast message={operationNotification.message} state={operationNotification.state} />
@@ -595,12 +665,33 @@ function isConflictGitOperationResponse(
   );
 }
 
-function isGitOperationType(type: string): type is ConflictGitOperationType | PrimaryGitOperationType {
+function isContextGitOperationResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: ContextGitOperationType }> {
+  return isContextGitOperationType(response.type);
+}
+
+function isGitOperationType(type: string): type is ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType {
   return (
     isPrimaryGitOperationType(type) ||
+    isContextGitOperationType(type) ||
     type === "git.abortOperation" ||
     type === "git.continueOperation" ||
     type === "git.operationState"
+  );
+}
+
+function isContextGitOperationType(type: string): type is ContextGitOperationType {
+  return (
+    type === "git.cherryPick" ||
+    type === "git.compareCommits" ||
+    type === "git.copyHash" ||
+    type === "git.createBranchFromCommit" ||
+    type === "git.editCommitMessage" ||
+    type === "git.pushAllCommitsToHere" ||
+    type === "git.reset" ||
+    type === "git.revert" ||
+    type === "git.squashCommits"
   );
 }
 
@@ -612,6 +703,76 @@ function isPrimaryGitOperationType(type: string): type is PrimaryGitOperationTyp
     type === "git.pull" ||
     type === "git.push"
   );
+}
+
+function getSelectedPair(selectedHash: string | undefined, contextHash: string | undefined): readonly string[] {
+  if (!selectedHash || !contextHash) {
+    return [];
+  }
+
+  if (selectedHash === contextHash) {
+    return [contextHash];
+  }
+
+  return [selectedHash, contextHash];
+}
+
+function contextActionRequest(
+  action: ContextMenuAction,
+  repositoryId: string,
+  hash: string,
+  selectedPair: readonly string[]
+): ContextGitOperationRequest | undefined {
+  if (action === "copyHash") {
+    return { hash, repositoryId, type: "git.copyHash" };
+  }
+
+  if (action === "cherryPick") {
+    return { hash, repositoryId, type: "git.cherryPick" };
+  }
+
+  if (action === "revert") {
+    return { hash, repositoryId, type: "git.revert" };
+  }
+
+  if (action === "squash") {
+    return { hashes: selectedPair, repositoryId, type: "git.squashCommits" };
+  }
+
+  if (action === "createBranch") {
+    return { hash, repositoryId, type: "git.createBranchFromCommit" };
+  }
+
+  if (action === "pushToCommit") {
+    return { hash, repositoryId, type: "git.pushAllCommitsToHere" };
+  }
+
+  if (action === "editCommitMessage") {
+    return { hash, repositoryId, type: "git.editCommitMessage" };
+  }
+
+  const resetMode = resetModeFromContextAction(action);
+  if (resetMode) {
+    return { hash, mode: resetMode, repositoryId, type: "git.reset" };
+  }
+
+  return undefined;
+}
+
+function resetModeFromContextAction(action: ContextMenuAction): GitResetMode | undefined {
+  if (action === "resetSoft") {
+    return "soft";
+  }
+
+  if (action === "resetMixed") {
+    return "mixed";
+  }
+
+  if (action === "resetHard") {
+    return "hard";
+  }
+
+  return undefined;
 }
 
 function OperationToast({ message, state }: { message: string; state: OperationNotification["state"] }): ReactElement {

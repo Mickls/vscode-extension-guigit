@@ -3,8 +3,15 @@ import { GitService } from "../../src/backend/git/GitService";
 import type { OperationResultViewModel } from "../../src/backend/rpc/contract";
 
 vi.mock("vscode", () => ({
+  env: {
+    clipboard: {
+      writeText: vi.fn()
+    }
+  },
   window: {
     showInformationMessage: vi.fn(),
+    showInputBox: vi.fn(),
+    showWarningMessage: vi.fn(),
     showQuickPick: vi.fn()
   }
 }));
@@ -472,11 +479,115 @@ describe("GitService", () => {
     await expect(service.getOperationState("/repo")).resolves.toEqual({ message: "ok", status: "ok" });
     expect(calls).toEqual(["continue /repo", "abort /repo", "state /repo"]);
   });
+
+  it("runs confirmed commit context git operations", async () => {
+    const calls: string[] = [];
+    const clipboardWrites: string[] = [];
+    const showInputBox = vi
+      .fn()
+      .mockResolvedValueOnce("feature/from-context")
+      .mockResolvedValueOnce("origin/review")
+      .mockResolvedValueOnce("Updated subject")
+      .mockResolvedValueOnce("Squashed subject");
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "+ Create new remote branch", value: "__create__" });
+    const showWarningMessage = vi.fn().mockResolvedValue("Continue");
+    const service = createService({
+      clipboardWrite: async (text) => {
+        clipboardWrites.push(text);
+      },
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "show --no-patch --format=%s abc123") {
+          return "Old subject\n";
+        }
+
+        if (args.join(" ") === "rev-parse HEAD") {
+          return "abc123\n";
+        }
+
+        if (args.join(" ") === "rev-parse old456^") {
+          return "parent000\n";
+        }
+
+        return "";
+      },
+      showInputBox,
+      showQuickPick,
+      showWarningMessage
+    });
+
+    await expect(service.copyHash("abc123")).resolves.toEqual({ message: "Copied abc123", status: "ok" });
+    await expect(service.cherryPick("/repo", "abc123")).resolves.toEqual({ message: "Cherry-pick completed", status: "ok" });
+    await expect(service.revert("/repo", "abc123")).resolves.toEqual({ message: "Revert completed", status: "ok" });
+    await expect(service.reset("/repo", "abc123", "hard")).resolves.toEqual({ message: "Reset hard completed", status: "ok" });
+    await expect(service.compareCommits("/repo", ["abc123", "def456"])).resolves.toEqual({
+      message: "Compared abc123 and def456",
+      status: "ok"
+    });
+    await expect(service.createBranchFromCommit("/repo", "abc123")).resolves.toEqual({
+      message: "Created branch feature/from-context",
+      status: "ok"
+    });
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).resolves.toEqual({
+      message: "Pushed commits to origin/review",
+      status: "ok"
+    });
+    await expect(service.editCommitMessage("/repo", "abc123")).resolves.toEqual({
+      message: "Commit message updated",
+      status: "ok"
+    });
+    await expect(service.squashCommits("/repo", ["abc123", "old456"])).resolves.toEqual({
+      message: "Squashed 2 commits",
+      status: "ok"
+    });
+
+    expect(clipboardWrites).toEqual(["abc123"]);
+    expect(calls).toEqual([
+      "cherry-pick abc123",
+      "revert --no-edit abc123",
+      "reset --hard abc123",
+      "diff --name-status abc123 def456",
+      "branch feature/from-context abc123",
+      "branch -r",
+      "push origin abc123:refs/heads/review",
+      "show --no-patch --format=%s abc123",
+      "rev-parse HEAD",
+      "commit --amend -m Updated subject",
+      "rev-parse HEAD",
+      "rev-parse old456^",
+      "reset --soft parent000",
+      "commit -m Squashed subject"
+    ]);
+    expect(showWarningMessage).toHaveBeenCalledTimes(5);
+  });
+
+  it("cancels commit context operations when required input is dismissed", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        return args.join(" ") === "show --no-patch --format=%s abc123" ? "Old subject\n" : "";
+      },
+      showInputBox: vi.fn().mockResolvedValue(undefined),
+      showWarningMessage: vi.fn().mockResolvedValue(undefined)
+    });
+
+    await expect(service.cherryPick("/repo", "abc123")).resolves.toEqual({ message: "Cherry-pick cancelled", status: "cancelled" });
+    await expect(service.createBranchFromCommit("/repo", "abc123")).resolves.toEqual({ message: "Create branch cancelled", status: "cancelled" });
+    await expect(service.editCommitMessage("/repo", "abc123")).resolves.toEqual({ message: "Edit commit message cancelled", status: "cancelled" });
+
+    expect(calls).toEqual(["show --no-patch --format=%s abc123"]);
+  });
 });
 
 function createService(input: {
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  clipboardWrite?: (text: string) => Thenable<void> | Promise<void>;
   safetyService?: {
     abortOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
     continueOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
@@ -497,10 +608,12 @@ function createService(input: {
     getSettings(): { autoStashOnPull: "ask" | "always" | "never" };
   };
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined> | Promise<string | undefined>;
+  showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined> | Promise<string | undefined>;
   showQuickPick?: (
     items: readonly { label: string; value: string }[],
     options: { placeHolder: string }
   ) => Thenable<{ label: string; value: string } | undefined> | Promise<{ label: string; value: string } | undefined>;
+  showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined> | Promise<string | undefined>;
   logger?: {
     debug(message: string, context?: unknown): void;
     info(message: string, context?: unknown): void;
@@ -509,6 +622,7 @@ function createService(input: {
   return new GitService({
     gitClone: input.gitClone,
     gitRaw: input.gitRaw ?? (async () => ""),
+    clipboardWrite: input.clipboardWrite,
     safetyService:
       input.safetyService ??
       ({
@@ -524,6 +638,8 @@ function createService(input: {
       } as never),
     logger: input.logger,
     showInformationMessage: input.showInformationMessage,
-    showQuickPick: input.showQuickPick
+    showInputBox: input.showInputBox,
+    showQuickPick: input.showQuickPick,
+    showWarningMessage: input.showWarningMessage
   });
 }

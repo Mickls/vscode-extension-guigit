@@ -356,13 +356,13 @@ gui-git-history/
 - Modify: `packages/extension/src/backend/git/GitService.ts`
 - Modify: `packages/webview/src/components/ContextMenu/ContextMenu.tsx`
 
-- [ ] Implement copy hash, cherry-pick, revert, reset soft/mixed/hard.
-- [ ] Implement compare selected commits.
-- [ ] Implement squash commits.
-- [ ] Implement create branch from commit.
-- [ ] Implement push all commits to here.
-- [ ] Implement edit commit message.
-- [ ] Commit with `feat: add commit context operations`.
+- [x] Implement copy hash, cherry-pick, revert, reset soft/mixed/hard.
+- [x] Implement compare selected commits.
+- [x] Implement squash commits.
+- [x] Implement create branch from commit.
+- [x] Implement push all commits to here.
+- [x] Implement edit commit message.
+- [x] Commit with `feat: add commit context operations`.
 
 ## Phase 6: Remote, Proxy, Blame, i18n
 

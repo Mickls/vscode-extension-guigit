@@ -42,6 +42,10 @@ describe("ContextMenu", () => {
       "aria-disabled",
       "true"
     );
+    expect(screen.getByRole("menuitem", { name: "Squash Commits" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
   });
 
   it("sends the selected menu action", async () => {

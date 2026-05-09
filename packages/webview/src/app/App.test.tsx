@@ -900,11 +900,128 @@ describe("App", () => {
     await waitForCommitRows();
     await user.pointer({
       keys: "[MouseRight]",
-      target: screen.getAllByTestId("commit-row")[0]!
+      target: screen.getAllByTestId("commit-row")[1]!
     });
     await user.click(screen.getByRole("menuitem", { name: "Compare Selected (2)" }));
 
     expect(screen.getByRole("region", { name: "Compare Commits" })).toBeInTheDocument();
+  });
+
+  it("posts commit context menu operations for the right-clicked commit and selected pair", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    const commitRows = screen.getAllByTestId("commit-row");
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Copy Hash" }));
+    const copyRequest = latestRequest(rpcClient, "git.copyHash");
+    expect(copyRequest).toEqual(expect.objectContaining({
+      hash: "def4567890abcdefabc",
+      repositoryId: "/repo",
+      type: "git.copyHash"
+    }));
+    dispatchOperationResponse(copyRequest.id, "git.copyHash");
+
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Cherry Pick" }));
+    const cherryPickRequest = latestRequest(rpcClient, "git.cherryPick");
+    expect(cherryPickRequest).toEqual(expect.objectContaining({
+      hash: "def4567890abcdefabc",
+      repositoryId: "/repo",
+      type: "git.cherryPick"
+    }));
+    dispatchOperationResponse(cherryPickRequest.id, "git.cherryPick");
+
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Revert" }));
+    const revertRequest = latestRequest(rpcClient, "git.revert");
+    expect(revertRequest).toEqual(expect.objectContaining({
+      hash: "def4567890abcdefabc",
+      repositoryId: "/repo",
+      type: "git.revert"
+    }));
+    dispatchOperationResponse(revertRequest.id, "git.revert");
+
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Compare Selected (2)" }));
+    const compareRequest = latestRequest(rpcClient, "git.compareCommits");
+    expect(compareRequest).toEqual(expect.objectContaining({
+      hashes: ["abc1234567890abcdef", "def4567890abcdefabc"],
+      repositoryId: "/repo",
+      type: "git.compareCommits"
+    }));
+    expect(screen.getByRole("region", { name: "Compare Commits" })).toBeInTheDocument();
+    dispatchOperationResponse(compareRequest.id, "git.compareCommits");
+    await user.click(screen.getByRole("button", { name: "Close compare" }));
+
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Squash 2 Commits" }));
+    const squashRequest = latestRequest(rpcClient, "git.squashCommits");
+    expect(squashRequest).toEqual(expect.objectContaining({
+      hashes: ["abc1234567890abcdef", "def4567890abcdefabc"],
+      repositoryId: "/repo",
+      type: "git.squashCommits"
+    }));
+    dispatchOperationResponse(squashRequest.id, "git.squashCommits");
+
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Create Branch" }));
+    const branchRequest = latestRequest(rpcClient, "git.createBranchFromCommit");
+    expect(branchRequest).toEqual(expect.objectContaining({
+      hash: "def4567890abcdefabc",
+      repositoryId: "/repo",
+      type: "git.createBranchFromCommit"
+    }));
+    dispatchOperationResponse(branchRequest.id, "git.createBranchFromCommit");
+
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Push All Commits to Here" }));
+    const pushToCommitRequest = latestRequest(rpcClient, "git.pushAllCommitsToHere");
+    expect(pushToCommitRequest).toEqual(expect.objectContaining({
+      hash: "def4567890abcdefabc",
+      repositoryId: "/repo",
+      type: "git.pushAllCommitsToHere"
+    }));
+    dispatchOperationResponse(pushToCommitRequest.id, "git.pushAllCommitsToHere");
+
+    await openContextMenu(user, commitRows[1]!);
+    await user.click(screen.getByRole("menuitem", { name: "Reset Hard" }));
+    const resetRequest = latestRequest(rpcClient, "git.reset");
+    expect(resetRequest).toEqual(expect.objectContaining({
+      hash: "def4567890abcdefabc",
+      mode: "hard",
+      repositoryId: "/repo",
+      type: "git.reset"
+    }));
+    dispatchOperationResponse(resetRequest.id, "git.reset");
+  });
+
+  it("posts edit commit message only for editable commits", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    const commitRows = screen.getAllByTestId("commit-row");
+    await openContextMenu(user, commitRows[1]!);
+    expect(screen.getByRole("menuitem", { name: "Edit Commit Message" })).toHaveAttribute("aria-disabled", "true");
+
+    await openContextMenu(user, commitRows[0]!);
+    await user.click(screen.getByRole("menuitem", { name: "Edit Commit Message" }));
+    const editRequest = latestRequest(rpcClient, "git.editCommitMessage");
+    expect(editRequest).toEqual(expect.objectContaining({
+      hash: "abc1234567890abcdef",
+      repositoryId: "/repo",
+      type: "git.editCommitMessage"
+    }));
   });
 });
 
@@ -914,6 +1031,27 @@ function createTestRpcClient(): RpcClient & { post: ReturnType<typeof vi.fn<(req
 
 async function waitForCommitRows(): Promise<void> {
   await screen.findAllByTestId("commit-row");
+}
+
+async function openContextMenu(user: ReturnType<typeof userEvent.setup>, target: HTMLElement): Promise<void> {
+  await user.pointer({
+    keys: "[MouseRight]",
+    target
+  });
+}
+
+function latestRequest<TType extends RpcRequest["type"]>(
+  rpcClient: ReturnType<typeof createTestRpcClient>,
+  type: TType
+): Extract<RpcRequest, { type: TType }> {
+  for (let index = rpcClient.post.mock.calls.length - 1; index >= 0; index -= 1) {
+    const request = rpcClient.post.mock.calls[index]![0];
+    if (request.type === type) {
+      return request as Extract<RpcRequest, { type: TType }>;
+    }
+  }
+
+  throw new Error(`Missing ${type} request`);
 }
 
 interface HistoryResponseOptions {
@@ -1066,11 +1204,20 @@ function dispatchOperationResponse(
     | "git.abortOperation"
     | "git.advancedPull"
     | "git.advancedPush"
+    | "git.cherryPick"
+    | "git.compareCommits"
+    | "git.copyHash"
+    | "git.createBranchFromCommit"
+    | "git.editCommitMessage"
     | "git.continueOperation"
     | "git.fetch"
     | "git.operationState"
     | "git.pull"
-    | "git.push",
+    | "git.push"
+    | "git.pushAllCommitsToHere"
+    | "git.reset"
+    | "git.revert"
+    | "git.squashCommits",
   result: { message: string; status: "cancelled" | "conflict" | "ok" } = {
     message: "Git operation completed",
     status: "ok"

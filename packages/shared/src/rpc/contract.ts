@@ -24,6 +24,7 @@ export const allRpcRequestTypes = [
   "git.fetch",
   "git.clone",
   "git.checkout",
+  "git.copyHash",
   "git.cherryPick",
   "git.revert",
   "git.reset",
@@ -206,24 +207,15 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "git.fetch"; repositoryId: string })
   | (RpcEnvelope & { type: "git.clone"; targetDirectory: string; url: string })
   | (RpcEnvelope & { type: "git.checkout"; repositoryId: string; branch: string })
+  | (RpcEnvelope & { type: "git.copyHash"; repositoryId: string; hash: string })
   | (RpcEnvelope & { type: "git.cherryPick"; repositoryId: string; hash: string })
   | (RpcEnvelope & { type: "git.revert"; repositoryId: string; hash: string })
   | (RpcEnvelope & { type: "git.reset"; repositoryId: string; hash: string; mode: GitResetMode })
   | (RpcEnvelope & { type: "git.compareCommits"; repositoryId: string; hashes: readonly string[] })
   | (RpcEnvelope & { type: "git.squashCommits"; repositoryId: string; hashes: readonly string[] })
-  | (RpcEnvelope & {
-      type: "git.createBranchFromCommit";
-      repositoryId: string;
-      hash: string;
-      branchName: string;
-    })
+  | (RpcEnvelope & { type: "git.createBranchFromCommit"; repositoryId: string; hash: string })
   | (RpcEnvelope & { type: "git.pushAllCommitsToHere"; repositoryId: string; hash: string })
-  | (RpcEnvelope & {
-      type: "git.editCommitMessage";
-      repositoryId: string;
-      hash: string;
-      message: string;
-    });
+  | (RpcEnvelope & { type: "git.editCommitMessage"; repositoryId: string; hash: string });
 
 export interface RpcPayloadByType {
   "history.load": {
@@ -257,6 +249,7 @@ export interface RpcPayloadByType {
   "git.fetch": OperationResultViewModel;
   "git.clone": OperationResultViewModel;
   "git.checkout": OperationResultViewModel;
+  "git.copyHash": OperationResultViewModel;
   "git.cherryPick": OperationResultViewModel;
   "git.revert": OperationResultViewModel;
   "git.reset": OperationResultViewModel;

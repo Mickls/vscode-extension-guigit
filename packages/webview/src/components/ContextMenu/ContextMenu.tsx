@@ -108,6 +108,10 @@ function isDisabled(action: ContextMenuAction, canEditCommitMessage: boolean, se
     return selectedCommitCount !== 2;
   }
 
+  if (action === "squash") {
+    return selectedCommitCount < 2;
+  }
+
   return false;
 }
 
