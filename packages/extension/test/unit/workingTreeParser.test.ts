@@ -47,6 +47,25 @@ describe("WorkingTreeParser", () => {
     ]);
   });
 
+  it("parses quoted rename paths containing separators", () => {
+    const result = parsePorcelainStatus('RM "src/old -> name.ts" -> "src/new -> name.ts"');
+
+    expect(result.staged).toMatchObject([
+      {
+        path: "src/new -> name.ts",
+        previousPath: "src/old -> name.ts",
+        status: "renamed"
+      }
+    ]);
+    expect(result.unstaged).toMatchObject([
+      {
+        path: "src/new -> name.ts",
+        previousPath: undefined,
+        status: "modified"
+      }
+    ]);
+  });
+
   it("parses stash list entries", () => {
     expect(parseStashList("stash@{0}: WIP on main: abc1234 message\nstash@{1}: On feature: save work")).toEqual([
       {

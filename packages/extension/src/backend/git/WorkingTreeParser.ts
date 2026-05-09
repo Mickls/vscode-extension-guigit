@@ -10,8 +10,8 @@ export function parsePorcelainStatus(output: string): PorcelainStatusViewModel {
   const unstaged: WorkingTreeFileChangeViewModel[] = [];
 
   for (const line of output.split("\n").filter(Boolean)) {
-    const indexStatus = line[0];
-    const workTreeStatus = line[1];
+    const indexStatus = line.charAt(0);
+    const workTreeStatus = line.charAt(1);
     const path = line.slice(3);
 
     if (line.startsWith("?? ")) {
@@ -79,15 +79,70 @@ function parseStatusPath(
     return { path };
   }
 
-  const [previousPath, nextPath] = path.split(" -> ");
+  const parsedPath = parseRenameOrCopyPath(path);
   if (statusCode !== "R" && statusCode !== "C") {
-    return { path: nextPath };
+    return { path: parsedPath.path };
   }
 
+  return parsedPath;
+}
+
+function parseRenameOrCopyPath(path: string): Pick<WorkingTreeFileChangeViewModel, "path" | "previousPath"> {
+  const separatorIndex = findRenameSeparator(path);
   return {
-    path: nextPath,
-    previousPath
+    path: unquotePorcelainPath(path.slice(separatorIndex + 4)),
+    previousPath: unquotePorcelainPath(path.slice(0, separatorIndex))
   };
+}
+
+function findRenameSeparator(path: string): number {
+  let quoted = false;
+  let escaped = false;
+
+  for (let index = 0; index < path.length; index += 1) {
+    const character = path.charAt(index);
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (character === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if (!quoted && path.slice(index, index + 4) === " -> ") {
+      return index;
+    }
+  }
+
+  throw new Error("Rename or copy path is missing separator");
+}
+
+function unquotePorcelainPath(path: string): string {
+  if (!path.startsWith('"')) {
+    return path;
+  }
+
+  let unquoted = "";
+  for (let index = 1; index < path.length - 1; index += 1) {
+    const character = path.charAt(index);
+    if (character === "\\") {
+      index += 1;
+      unquoted += path.charAt(index);
+      continue;
+    }
+
+    unquoted += character;
+  }
+
+  return unquoted;
 }
 
 function mapStatusCode(statusCode: string): WorkingTreeFileChangeViewModel["status"] {
@@ -111,14 +166,14 @@ function mapStatusCode(statusCode: string): WorkingTreeFileChangeViewModel["stat
 }
 
 function parseStashBranch(message: string): string {
-  const wipMatch = /^WIP on (?<branch>[^:]+):/.exec(message);
+  const wipMatch = /^WIP on ([^:]+):/.exec(message);
   if (wipMatch) {
-    return wipMatch.groups!.branch;
+    return wipMatch[1]!;
   }
 
-  const onMatch = /^On (?<branch>[^:]+):/.exec(message);
+  const onMatch = /^On ([^:]+):/.exec(message);
   if (onMatch) {
-    return onMatch.groups!.branch;
+    return onMatch[1]!;
   }
 
   return "";
