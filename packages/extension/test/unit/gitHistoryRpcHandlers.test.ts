@@ -5,7 +5,8 @@ import type {
   CommitDetailsViewModel,
   CommitListItemViewModel,
   GraphLayoutViewModel,
-  RemoteViewModel
+  RemoteViewModel,
+  WorkingTreeViewModel
 } from "../../src/backend/rpc/contract";
 
 const branches = {
@@ -69,7 +70,78 @@ const remotes = [
   }
 ] satisfies readonly RemoteViewModel[];
 
+const workingTree = {
+  branch: "main",
+  repositoryId: "/repo",
+  repositoryRoot: "/repo",
+  staged: [],
+  stashes: [],
+  unstaged: []
+} satisfies WorkingTreeViewModel;
+
 describe("Git history RPC handlers", () => {
+  it("loads working tree changes for the requested repository", async () => {
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        getCurrentUser: async () => undefined,
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: createGitService(),
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      proxyService: createProxyService(),
+      remoteService: createRemoteService(),
+      languageService: createLanguageService(),
+      settingsService: createSettingsService(),
+      workingTreeService: {
+        load: async () => workingTree
+      }
+    });
+
+    await expect(
+      handlers["workingTree.load"]!({
+        id: "working-tree-1",
+        repositoryId: "/repo",
+        type: "workingTree.load"
+      })
+    ).resolves.toEqual({
+      workingTree: expect.objectContaining({
+        branch: "main",
+        repositoryId: "/repo",
+        staged: [],
+        stashes: [],
+        unstaged: []
+      })
+    });
+  });
+
   it("loads repositories, branches, and commit history", async () => {
     const handlers = createGitHistoryRpcHandlers({
       branchService: {
@@ -112,7 +184,8 @@ describe("Git history RPC handlers", () => {
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
       languageService: createLanguageService(),
-      settingsService: createSettingsService()
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
     });
 
     await expect(handlers["history.load"]!({ id: "1", pageSize: 50, type: "history.load" })).resolves.toEqual({
@@ -196,7 +269,8 @@ describe("Git history RPC handlers", () => {
         updateSettings: async (settings) => {
           updates.push(settings);
         }
-      }
+      },
+      workingTreeService: createWorkingTreeService()
     });
 
     expect(handlers["settings.get"]!({ id: "settings-1", type: "settings.get" })).toEqual({
@@ -287,7 +361,8 @@ describe("Git history RPC handlers", () => {
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
       languageService: createLanguageService(),
-      settingsService: createSettingsService()
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
     });
 
     await expect(
@@ -342,7 +417,8 @@ describe("Git history RPC handlers", () => {
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
       languageService: createLanguageService(),
-      settingsService: createSettingsService()
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
     });
 
     await expect(
@@ -406,7 +482,8 @@ describe("Git history RPC handlers", () => {
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
       languageService: createLanguageService(),
-      settingsService: createSettingsService()
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
     });
 
     await expect(
@@ -481,7 +558,8 @@ describe("Git history RPC handlers", () => {
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
       languageService: createLanguageService(),
-      settingsService: createSettingsService()
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
     });
 
     await expect(
@@ -565,7 +643,8 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
-      settingsService: createSettingsService()
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
     });
 
     await expect(handlers["remotes.list"]!({ id: "remote-1", repositoryId: "/repo", type: "remotes.list" })).resolves.toEqual({
@@ -723,7 +802,8 @@ describe("Git history RPC handlers", () => {
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
       languageService: createLanguageService(),
-      settingsService: createSettingsService()
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
     });
 
     await handlers["git.pull"]!({ id: "8", repositoryId: "/repo", type: "git.pull" });
@@ -842,5 +922,11 @@ function createRemoteService() {
     deleteRemote: async () => ({ message: "ok", status: "ok" as const }),
     listRemotes: async () => remotes,
     updateRemote: async () => ({ message: "ok", status: "ok" as const })
+  };
+}
+
+function createWorkingTreeService() {
+  return {
+    load: async () => workingTree
   };
 }

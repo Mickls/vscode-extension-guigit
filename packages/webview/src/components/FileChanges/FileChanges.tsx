@@ -38,6 +38,7 @@ export interface FileChangesProps {
   onOpenFile?: (path: string) => void;
   onOpenFileDiff?: (path: string) => void;
   onOpenFileHistory?: (path: string) => void;
+  showModeControls?: boolean;
 }
 
 interface TreeNode {
@@ -52,17 +53,15 @@ export function FileChanges({
   onModeChange,
   onOpenFile,
   onOpenFileDiff,
-  onOpenFileHistory
+  onOpenFileHistory,
+  showModeControls = true
 }: FileChangesProps): ReactElement {
   const text = { ...defaultLabels, ...labels };
   return (
     <section aria-label={text.changed} className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold">{text.changed} ({files.length})</h3>
-        <div className="flex overflow-hidden rounded-[3px] border border-[var(--vscode-button-border)]">
-          <FileViewModeButton active={mode === "tree"} ariaLabel={text.treeView} label={text.tree} mode="tree" onModeChange={onModeChange} />
-          <FileViewModeButton active={mode === "list"} ariaLabel={text.listView} label={text.list} mode="list" onModeChange={onModeChange} />
-        </div>
+        {showModeControls ? <FileViewModeControls labels={text} mode={mode} onModeChange={onModeChange} /> : null}
       </div>
       <div className="rounded-[3px] border border-[var(--vscode-panel-border)]">
         {mode === "tree" ? (
@@ -84,6 +83,23 @@ export function FileChanges({
         )}
       </div>
     </section>
+  );
+}
+
+export function FileViewModeControls({
+  labels,
+  mode,
+  onModeChange
+}: {
+  labels: Pick<FileChangesLabels, "list" | "listView" | "tree" | "treeView">;
+  mode: FileViewMode;
+  onModeChange?: (mode: FileViewMode) => void;
+}): ReactElement {
+  return (
+    <div className="flex overflow-hidden rounded-[3px] border border-[var(--vscode-button-border)]">
+      <FileViewModeButton active={mode === "tree"} ariaLabel={labels.treeView} label={labels.tree} mode="tree" onModeChange={onModeChange} />
+      <FileViewModeButton active={mode === "list"} ariaLabel={labels.listView} label={labels.list} mode="list" onModeChange={onModeChange} />
+    </div>
   );
 }
 

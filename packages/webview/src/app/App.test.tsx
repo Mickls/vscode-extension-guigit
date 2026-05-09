@@ -12,7 +12,8 @@ import type {
   GraphNodeViewModel,
   I18nBundleViewModel,
   RpcPayloadByType,
-  RepositoryViewModel
+  RepositoryViewModel,
+  WorkingTreeViewModel
 } from "./rpcContract.generated";
 import type { RpcClient, RpcRequest, RpcResponse } from "./rpcClient";
 
@@ -118,6 +119,91 @@ describe("App", () => {
       type: "git.clone"
     }));
   });
+
+  it("loads working tree changes when the changes tab opens", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    expect(loadRequest).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      type: "workingTree.load"
+    }));
+
+    dispatchWorkingTreeResponse(loadRequest.id);
+
+    expect(await screen.findByRole("heading", { name: "Staged Changes (1)" })).toBeInTheDocument();
+  });
+
+  it("keeps older working tree responses from replacing the selected repository changes", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+    const repositories = [
+      { id: "/repo", name: "repo", rootPath: "/repo" },
+      { id: "/repo-two", name: "repo-two", rootPath: "/repo-two" }
+    ] satisfies readonly RepositoryViewModel[];
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, { repositories });
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const oldRequest = latestRequest(rpcClient, "workingTree.load");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Repository" }), "/repo-two");
+    dispatchHistoryResponse(rpcClient, {
+      repositories,
+      requestId: latestRequest(rpcClient, "history.load").id
+    });
+    const latestWorkingTreeRequest = latestRequest(rpcClient, "workingTree.load");
+
+    dispatchWorkingTreeResponse(latestWorkingTreeRequest.id, createWorkingTree("/repo-two", "src/current-repo.ts"));
+    expect(await screen.findByText("src/current-repo.ts")).toBeInTheDocument();
+
+    dispatchWorkingTreeResponse(oldRequest.id, createWorkingTree("/repo", "src/old-repo.ts"));
+
+    expect(screen.getByText("src/current-repo.ts")).toBeInTheDocument();
+    expect(screen.queryByText("src/old-repo.ts")).not.toBeInTheDocument();
+  });
+
+  it.each(["history.changed", "workingTree.changed"] as const)(
+    "refreshes working tree changes when %s arrives while changes are open",
+    async (type) => {
+      const user = userEvent.setup();
+      const rpcClient = createTestRpcClient();
+
+      render(<App rpcClient={rpcClient} />);
+      dispatchHistoryResponse(rpcClient);
+      await waitForCommitRows();
+
+      await user.click(screen.getByRole("tab", { name: "Changes" }));
+      latestRequest(rpcClient, "workingTree.load");
+      rpcClient.post.mockClear();
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: {
+              reason: "watcher",
+              type
+            }
+          })
+        );
+      });
+
+      expect(latestRequest(rpcClient, "workingTree.load")).toEqual(expect.objectContaining({
+        repositoryId: "/repo",
+        type: "workingTree.load"
+      }));
+    }
+  );
 
   it("refreshes webview labels from settings bootstrap without reloading history", async () => {
     const user = userEvent.setup();
@@ -1815,6 +1901,30 @@ function createCommit(input: {
   };
 }
 
+const defaultWorkingTree = {
+  branch: "main",
+  repositoryId: "/repo",
+  repositoryRoot: "/repo",
+  staged: [
+    { area: "staged", binary: false, deletions: 0, insertions: 1, path: "src/staged.ts", status: "modified" }
+  ],
+  stashes: [],
+  unstaged: []
+} satisfies WorkingTreeViewModel;
+
+function createWorkingTree(repositoryId: string, path: string): WorkingTreeViewModel {
+  return {
+    branch: "main",
+    repositoryId,
+    repositoryRoot: repositoryId,
+    staged: [
+      { area: "staged", binary: false, deletions: 0, insertions: 1, path, status: "modified" }
+    ],
+    stashes: [],
+    unstaged: []
+  };
+}
+
 function dispatchDetailsResponse(
   id: string,
   commit: {
@@ -1849,6 +1959,23 @@ function dispatchDetailsResponse(
               message: commit.message,
               refs: []
             }
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchWorkingTreeResponse(id: string, workingTree: WorkingTreeViewModel = defaultWorkingTree): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type: "workingTree.load",
+          payload: {
+            workingTree
           }
         } satisfies RpcResponse
       })

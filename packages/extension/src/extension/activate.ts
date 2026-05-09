@@ -12,6 +12,7 @@ import { RemoteService } from "../backend/git/RemoteService";
 import { RepositoryService } from "../backend/git/RepositoryService";
 import { SafetyService } from "../backend/git/SafetyService";
 import { ProxyService } from "../backend/git/ProxyService";
+import { WorkingTreeService } from "../backend/git/WorkingTreeService";
 import { LanguageService } from "../backend/i18n/LanguageService";
 import { DiffService } from "../backend/vscode/DiffService";
 import { BlameController } from "../backend/vscode/BlameController";
@@ -79,6 +80,9 @@ export function activate(context: ExtensionContext): void {
     vscodeProxy: () => workspace.getConfiguration("http").get<string>("proxy")
   });
   const remoteService = new RemoteService();
+  const workingTreeService = new WorkingTreeService({
+    gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args)
+  });
   const diffService = new DiffService({ logger });
   const safetyService = new SafetyService({ logger });
   const gitService = new GitService({
@@ -128,7 +132,8 @@ export function activate(context: ExtensionContext): void {
       proxyService,
       remoteService,
       repositoryService,
-      settingsService
+      settingsService,
+      workingTreeService
     }),
     logger
   );

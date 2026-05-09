@@ -15,19 +15,22 @@ import type {
   RepositoryViewModel,
   RpcRequest,
   RemoteViewModel,
-  RpcResponse
+  RpcResponse,
+  WorkingTreeViewModel
 } from "./rpcContract.generated";
 import type { RpcClient } from "./rpcClient";
 import { createTranslator } from "./i18n";
 import { CompareOverlay } from "../components/CompareOverlay/CompareOverlay";
 import { CommitDetails } from "../components/CommitDetails/CommitDetails";
 import { CommitList, type CommitSelectionIntent } from "../components/CommitList/CommitList";
+import { ChangesPanel } from "../components/ChangesPanel/ChangesPanel";
 import { ConflictBanner } from "../components/ConflictBanner/ConflictBanner";
 import { ContextMenu, type ContextMenuAction } from "../components/ContextMenu/ContextMenu";
 import { Header } from "../components/Header/Header";
 import { SplitPanels } from "../components/Layout/SplitPanels";
 import { NotificationCenter, type NotificationHistoryItem, type NotificationState } from "../components/NotificationCenter/NotificationCenter";
 import { OperationToast } from "../components/OperationToast/OperationToast";
+import { PanelTabs, type RightPanelTab } from "../components/PanelTabs/PanelTabs";
 import { RemoteManager } from "../components/RemoteManager/RemoteManager";
 import { SettingsMenu, type SettingsMenuAction } from "../components/SettingsMenu/SettingsMenu";
 
@@ -118,6 +121,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
   const [selectedCommitHashes, setSelectedCommitHashes] = useState<readonly string[]>([]);
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
+  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>("details");
+  const [workingTree, setWorkingTree] = useState<WorkingTreeViewModel | undefined>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
   const [i18nMessages, setI18nMessages] = useState<I18nMessages>(emptyI18nMessages);
   const [compareFiles, setCompareFiles] = useState<readonly FileChangeViewModel[]>(emptyCompareFiles);
@@ -145,6 +150,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const selectedCommitHashesRef = useRef<readonly string[]>([]);
   const commitDetailsRef = useRef<CommitDetailsViewModel | undefined>(undefined);
   const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
+  const latestWorkingTreeRequestRef = useRef<{ id: string; repositoryId: string } | undefined>(undefined);
+  const rightPanelTabRef = useRef<RightPanelTab>("details");
   const [contextMenu, setContextMenu] = useState({
     hash: undefined as string | undefined,
     visible: false,
@@ -235,6 +242,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
     setNotificationHistory((current) => current.map((notification) => ({ ...notification, read: true })));
   };
   const unreadNotificationCount = notificationHistory.filter((notification) => !notification.read).length;
+  const changeRightPanelTab = (tab: RightPanelTab) => {
+    rightPanelTabRef.current = tab;
+    setRightPanelTab(tab);
+  };
   const reloadHistory = (options: { preserveSelection?: boolean; repositoryId?: string } = {}) => {
     requestHistory(client, pendingHistoryRequestsRef.current, {
       author: trimFilter(authorQueryRef.current),
@@ -243,6 +254,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
       repositoryId: options.repositoryId ?? selectedRepositoryIdRef.current,
       search: trimFilter(searchQueryRef.current)
     });
+  };
+  const loadWorkingTree = (repositoryId: string) => {
+    latestWorkingTreeRequestRef.current = {
+      id: requestWorkingTree(client, repositoryId),
+      repositoryId
+    };
   };
 
   useEffect(() => {
@@ -291,11 +308,29 @@ export function App({ rpcClient }: AppProps): ReactElement {
   }, [conflictOperation]);
 
   useEffect(() => {
+    if (rightPanelTab === "changes" && selectedRepositoryId) {
+      loadWorkingTree(selectedRepositoryId);
+    }
+  }, [client, rightPanelTab, selectedRepositoryId]);
+
+  useEffect(() => {
     const handleMessage = (event: MessageEvent<BackendNotification | RpcResponse>) => {
       const response = event.data;
       if (isBackendNotification(response)) {
         if (response.type === "history.changed") {
           reloadHistory({ preserveSelection: response.reason === "watcher" });
+        }
+
+        if (response.type === "history.changed" || response.type === "workingTree.changed") {
+          const selectedRepository = selectedRepositoryIdRef.current;
+          const notificationRepository = response.type === "workingTree.changed" ? response.repositoryId : undefined;
+          if (
+            rightPanelTabRef.current === "changes" &&
+            selectedRepository &&
+            (!notificationRepository || notificationRepository === selectedRepository)
+          ) {
+            loadWorkingTree(selectedRepository);
+          }
         }
 
         if (response.type === "history.revealCommit") {
@@ -404,6 +439,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (response.type === "commits.getDetails" && response.payload.commit.hash === selectedCommitHashRef.current) {
         showCommitDetails(response.payload.commit);
+      }
+
+      if (response.type === "workingTree.load") {
+        const latestWorkingTreeRequest = latestWorkingTreeRequestRef.current;
+        if (
+          latestWorkingTreeRequest?.id === response.id &&
+          latestWorkingTreeRequest.repositoryId === response.payload.workingTree.repositoryId &&
+          latestWorkingTreeRequest.repositoryId === selectedRepositoryIdRef.current
+        ) {
+          setWorkingTree(response.payload.workingTree);
+        }
       }
 
       if (response.type === "graph.getLayout") {
@@ -573,6 +619,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
     setSelectedCommitHash(undefined);
     selectedCommitHashRef.current = undefined;
     showCommitDetails(undefined);
+    setWorkingTree(undefined);
     requestHistory(client, pendingHistoryRequestsRef.current, {
       author: trimFilter(authorQueryRef.current),
       repositoryId,
@@ -950,30 +997,44 @@ export function App({ rpcClient }: AppProps): ReactElement {
           />
         }
         right={
-          <CommitDetails
-            commit={commitDetails}
-            fileViewMode={fileViewMode}
-            labels={{
-              files: {
-                binary: tx("files.binary", "binary"),
-                changed: tx("files.changed", "Files Changed"),
-                collapseDirectory: tx("files.collapseDirectory", "Collapse {0}"),
-                expandDirectory: tx("files.expandDirectory", "Expand {0}"),
-                list: tx("files.list", "List"),
-                listView: tx("files.listView", "List view"),
-                openDiff: tx("files.openDiff", "Open diff for {0}"),
-                openFile: tx("files.openFile", "Open file {0}"),
-                openFileHistory: tx("files.openFileHistory", "Open file history for {0}"),
-                tree: tx("files.tree", "Tree"),
-                treeView: tx("files.treeView", "Tree view")
-              },
-              selectCommit: tx("selectCommit", "Select a commit to view details.")
-            }}
-            onFileViewModeChange={updateFileViewMode}
-            onOpenFile={openWorkingFile}
-            onOpenFileDiff={openCommitFileDiff}
-            onOpenFileHistory={openFileHistory}
-          />
+          <div className="flex h-full min-h-0 flex-col">
+            <PanelTabs
+              active={rightPanelTab}
+              labels={{
+                changes: tx("rightPanel.changes", "Changes"),
+                details: tx("rightPanel.details", "Details")
+              }}
+              onChange={changeRightPanelTab}
+            />
+            {rightPanelTab === "details" ? (
+              <CommitDetails
+                commit={commitDetails}
+                fileViewMode={fileViewMode}
+                labels={{
+                  files: {
+                    binary: tx("files.binary", "binary"),
+                    changed: tx("files.changed", "Files Changed"),
+                    collapseDirectory: tx("files.collapseDirectory", "Collapse {0}"),
+                    expandDirectory: tx("files.expandDirectory", "Expand {0}"),
+                    list: tx("files.list", "List"),
+                    listView: tx("files.listView", "List view"),
+                    openDiff: tx("files.openDiff", "Open diff for {0}"),
+                    openFile: tx("files.openFile", "Open file {0}"),
+                    openFileHistory: tx("files.openFileHistory", "Open file history for {0}"),
+                    tree: tx("files.tree", "Tree"),
+                    treeView: tx("files.treeView", "Tree view")
+                  },
+                  selectCommit: tx("selectCommit", "Select a commit to view details.")
+                }}
+                onFileViewModeChange={updateFileViewMode}
+                onOpenFile={openWorkingFile}
+                onOpenFileDiff={openCommitFileDiff}
+                onOpenFileHistory={openFileHistory}
+              />
+            ) : (
+              <ChangesPanel fileViewMode={fileViewMode} onFileViewModeChange={updateFileViewMode} workingTree={workingTree} />
+            )}
+          </div>
         }
       />
       <ContextMenu
@@ -1100,6 +1161,16 @@ function requestCommitDetails(client: RpcClient | undefined, repositoryId: strin
     repositoryId,
     type: "commits.getDetails"
   });
+}
+
+function requestWorkingTree(client: RpcClient | undefined, repositoryId: string): string {
+  const id = crypto.randomUUID();
+  client?.post({
+    id,
+    repositoryId,
+    type: "workingTree.load"
+  });
+  return id;
 }
 
 function requestSettings(client: RpcClient | undefined): void {

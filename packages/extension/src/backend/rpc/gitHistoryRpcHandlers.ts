@@ -7,6 +7,7 @@ import type { LanguageService } from "../i18n/LanguageService";
 import type { ProxyService } from "../git/ProxyService";
 import type { RemoteService } from "../git/RemoteService";
 import type { RepositoryService } from "../git/RepositoryService";
+import type { WorkingTreeService } from "../git/WorkingTreeService";
 import type { DiffService } from "../vscode/DiffService";
 import type { FileHistoryPanel } from "../vscode/FileHistoryPanel";
 import type { SettingsService } from "../../state/SettingsService";
@@ -55,6 +56,7 @@ export interface GitHistoryRpcHandlerInput {
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
   >;
   settingsService: Pick<SettingsService, "getSettings" | "resetAutoStashPreference" | "updateSettings">;
+  workingTreeService: Pick<WorkingTreeService, "load">;
 }
 
 export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): RpcHandlerMap {
@@ -236,6 +238,13 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.gitService.editCommitMessage(repository.rootPath, request.hash);
+    },
+    "workingTree.load": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return {
+        workingTree: await input.workingTreeService.load(repository.id, repository.rootPath)
+      };
     },
     "history.load": async (request) => {
       const repositories = await input.repositoryService.discoverRepositories();
