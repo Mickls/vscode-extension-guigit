@@ -21,14 +21,14 @@ const toolbarActions: readonly ToolbarActionItem[] = [
     gitOperation: true,
     icon: <PullIcon />,
     label: "Pull",
-    title: "Pull (Ctrl+click for Advanced Pull)"
+    title: "Pull (Command+click for Advanced Pull)"
   },
   {
     action: "push",
     gitOperation: true,
     icon: <PushIcon />,
     label: "Push",
-    title: "Push (Ctrl+click for Advanced Push)"
+    title: "Push (Command+click for Advanced Push)"
   },
   {
     action: "fetch",
@@ -84,7 +84,7 @@ export function Header({
         return;
       }
 
-      if (event.ctrlKey) {
+      if (event.metaKey) {
         onAdvancedPull?.();
         return;
       }
@@ -97,7 +97,7 @@ export function Header({
         return;
       }
 
-      if (event.ctrlKey) {
+      if (event.metaKey) {
         onAdvancedPush?.();
         return;
       }
@@ -108,7 +108,7 @@ export function Header({
     settings: onSettingsClick
   };
   const handleMouseDown = (event: MouseEvent<HTMLButtonElement>, action: ToolbarAction) => {
-    if (!event.ctrlKey) {
+    if (!event.metaKey) {
       return;
     }
 
