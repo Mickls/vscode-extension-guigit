@@ -140,17 +140,92 @@ describe("DiffService", () => {
     expect(showInformationMessage).not.toHaveBeenCalled();
     expect(executeCommand).not.toHaveBeenCalled();
   });
+
+  it("opens staged rename diffs with previous path on the old side", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args[1] === "HEAD:src/old.ts") {
+        return "before";
+      }
+      if (args[1] === ":src/new.ts") {
+        return "after";
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+    const executeCommand = vi.fn();
+    const service = createService({ executeCommand, gitRaw });
+
+    await service.openWorkingTreeFileDiff("/repo", "src/new.ts", "staged", "src/old.ts");
+
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["show", "HEAD:src/old.ts"]);
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["show", ":src/new.ts"]);
+    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "src/new.ts:before", "src/new.ts:after", "new.ts (staged)", {
+      preview: true,
+      viewColumn: 1
+    });
+  });
+
+  it("opens unstaged rename diffs with previous path on the old side", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args[1] === ":src/old.ts") {
+        return "before";
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+    const readFile = vi.fn(async () => "after");
+    const executeCommand = vi.fn();
+    const service = createService({ executeCommand, gitRaw, readFile });
+
+    await service.openWorkingTreeFileDiff("/repo", "src/new.ts", "unstaged", "src/old.ts");
+
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["show", ":src/old.ts"]);
+    expect(readFile).toHaveBeenCalledWith("/repo/src/new.ts", "utf8");
+    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "src/new.ts:before", "src/new.ts:after", "new.ts (unstaged)", {
+      preview: true,
+      viewColumn: 1
+    });
+  });
+
+  it("opens unstaged deleted file diffs with an empty working tree side", async () => {
+    const gitRaw = vi.fn(async () => "before");
+    const missingFileError = Object.assign(new Error("missing"), { code: "ENOENT" });
+    const readFile = vi.fn(async () => {
+      throw missingFileError;
+    });
+    const executeCommand = vi.fn();
+    const service = createService({ executeCommand, gitRaw, readFile });
+
+    await service.openWorkingTreeFileDiff("/repo", "src/deleted.ts", "unstaged");
+
+    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "src/deleted.ts:before", "src/deleted.ts:", "deleted.ts (unstaged)", {
+      preview: true,
+      viewColumn: 1
+    });
+  });
+
+  it("propagates unexpected working tree read failures", async () => {
+    const gitRaw = vi.fn(async () => "before");
+    const readFile = vi.fn(async () => {
+      throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+    });
+    const executeCommand = vi.fn();
+    const service = createService({ executeCommand, gitRaw, readFile });
+
+    await expect(service.openWorkingTreeFileDiff("/repo", "src/protected.ts", "unstaged")).rejects.toThrow("permission denied");
+    expect(executeCommand).not.toHaveBeenCalled();
+  });
 });
 
 function createService(input: {
   executeCommand?: (...args: readonly unknown[]) => Thenable<void> | void;
   gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
 }): DiffService<string> {
   return new DiffService({
     executeCommand: async (command, ...args) => {
       await input.executeCommand?.(command, ...args);
     },
     gitRaw: input.gitRaw,
+    readFile: input.readFile,
     virtualDocuments: {
       createDocument: (content, fileName) => `${fileName}:${content}`
     }

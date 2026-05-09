@@ -32,4 +32,55 @@ describe("WorkingTreeService", () => {
     );
     expect(gitRaw).toHaveBeenCalledTimes(3);
   });
+
+  it.each([
+    {
+      action: (service: WorkingTreeService) => service.stageFile("/repo", "/repo", "src/a.ts"),
+      command: ["add", "--", "src/a.ts"],
+      message: "Staged file"
+    },
+    {
+      action: (service: WorkingTreeService) => service.stageAll("/repo", "/repo"),
+      command: ["add", "--all"],
+      message: "Staged all changes"
+    },
+    {
+      action: (service: WorkingTreeService) => service.unstageFile("/repo", "/repo", "src/a.ts"),
+      command: ["restore", "--staged", "--", "src/a.ts"],
+      message: "Unstaged file"
+    },
+    {
+      action: (service: WorkingTreeService) => service.unstageAll("/repo", "/repo"),
+      command: ["restore", "--staged", "--", "."],
+      message: "Unstaged all changes"
+    }
+  ])("runs git $message and returns the updated working tree", async ({ action, command, message }) => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "status --porcelain=v1") {
+        return "M  src/staged.ts\n M src/unstaged.ts\n";
+      }
+      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+        return "main\n";
+      }
+      return "";
+    });
+    const service = new WorkingTreeService({ gitRaw });
+
+    const result = await action(service);
+
+    expect(gitRaw).toHaveBeenNthCalledWith(1, "/repo", command);
+    expect(result).toEqual({
+      result: {
+        message,
+        status: "ok"
+      },
+      workingTree: expect.objectContaining({
+        branch: "main",
+        repositoryId: "/repo",
+        repositoryRoot: "/repo",
+        staged: [expect.objectContaining({ path: "src/staged.ts" })],
+        unstaged: [expect.objectContaining({ path: "src/unstaged.ts" })]
+      })
+    });
+  });
 });

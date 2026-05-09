@@ -104,7 +104,8 @@ describe("Git history RPC handlers", () => {
       },
       diffService: {
         openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
-        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async () => ({ message: "ok", status: "ok" })
       },
       fileHistoryPanel: {
         openHistory: async () => ({ message: "ok", status: "ok" }),
@@ -142,6 +143,174 @@ describe("Git history RPC handlers", () => {
     });
   });
 
+  it("runs working tree file actions for the requested repository", async () => {
+    const workingTreeCalls: unknown[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        getCurrentUser: async () => undefined,
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async () => ({ message: "working tree diff opened", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: createGitService(),
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      proxyService: createProxyService(),
+      remoteService: createRemoteService(),
+      languageService: createLanguageService(),
+      settingsService: createSettingsService(),
+      workingTreeService: {
+        ...createWorkingTreeService(),
+        stageAll: async (repositoryId, repositoryRoot) => {
+          workingTreeCalls.push(["stageAll", repositoryId, repositoryRoot]);
+          return { result: { message: "Staged all changes", status: "ok" }, workingTree };
+        },
+        stageFile: async (repositoryId, repositoryRoot, filePath) => {
+          workingTreeCalls.push(["stageFile", repositoryId, repositoryRoot, filePath]);
+          return { result: { message: "Staged file", status: "ok" }, workingTree };
+        },
+        unstageAll: async (repositoryId, repositoryRoot) => {
+          workingTreeCalls.push(["unstageAll", repositoryId, repositoryRoot]);
+          return { result: { message: "Unstaged all changes", status: "ok" }, workingTree };
+        },
+        unstageFile: async (repositoryId, repositoryRoot, filePath) => {
+          workingTreeCalls.push(["unstageFile", repositoryId, repositoryRoot, filePath]);
+          return { result: { message: "Unstaged file", status: "ok" }, workingTree };
+        }
+      }
+    });
+
+    await expect(
+      handlers["workingTree.stageFile"]!({
+        filePath: "src/a.ts",
+        id: "working-tree-stage-file",
+        repositoryId: "/repo",
+        type: "workingTree.stageFile"
+      })
+    ).resolves.toEqual({ result: { message: "Staged file", status: "ok" }, workingTree });
+    await handlers["workingTree.stageAll"]!({ id: "working-tree-stage-all", repositoryId: "/repo", type: "workingTree.stageAll" });
+    await handlers["workingTree.unstageFile"]!({
+      filePath: "src/a.ts",
+      id: "working-tree-unstage-file",
+      repositoryId: "/repo",
+      type: "workingTree.unstageFile"
+    });
+    await handlers["workingTree.unstageAll"]!({
+      id: "working-tree-unstage-all",
+      repositoryId: "/repo",
+      type: "workingTree.unstageAll"
+    });
+
+    expect(workingTreeCalls).toEqual([
+      ["stageFile", "/repo", "/repo", "src/a.ts"],
+      ["stageAll", "/repo", "/repo"],
+      ["unstageFile", "/repo", "/repo", "src/a.ts"],
+      ["unstageAll", "/repo", "/repo"]
+    ]);
+  });
+
+  it("opens working tree files and diffs for the requested repository", async () => {
+    const calls: unknown[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        getCurrentUser: async () => undefined,
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async (...args) => {
+          calls.push(["diff", ...args]);
+          return { message: "working tree diff opened", status: "ok" };
+        }
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async (...args) => {
+          calls.push(["open", ...args]);
+          return { message: "file opened", status: "ok" };
+        }
+      },
+      gitService: createGitService(),
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      proxyService: createProxyService(),
+      remoteService: createRemoteService(),
+      languageService: createLanguageService(),
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
+    });
+
+    await expect(
+      handlers["workingTree.openFile"]!({
+        filePath: "src/a.ts",
+        id: "working-tree-open-file",
+        repositoryId: "/repo",
+        type: "workingTree.openFile"
+      })
+    ).resolves.toEqual({ message: "file opened", status: "ok" });
+    await expect(
+      handlers["workingTree.openDiff"]!({
+        filePath: "src/a.ts",
+        id: "working-tree-open-diff",
+        kind: "staged",
+        previousPath: "src/old-a.ts",
+        repositoryId: "/repo",
+        type: "workingTree.openDiff"
+      })
+    ).resolves.toEqual({ message: "working tree diff opened", status: "ok" });
+
+    expect(calls).toEqual([
+      ["open", "/repo", "src/a.ts"],
+      ["diff", "/repo", "src/a.ts", "staged", "src/old-a.ts"]
+    ]);
+  });
+
   it("loads repositories, branches, and commit history", async () => {
     const handlers = createGitHistoryRpcHandlers({
       branchService: {
@@ -169,7 +338,8 @@ describe("Git history RPC handlers", () => {
       },
       diffService: {
         openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
-        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async () => ({ message: "ok", status: "ok" })
       },
       fileHistoryPanel: {
         openHistory: async () => ({ message: "ok", status: "ok" }),
@@ -227,7 +397,8 @@ describe("Git history RPC handlers", () => {
       },
       diffService: {
         openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
-        openCompareFileDiff: async () => ({ message: "ok", status: "ok" })
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async () => ({ message: "ok", status: "ok" })
       },
       fileHistoryPanel: {
         openHistory: async () => ({ message: "ok", status: "ok" }),

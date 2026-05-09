@@ -1,5 +1,5 @@
 import { simpleGit } from "simple-git";
-import type { WorkingTreeViewModel } from "../rpc/contract";
+import type { OperationResultViewModel, WorkingTreeViewModel } from "../rpc/contract";
 import { parsePorcelainStatus, parseStashList } from "./WorkingTreeParser";
 
 export interface WorkingTreeServiceInput {
@@ -30,4 +30,42 @@ export class WorkingTreeService {
       unstaged: status.unstaged
     };
   }
+
+  public async stageFile(repositoryId: string, repositoryRoot: string, filePath: string): Promise<WorkingTreeActionResult> {
+    return this.withResult(repositoryId, repositoryRoot, ["add", "--", filePath], "Staged file");
+  }
+
+  public async stageAll(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeActionResult> {
+    return this.withResult(repositoryId, repositoryRoot, ["add", "--all"], "Staged all changes");
+  }
+
+  public async unstageFile(repositoryId: string, repositoryRoot: string, filePath: string): Promise<WorkingTreeActionResult> {
+    return this.withResult(repositoryId, repositoryRoot, ["restore", "--staged", "--", filePath], "Unstaged file");
+  }
+
+  public async unstageAll(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeActionResult> {
+    return this.withResult(repositoryId, repositoryRoot, ["restore", "--staged", "--", "."], "Unstaged all changes");
+  }
+
+  private async withResult(
+    repositoryId: string,
+    repositoryRoot: string,
+    args: readonly string[],
+    message: string
+  ): Promise<WorkingTreeActionResult> {
+    await this.gitRaw(repositoryRoot, args);
+
+    return {
+      result: {
+        message,
+        status: "ok"
+      },
+      workingTree: await this.load(repositoryId, repositoryRoot)
+    };
+  }
+}
+
+export interface WorkingTreeActionResult {
+  result: OperationResultViewModel;
+  workingTree: WorkingTreeViewModel;
 }

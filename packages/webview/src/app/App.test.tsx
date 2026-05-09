@@ -142,6 +142,208 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Staged Changes (1)" })).toBeInTheDocument();
   });
 
+  it("posts working tree file action intents and updates changes after stage responses", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      unstaged: [
+        { area: "unstaged", binary: false, deletions: 1, insertions: 0, path: "src/unstaged.ts", status: "modified" }
+      ]
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Stage src/unstaged.ts" }));
+    const stageRequest = latestRequest(rpcClient, "workingTree.stageFile");
+    expect(stageRequest).toEqual(expect.objectContaining({
+      filePath: "src/unstaged.ts",
+      repositoryId: "/repo",
+      type: "workingTree.stageFile"
+    }));
+
+    dispatchWorkingTreeActionResponse(stageRequest.id, "workingTree.stageFile", {
+      ...defaultWorkingTree,
+      staged: [
+        ...defaultWorkingTree.staged,
+        { area: "staged", binary: false, deletions: 1, insertions: 0, path: "src/unstaged.ts", status: "modified" }
+      ],
+      unstaged: []
+    });
+    expect(await screen.findByRole("heading", { name: "Changes (0)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Staged Changes (2)" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Unstage src/staged.ts" }));
+    expect(latestRequest(rpcClient, "workingTree.unstageFile")).toEqual(expect.objectContaining({
+      filePath: "src/staged.ts",
+      repositoryId: "/repo",
+      type: "workingTree.unstageFile"
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Open diff for src/staged.ts" }));
+    await user.click(screen.getByRole("button", { name: "Open file src/staged.ts" }));
+
+    expect(latestRequest(rpcClient, "workingTree.openDiff")).toEqual(expect.objectContaining({
+      filePath: "src/staged.ts",
+      kind: "staged",
+      previousPath: undefined,
+      repositoryId: "/repo",
+      type: "workingTree.openDiff"
+    }));
+    expect(latestRequest(rpcClient, "workingTree.openFile")).toEqual(expect.objectContaining({
+      filePath: "src/staged.ts",
+      repositoryId: "/repo",
+      type: "workingTree.openFile"
+    }));
+  });
+
+  it("keeps stale working tree action responses from replacing selected repository changes", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+    const repositories = [
+      { id: "/repo", name: "repo", rootPath: "/repo" },
+      { id: "/repo-two", name: "repo-two", rootPath: "/repo-two" }
+    ] satisfies readonly RepositoryViewModel[];
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, { repositories });
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const repoOneLoadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(repoOneLoadRequest.id, createWorkingTree("/repo", "src/repo-one.ts"));
+    await screen.findByText("src/repo-one.ts");
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Repository" }), "/repo-two");
+    dispatchHistoryResponse(rpcClient, {
+      repositories,
+      requestId: latestRequest(rpcClient, "history.load").id
+    });
+    const repoTwoLoadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(repoTwoLoadRequest.id, createWorkingTree("/repo-two", "src/repo-two.ts"));
+    expect(await screen.findByText("src/repo-two.ts")).toBeInTheDocument();
+
+    dispatchWorkingTreeActionResponse("stale-action", "workingTree.stageFile", createWorkingTree("/repo", "src/stale-repo-one.ts"));
+
+    expect(screen.getByText("src/repo-two.ts")).toBeInTheDocument();
+    expect(screen.queryByText("src/stale-repo-one.ts")).not.toBeInTheDocument();
+  });
+
+  it("keeps older same-repository working tree action responses from replacing newer changes", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      staged: [],
+      unstaged: [
+        { area: "unstaged", binary: false, deletions: 0, insertions: 1, path: "src/first.ts", status: "modified" },
+        { area: "unstaged", binary: false, deletions: 0, insertions: 1, path: "src/second.ts", status: "modified" }
+      ]
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Stage src/first.ts" }));
+    const firstRequest = latestRequest(rpcClient, "workingTree.stageFile");
+    await user.click(screen.getByRole("button", { name: "Stage src/second.ts" }));
+    const secondRequest = latestRequest(rpcClient, "workingTree.stageFile");
+
+    dispatchWorkingTreeActionResponse(secondRequest.id, "workingTree.stageFile", createWorkingTree("/repo", "src/latest.ts"));
+    expect(await screen.findByText("src/latest.ts")).toBeInTheDocument();
+
+    dispatchWorkingTreeActionResponse(firstRequest.id, "workingTree.stageFile", createWorkingTree("/repo", "src/stale.ts"));
+
+    expect(screen.getByText("src/latest.ts")).toBeInTheDocument();
+    expect(screen.queryByText("src/stale.ts")).not.toBeInTheDocument();
+  });
+
+  it("keeps older action responses from replacing newer working tree load changes", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const initialLoadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(initialLoadRequest.id, {
+      ...defaultWorkingTree,
+      staged: [],
+      unstaged: [
+        { area: "unstaged", binary: false, deletions: 0, insertions: 1, path: "src/action-target.ts", status: "modified" }
+      ]
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Stage src/action-target.ts" }));
+    const actionRequest = latestRequest(rpcClient, "workingTree.stageFile");
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            reason: "watcher",
+            repositoryId: "/repo",
+            type: "workingTree.changed"
+          }
+        })
+      );
+    });
+    const newerLoadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(newerLoadRequest.id, createWorkingTree("/repo", "src/newer-load.ts"));
+    expect(await screen.findByText("src/newer-load.ts")).toBeInTheDocument();
+
+    dispatchWorkingTreeActionResponse(actionRequest.id, "workingTree.stageFile", createWorkingTree("/repo", "src/stale-action.ts"));
+
+    expect(screen.getByText("src/newer-load.ts")).toBeInTheDocument();
+    expect(screen.queryByText("src/stale-action.ts")).not.toBeInTheDocument();
+  });
+
+  it("posts previous paths for renamed working tree diffs", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      staged: [
+        {
+          area: "staged",
+          binary: false,
+          deletions: 1,
+          insertions: 1,
+          path: "src/new.ts",
+          previousPath: "src/old.ts",
+          status: "renamed"
+        }
+      ]
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Open diff for src/new.ts" }));
+
+    expect(latestRequest(rpcClient, "workingTree.openDiff")).toEqual(expect.objectContaining({
+      filePath: "src/new.ts",
+      kind: "staged",
+      previousPath: "src/old.ts",
+      repositoryId: "/repo",
+      type: "workingTree.openDiff"
+    }));
+  });
+
   it("keeps older working tree responses from replacing the selected repository changes", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -1975,6 +2177,31 @@ function dispatchWorkingTreeResponse(id: string, workingTree: WorkingTreeViewMod
           ok: true,
           type: "workingTree.load",
           payload: {
+            workingTree
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchWorkingTreeActionResponse(
+  id: string,
+  type: "workingTree.stageAll" | "workingTree.stageFile" | "workingTree.unstageAll" | "workingTree.unstageFile",
+  workingTree: WorkingTreeViewModel
+): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type,
+          payload: {
+            result: {
+              message: "Updated working tree",
+              status: "ok"
+            },
             workingTree
           }
         } satisfies RpcResponse

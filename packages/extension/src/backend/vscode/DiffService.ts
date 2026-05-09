@@ -1,6 +1,8 @@
 import { commands, ViewColumn } from "vscode";
+import { readFile as nodeReadFile } from "node:fs/promises";
+import { join } from "node:path";
 import { simpleGit } from "simple-git";
-import type { OperationResultViewModel } from "../rpc/contract";
+import type { OperationResultViewModel, WorkingTreeDiffKind } from "../rpc/contract";
 import type { Logger } from "../../logging/LoggerService";
 import { VirtualDocumentService } from "./VirtualDocumentService";
 
@@ -12,6 +14,7 @@ export interface DiffServiceInput<TUri> {
   executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug">;
+  readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
   virtualDocuments?: DiffVirtualDocuments<TUri>;
 }
 
@@ -19,6 +22,7 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
   private readonly executeCommand: (command: string, ...args: readonly unknown[]) => Thenable<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug"> | undefined;
+  private readonly readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
   private readonly virtualDocuments: DiffVirtualDocuments<TUri>;
 
   public constructor(input: DiffServiceInput<TUri> = {}) {
@@ -26,9 +30,10 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
       input.executeCommand ??
       (async (command, ...args) => {
         await commands.executeCommand(command, ...args);
-      });
+    });
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
+    this.readFile = input.readFile ?? nodeReadFile;
     this.virtualDocuments = input.virtualDocuments ?? new VirtualDocumentService<TUri>();
   }
 
@@ -123,6 +128,40 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
     };
   }
 
+  public async openWorkingTreeFileDiff(
+    repositoryRoot: string,
+    filePath: string,
+    kind: WorkingTreeDiffKind,
+    previousPath?: string
+  ): Promise<OperationResultViewModel> {
+    this.logger?.debug("diff.workingTreeFile.open", {
+      filePath,
+      kind,
+      repositoryRoot
+    });
+    const [leftContent, rightContent] = await Promise.all([
+      kind === "staged" ? this.getFileContent(repositoryRoot, "HEAD", previousPath ?? filePath) : this.getIndexFileContent(repositoryRoot, previousPath ?? filePath),
+      kind === "staged" ? this.getIndexFileContent(repositoryRoot, filePath) : this.getWorkingTreeFileContent(repositoryRoot, filePath)
+    ]);
+
+    await this.openContentDiff({
+      filePath,
+      leftContent,
+      rightContent,
+      title: `${baseFileName(filePath)} (${kind})`
+    });
+    this.logger?.debug("diff.workingTreeFile.opened", {
+      filePath,
+      kind,
+      repositoryRoot
+    });
+
+    return {
+      message: `Opened diff for ${filePath}`,
+      status: "ok"
+    };
+  }
+
   private async getFirstParent(repositoryRoot: string, hash: string): Promise<string | undefined> {
     const output = await this.gitRaw(repositoryRoot, ["show", "--no-patch", "--pretty=%P", hash]);
     return output.trim().split(" ")[0] || undefined;
@@ -133,6 +172,26 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
       return await this.gitRaw(repositoryRoot, ["show", `${ref}:${filePath}`]);
     } catch {
       return null;
+    }
+  }
+
+  private async getIndexFileContent(repositoryRoot: string, filePath: string): Promise<string | null> {
+    try {
+      return await this.gitRaw(repositoryRoot, ["show", `:${filePath}`]);
+    } catch {
+      return null;
+    }
+  }
+
+  private async getWorkingTreeFileContent(repositoryRoot: string, filePath: string): Promise<string | null> {
+    try {
+      return await this.readFile(join(repositoryRoot, filePath), "utf8");
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return null;
+      }
+
+      throw error;
     }
   }
 
@@ -150,6 +209,10 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
       viewColumn: ViewColumn.One
     });
   }
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
 function baseFileName(filePath: string): string {

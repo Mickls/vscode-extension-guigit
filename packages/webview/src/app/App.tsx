@@ -16,6 +16,7 @@ import type {
   RpcRequest,
   RemoteViewModel,
   RpcResponse,
+  WorkingTreeDiffKind,
   WorkingTreeViewModel
 } from "./rpcContract.generated";
 import type { RpcClient } from "./rpcClient";
@@ -63,6 +64,7 @@ type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
 type ProxyOperationType = "proxy.configure" | "proxy.refresh";
 type FileOperationType = "diff.openCommitFile" | "diff.openCompareFile" | "files.openHistory" | "files.openWorkingFile";
+type WorkingTreeActionType = "workingTree.stageAll" | "workingTree.stageFile" | "workingTree.unstageAll" | "workingTree.unstageFile";
 type ContextGitOperationType =
   | "git.cherryPick"
   | "git.compareCommits"
@@ -150,7 +152,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const selectedCommitHashesRef = useRef<readonly string[]>([]);
   const commitDetailsRef = useRef<CommitDetailsViewModel | undefined>(undefined);
   const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
-  const latestWorkingTreeRequestRef = useRef<{ id: string; repositoryId: string } | undefined>(undefined);
+  const latestWorkingTreeOperationRef = useRef<{ id: string; repositoryId: string; sequence: number } | undefined>(undefined);
+  const workingTreeOperationSequenceRef = useRef(0);
   const rightPanelTabRef = useRef<RightPanelTab>("details");
   const [contextMenu, setContextMenu] = useState({
     hash: undefined as string | undefined,
@@ -256,9 +259,14 @@ export function App({ rpcClient }: AppProps): ReactElement {
     });
   };
   const loadWorkingTree = (repositoryId: string) => {
-    latestWorkingTreeRequestRef.current = {
-      id: requestWorkingTree(client, repositoryId),
-      repositoryId
+    trackWorkingTreeOperation(requestWorkingTree(client, repositoryId), repositoryId);
+  };
+  const trackWorkingTreeOperation = (id: string, repositoryId: string) => {
+    workingTreeOperationSequenceRef.current += 1;
+    latestWorkingTreeOperationRef.current = {
+      id,
+      repositoryId,
+      sequence: workingTreeOperationSequenceRef.current
     };
   };
 
@@ -442,14 +450,19 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (response.type === "workingTree.load") {
-        const latestWorkingTreeRequest = latestWorkingTreeRequestRef.current;
-        if (
-          latestWorkingTreeRequest?.id === response.id &&
-          latestWorkingTreeRequest.repositoryId === response.payload.workingTree.repositoryId &&
-          latestWorkingTreeRequest.repositoryId === selectedRepositoryIdRef.current
-        ) {
+        if (isCurrentWorkingTreeOperation(latestWorkingTreeOperationRef.current, response.id, response.payload.workingTree.repositoryId, selectedRepositoryIdRef.current)) {
           setWorkingTree(response.payload.workingTree);
         }
+      }
+
+      if (isWorkingTreeActionResponse(response)) {
+        if (isCurrentWorkingTreeOperation(latestWorkingTreeOperationRef.current, response.id, response.payload.workingTree.repositoryId, selectedRepositoryIdRef.current)) {
+          setWorkingTree(response.payload.workingTree);
+        }
+        setOperationNotification({
+          message: response.payload.result.message,
+          state: response.payload.result.status === "ok" ? "success" : "warning"
+        });
       }
 
       if (response.type === "graph.getLayout") {
@@ -745,6 +758,39 @@ export function App({ rpcClient }: AppProps): ReactElement {
     });
   };
 
+  const openWorkingTreeFile = (filePath: string) => {
+    postWorkingTreeOpenFile(client, selectedRepositoryIdRef.current, filePath);
+  };
+
+  const openWorkingTreeFileDiff = (filePath: string, kind: WorkingTreeDiffKind, previousPath?: string) => {
+    if (!selectedRepositoryIdRef.current) {
+      return;
+    }
+
+    client?.post({
+      filePath,
+      id: crypto.randomUUID(),
+      kind,
+      previousPath,
+      repositoryId: selectedRepositoryIdRef.current,
+      type: "workingTree.openDiff"
+    });
+  };
+
+  const stageWorkingTreeFile = (filePath: string) => {
+    const request = postWorkingTreeFileAction(client, selectedRepositoryIdRef.current, "workingTree.stageFile", filePath);
+    if (request) {
+      trackWorkingTreeOperation(request.id, request.repositoryId);
+    }
+  };
+
+  const unstageWorkingTreeFile = (filePath: string) => {
+    const request = postWorkingTreeFileAction(client, selectedRepositoryIdRef.current, "workingTree.unstageFile", filePath);
+    if (request) {
+      trackWorkingTreeOperation(request.id, request.repositoryId);
+    }
+  };
+
   const openFileHistory = (filePath: string) => {
     if (!selectedRepositoryIdRef.current) {
       return;
@@ -1032,7 +1078,15 @@ export function App({ rpcClient }: AppProps): ReactElement {
                 onOpenFileHistory={openFileHistory}
               />
             ) : (
-              <ChangesPanel fileViewMode={fileViewMode} onFileViewModeChange={updateFileViewMode} workingTree={workingTree} />
+              <ChangesPanel
+                fileViewMode={fileViewMode}
+                onFileViewModeChange={updateFileViewMode}
+                onOpenFile={openWorkingTreeFile}
+                onOpenFileDiff={openWorkingTreeFileDiff}
+                onStageFile={stageWorkingTreeFile}
+                onUnstageFile={unstageWorkingTreeFile}
+                workingTree={workingTree}
+              />
             )}
           </div>
         }
@@ -1173,6 +1227,52 @@ function requestWorkingTree(client: RpcClient | undefined, repositoryId: string)
   return id;
 }
 
+function isCurrentWorkingTreeOperation(
+  latestOperation: { id: string; repositoryId: string; sequence: number } | undefined,
+  responseId: string,
+  responseRepositoryId: string,
+  selectedRepositoryId: string | undefined
+): boolean {
+  return (
+    latestOperation?.id === responseId &&
+    latestOperation.repositoryId === responseRepositoryId &&
+    latestOperation.repositoryId === selectedRepositoryId
+  );
+}
+
+function postWorkingTreeFileAction(
+  client: RpcClient | undefined,
+  repositoryId: string | undefined,
+  type: "workingTree.stageFile" | "workingTree.unstageFile",
+  filePath: string
+): { id: string; repositoryId: string } | undefined {
+  if (!repositoryId) {
+    return;
+  }
+
+  const id = crypto.randomUUID();
+  client?.post({
+    filePath,
+    id,
+    repositoryId,
+    type
+  });
+  return { id, repositoryId };
+}
+
+function postWorkingTreeOpenFile(client: RpcClient | undefined, repositoryId: string | undefined, filePath: string): void {
+  if (!repositoryId) {
+    return;
+  }
+
+  client?.post({
+    filePath,
+    id: crypto.randomUUID(),
+    repositoryId,
+    type: "workingTree.openFile"
+  });
+}
+
 function requestSettings(client: RpcClient | undefined): void {
   client?.post({
     id: crypto.randomUUID(),
@@ -1292,6 +1392,17 @@ function isRemoteOperationResponse(
   response: RpcResponse
 ): response is Extract<RpcResponse, { type: RemoteOperationType }> {
   return isRemoteOperationType(response.type);
+}
+
+function isWorkingTreeActionResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: WorkingTreeActionType }> {
+  return (
+    response.type === "workingTree.stageAll" ||
+    response.type === "workingTree.stageFile" ||
+    response.type === "workingTree.unstageAll" ||
+    response.type === "workingTree.unstageFile"
+  );
 }
 
 function isSettingsMenuOperationResponse(

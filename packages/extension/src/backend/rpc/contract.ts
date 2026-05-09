@@ -309,6 +309,7 @@ export type RpcRequest =
       repositoryId: string;
       filePath: string;
       kind: WorkingTreeDiffKind;
+      previousPath?: string;
     })
   | (RpcEnvelope & { type: "workingTree.commit"; repositoryId: string; message: string })
   | (RpcEnvelope & { type: "stash.list"; repositoryId: string })
