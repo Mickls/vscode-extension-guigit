@@ -54,13 +54,28 @@ function toFileChange(
   path: string,
   statusCode: string
 ): WorkingTreeFileChangeViewModel {
+  const parsedPath = parseStatusPath(statusCode, path);
+
   return {
     area,
     binary: false,
     deletions: 0,
     insertions: 0,
-    path,
+    path: parsedPath.path,
+    previousPath: parsedPath.previousPath,
     status: mapStatusCode(statusCode)
+  };
+}
+
+function parseStatusPath(statusCode: string, path: string): Pick<WorkingTreeFileChangeViewModel, "path" | "previousPath"> {
+  if (statusCode !== "R" && statusCode !== "C") {
+    return { path };
+  }
+
+  const [previousPath, nextPath] = path.split(" -> ");
+  return {
+    path: nextPath,
+    previousPath
   };
 }
 

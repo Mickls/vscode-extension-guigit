@@ -4,17 +4,25 @@ import { parsePorcelainStatus, parseStashList } from "../../src/backend/git/Work
 describe("WorkingTreeParser", () => {
   it("groups porcelain status into staged, unstaged, and untracked files", () => {
     const result = parsePorcelainStatus(
-      ["M  src/staged.ts", " M src/unstaged.ts", "A  src/new.ts", "?? src/untracked.ts", "R  src/new-name.ts"].join("\n")
+      [
+        "M  src/staged.ts",
+        " M src/unstaged.ts",
+        "A  src/new.ts",
+        "?? src/untracked.ts",
+        "R  src/old.ts -> src/new-name.ts",
+        "C  src/source.ts -> src/copied.ts"
+      ].join("\n")
     );
 
-    expect(result.staged.map((file) => [file.area, file.path, file.status])).toEqual([
-      ["staged", "src/staged.ts", "modified"],
-      ["staged", "src/new.ts", "added"],
-      ["staged", "src/new-name.ts", "renamed"]
+    expect(result.staged.map((file) => [file.area, file.path, file.previousPath, file.status])).toEqual([
+      ["staged", "src/staged.ts", undefined, "modified"],
+      ["staged", "src/new.ts", undefined, "added"],
+      ["staged", "src/new-name.ts", "src/old.ts", "renamed"],
+      ["staged", "src/copied.ts", "src/source.ts", "copied"]
     ]);
-    expect(result.unstaged.map((file) => [file.area, file.path, file.status])).toEqual([
-      ["unstaged", "src/unstaged.ts", "modified"],
-      ["untracked", "src/untracked.ts", "added"]
+    expect(result.unstaged.map((file) => [file.area, file.path, file.previousPath, file.status])).toEqual([
+      ["unstaged", "src/unstaged.ts", undefined, "modified"],
+      ["untracked", "src/untracked.ts", undefined, "added"]
     ]);
   });
 

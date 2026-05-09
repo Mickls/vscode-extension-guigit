@@ -23,5 +23,13 @@ describe("WorkingTreeService", () => {
     expect(result.staged.map((file) => file.path)).toEqual(["src/staged.ts"]);
     expect(result.unstaged.map((file) => file.path)).toEqual(["src/unstaged.ts", "src/untracked.ts"]);
     expect(result.stashes).toHaveLength(1);
+    expect(gitRaw.mock.calls).toEqual(
+      expect.arrayContaining([
+        ["/repo", ["rev-parse", "--abbrev-ref", "HEAD"]],
+        ["/repo", ["status", "--porcelain=v1"]],
+        ["/repo", ["stash", "list"]]
+      ])
+    );
+    expect(gitRaw).toHaveBeenCalledTimes(3);
   });
 });
