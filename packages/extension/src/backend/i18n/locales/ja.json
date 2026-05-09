@@ -19,8 +19,8 @@
       "noRemote": "リモートブランチがありません",
       "all": "すべてのブランチ"
     },
-    "pullTooltip": "Pull (Command+クリックで高度な Pull)",
-    "pushTooltip": "Push (Command+クリックで高度な Push)",
+    "pullTooltip": "Pull (Command/Ctrl+クリックで高度な Pull)",
+    "pushTooltip": "Push (Command/Ctrl+クリックで高度な Push)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Clone",
     "checkoutTooltip": "Checkout",

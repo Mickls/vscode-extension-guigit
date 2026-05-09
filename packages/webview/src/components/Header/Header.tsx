@@ -59,9 +59,9 @@ const defaultLabels: HeaderLabels = {
   graph: "Graph",
   hideGraph: "Hide Git Graph",
   pull: "Pull",
-  pullTitle: "Pull (Command+click for Advanced Pull)",
+  pullTitle: "Pull (Command/Ctrl+click for Advanced Pull)",
   push: "Push",
-  pushTitle: "Push (Command+click for Advanced Push)",
+  pushTitle: "Push (Command/Ctrl+click for Advanced Push)",
   refresh: "Refresh",
   repository: "Repository",
   searchCommits: "Search commits",
@@ -70,6 +70,10 @@ const defaultLabels: HeaderLabels = {
   settings: "Settings",
   showGraph: "Show Git Graph"
 };
+
+function hasAdvancedModifier(event: MouseEvent<HTMLButtonElement>): boolean {
+  return event.metaKey || event.ctrlKey;
+}
 
 export interface HeaderProps {
   authorValue?: string;
@@ -195,7 +199,7 @@ export function Header({
         return;
       }
 
-      if (event.metaKey) {
+      if (hasAdvancedModifier(event)) {
         onAdvancedPull?.();
         return;
       }
@@ -208,7 +212,7 @@ export function Header({
         return;
       }
 
-      if (event.metaKey) {
+      if (hasAdvancedModifier(event)) {
         onAdvancedPush?.();
         return;
       }
@@ -219,7 +223,7 @@ export function Header({
     settings: onSettingsClick
   };
   const handleMouseDown = (event: MouseEvent<HTMLButtonElement>, action: HeaderAction) => {
-    if (!event.metaKey) {
+    if (!hasAdvancedModifier(event)) {
       return;
     }
 

@@ -19,8 +19,8 @@
       "noRemote": "No hay ramas remotas",
       "all": "Todas las ramas"
     },
-    "pullTooltip": "Pull (Command+clic para Pull avanzado)",
-    "pushTooltip": "Push (Command+clic para Push avanzado)",
+    "pullTooltip": "Pull (Command/Ctrl+clic para Pull avanzado)",
+    "pushTooltip": "Push (Command/Ctrl+clic para Push avanzado)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Clonar",
     "checkoutTooltip": "Checkout",

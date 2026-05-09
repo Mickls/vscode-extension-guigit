@@ -19,8 +19,8 @@
       "noRemote": "暂无远程分支",
       "all": "所有分支"
     },
-    "pullTooltip": "拉取（Command+点击打开高级拉取）",
-    "pushTooltip": "推送（Command+点击打开高级推送）",
+    "pullTooltip": "拉取（Command/Ctrl+点击打开高级拉取）",
+    "pushTooltip": "推送（Command/Ctrl+点击打开高级推送）",
     "fetchTooltip": "抓取",
     "cloneTooltip": "克隆",
     "checkoutTooltip": "签出",

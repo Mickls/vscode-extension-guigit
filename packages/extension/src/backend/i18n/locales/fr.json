@@ -19,8 +19,8 @@
       "noRemote": "Aucune branche distante",
       "all": "Toutes les branches"
     },
-    "pullTooltip": "Pull (Command+clic pour Pull avance)",
-    "pushTooltip": "Push (Command+clic pour Push avance)",
+    "pullTooltip": "Pull (Command/Ctrl+clic pour Pull avance)",
+    "pushTooltip": "Push (Command/Ctrl+clic pour Push avance)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Cloner",
     "checkoutTooltip": "Checkout",

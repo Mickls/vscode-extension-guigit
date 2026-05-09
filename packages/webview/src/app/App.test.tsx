@@ -1234,7 +1234,7 @@ describe("App", () => {
     expect(rpcClient.post.mock.calls.some(([request]) => request.type === "git.push")).toBe(false);
   });
 
-  it("keeps control-click on pull and push as normal toolbar clicks", async () => {
+  it("runs advanced pull and push when pull or push is control-clicked", async () => {
     const rpcClient = createTestRpcClient();
 
     render(<App rpcClient={rpcClient} />);
@@ -1243,28 +1243,28 @@ describe("App", () => {
     rpcClient.post.mockClear();
 
     fireEvent.mouseDown(screen.getByRole("button", { name: "Pull" }), { ctrlKey: true });
-    fireEvent.click(screen.getByRole("button", { name: "Pull" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }), { ctrlKey: true });
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
         repositoryId: "/repo",
-        type: "git.pull"
+        type: "git.advancedPull"
       })
     );
-    expect(rpcClient.post.mock.calls.some(([request]) => request.type === "git.advancedPull")).toBe(false);
+    expect(rpcClient.post.mock.calls.some(([request]) => request.type === "git.pull")).toBe(false);
 
-    const pullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.pull")![0];
-    dispatchOperationResponse(pullRequest.id, "git.pull");
+    const pullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.advancedPull")![0];
+    dispatchOperationResponse(pullRequest.id, "git.advancedPull");
 
     rpcClient.post.mockClear();
     fireEvent.mouseDown(screen.getByRole("button", { name: "Push" }), { ctrlKey: true });
-    fireEvent.click(screen.getByRole("button", { name: "Push" }));
+    fireEvent.click(screen.getByRole("button", { name: "Push" }), { ctrlKey: true });
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
         repositoryId: "/repo",
-        type: "git.push"
+        type: "git.advancedPush"
       })
     );
-    expect(rpcClient.post.mock.calls.some(([request]) => request.type === "git.advancedPush")).toBe(false);
+    expect(rpcClient.post.mock.calls.some(([request]) => request.type === "git.push")).toBe(false);
   });
 
   it("loads history context and selects a commit requested by the backend", () => {

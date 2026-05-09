@@ -19,8 +19,8 @@
       "noRemote": "Удалённых веток нет",
       "all": "Все ветки"
     },
-    "pullTooltip": "Pull (Command+click для расширенного Pull)",
-    "pushTooltip": "Push (Command+click для расширенного Push)",
+    "pullTooltip": "Pull (Command/Ctrl+click для расширенного Pull)",
+    "pushTooltip": "Push (Command/Ctrl+click для расширенного Push)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Clone",
     "checkoutTooltip": "Checkout",

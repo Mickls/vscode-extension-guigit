@@ -19,8 +19,8 @@
       "noRemote": "Keine Remote-Branches",
       "all": "Alle Branches"
     },
-    "pullTooltip": "Pull (Command+Klick fuer erweiterten Pull)",
-    "pushTooltip": "Push (Command+Klick fuer erweiterten Push)",
+    "pullTooltip": "Pull (Command/Ctrl+Klick fuer erweiterten Pull)",
+    "pushTooltip": "Push (Command/Ctrl+Klick fuer erweiterten Push)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Klonen",
     "checkoutTooltip": "Checkout",
