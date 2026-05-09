@@ -158,6 +158,45 @@ describe("ProxyService", () => {
     ]);
     expect(raw).toHaveBeenCalledWith(["fetch", "origin"]);
   });
+
+  it("configures and refreshes custom proxy settings", async () => {
+    const updates: unknown[] = [];
+    const service = createService({
+      settings: {
+        proxy: {
+          enabled: false,
+          http: "",
+          https: "",
+          noProxy: ""
+        }
+      },
+      showInputBox: vi.fn()
+        .mockResolvedValueOnce("http://127.0.0.1:7890")
+        .mockResolvedValueOnce("http://127.0.0.1:7891")
+        .mockResolvedValueOnce("localhost"),
+      showQuickPick: vi.fn().mockImplementation(async (items) => items[0]),
+      updates
+    });
+
+    await expect(service.configureProxy()).resolves.toEqual({
+      message: "Custom proxy configured",
+      status: "ok"
+    });
+    await expect(service.refreshProxy()).resolves.toEqual({
+      message: "Proxy refreshed: disabled",
+      status: "ok"
+    });
+    expect(updates).toEqual([
+      {
+        proxy: {
+          enabled: true,
+          http: "http://127.0.0.1:7890",
+          https: "http://127.0.0.1:7891",
+          noProxy: "localhost"
+        }
+      }
+    ]);
+  });
 });
 
 function createService(input: {
@@ -173,7 +212,10 @@ function createService(input: {
       noProxy: string;
     };
   };
+  showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
+  showQuickPick?: (items: readonly { label: string; mode: "disable" | "enable" }[], options: { placeHolder: string }) => Thenable<{ label: string; mode: "disable" | "enable" } | undefined>;
   simpleGitFactory?: (repositoryRoot: string, options: { config: readonly string[] }) => { raw(args: readonly string[]): Promise<string> };
+  updates?: unknown[];
   vscodeProxy?: string;
 }): ProxyService {
   return new ProxyService({
@@ -195,8 +237,13 @@ function createService(input: {
           https: "",
           noProxy: ""
         }
-      })
+      }),
+      updateSettings: async (settings) => {
+        input.updates?.push(settings);
+      }
     },
+    showInputBox: input.showInputBox,
+    showQuickPick: input.showQuickPick,
     simpleGitFactory: input.simpleGitFactory,
     vscodeProxy: () => input.vscodeProxy
   });

@@ -54,6 +54,55 @@ describe("SettingsService", () => {
     expect(updates).toEqual([{ key: "guigit.fileViewMode", value: "list" }]);
   });
 
+  it("updates language and proxy settings", async () => {
+    const updates: Array<{ key: string; value: unknown }> = [];
+    const service = new SettingsService({
+      configuration: {
+        get: () => undefined,
+        update: async (key, value) => {
+          updates.push({ key, value });
+        }
+      }
+    });
+
+    await service.updateSettings({
+      language: "zh",
+      proxy: {
+        enabled: true,
+        http: "http://127.0.0.1:7890",
+        https: "http://127.0.0.1:7891",
+        noProxy: "localhost"
+      }
+    });
+
+    expect(updates).toEqual([
+      { key: "guigit.language", value: "zh" },
+      { key: "guigit.proxy.enabled", value: true },
+      { key: "guigit.proxy.http", value: "http://127.0.0.1:7890" },
+      { key: "guigit.proxy.https", value: "http://127.0.0.1:7891" },
+      { key: "guigit.proxy.noProxy", value: "localhost" }
+    ]);
+  });
+
+  it("changes language through the backend picker", async () => {
+    const updates: Array<{ key: string; value: unknown }> = [];
+    const service = new SettingsService({
+      configuration: {
+        get: () => undefined,
+        update: async (key, value) => {
+          updates.push({ key, value });
+        }
+      },
+      showQuickPick: async (items) => items[2]!
+    });
+
+    await expect(service.changeLanguagePreference()).resolves.toEqual({
+      message: "Language changed to Chinese (Simplified)",
+      status: "ok"
+    });
+    expect(updates).toEqual([{ key: "guigit.language", value: "zh" }]);
+  });
+
   it("updates and resets auto stash preference", async () => {
     const updates: Array<{ key: string; value: unknown }> = [];
     const service = new SettingsService({

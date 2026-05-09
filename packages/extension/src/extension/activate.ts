@@ -60,11 +60,14 @@ export function activate(context: ExtensionContext): void {
       update: async (key: SettingsConfigurationKey, value) => {
         await workspace.getConfiguration().update(key, value, ConfigurationTarget.Workspace);
       }
-    }
+    },
+    showQuickPick: (items, options) => window.showQuickPick([...items], options)
   });
   const graphService = new GraphService({ logger });
   const proxyService = new ProxyService({
     settingsService,
+    showInputBox: (options) => window.showInputBox(options),
+    showQuickPick: (items, options) => window.showQuickPick([...items], options),
     vscodeProxy: () => workspace.getConfiguration("http").get<string>("proxy")
   });
   const remoteService = new RemoteService();
@@ -111,6 +114,7 @@ export function activate(context: ExtensionContext): void {
       fileService,
       gitService,
       graphService,
+      proxyService,
       remoteService,
       repositoryService,
       settingsService

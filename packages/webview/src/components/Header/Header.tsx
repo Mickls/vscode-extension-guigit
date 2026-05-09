@@ -52,7 +52,7 @@ export interface HeaderProps {
   onFetch?: () => void;
   onPull?: () => void;
   onPush?: () => void;
-  onSettingsClick?: () => void;
+  onSettingsClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   gitOperationBusy?: boolean;
   settingsOpen?: boolean;
 }

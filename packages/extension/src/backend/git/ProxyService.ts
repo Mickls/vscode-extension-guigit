@@ -3,6 +3,7 @@ import { Socket } from "net";
 import { platform as osPlatform } from "os";
 import { promisify } from "util";
 import { simpleGit } from "simple-git";
+import type { OperationResultViewModel } from "../rpc/contract";
 import type { SettingsService } from "../../state/SettingsService";
 
 export type ProxySource = "custom" | "environment" | "local-app" | "none" | "system" | "vscode";
@@ -20,7 +21,12 @@ export interface ProxyServiceInput {
   exec?: (command: string) => Promise<string>;
   isPortOpen?: (host: string, port: number) => Promise<boolean>;
   platform?: () => NodeJS.Platform;
-  settingsService: Pick<SettingsService, "getSettings">;
+  settingsService: Pick<SettingsService, "getSettings" | "updateSettings">;
+  showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
+  showQuickPick?: (
+    items: readonly ProxyQuickPickItem[],
+    options: { placeHolder: string }
+  ) => Thenable<ProxyQuickPickItem | undefined>;
   simpleGitFactory?: (repositoryRoot: string, options: { config: readonly string[] }) => {
     raw(args: readonly string[]): Promise<string>;
   };
@@ -40,7 +46,12 @@ export class ProxyService {
   private readonly isPortOpen: (host: string, port: number) => Promise<boolean>;
   private lastConfig: ProxyConfig = noProxyConfig;
   private readonly platform: () => NodeJS.Platform;
-  private readonly settingsService: Pick<SettingsService, "getSettings">;
+  private readonly settingsService: Pick<SettingsService, "getSettings" | "updateSettings">;
+  private readonly showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
+  private readonly showQuickPick?: (
+    items: readonly ProxyQuickPickItem[],
+    options: { placeHolder: string }
+  ) => Thenable<ProxyQuickPickItem | undefined>;
   private readonly simpleGitFactory: (repositoryRoot: string, options: { config: readonly string[] }) => {
     raw(args: readonly string[]): Promise<string>;
   };
@@ -52,6 +63,8 @@ export class ProxyService {
     this.isPortOpen = input.isPortOpen ?? isLocalPortOpen;
     this.platform = input.platform ?? osPlatform;
     this.settingsService = input.settingsService;
+    this.showInputBox = input.showInputBox;
+    this.showQuickPick = input.showQuickPick;
     this.simpleGitFactory = input.simpleGitFactory ?? ((repositoryRoot, options) => {
       const git = simpleGit(repositoryRoot, {
         config: [...options.config]
@@ -100,6 +113,92 @@ export class ProxyService {
     const config = await this.getProxyConfig();
     this.applyProxyToEnvironment(config);
     return this.simpleGitFactory(repositoryRoot, { config: this.getGitConfig(config) }).raw(args);
+  }
+
+  public async configureProxy(): Promise<OperationResultViewModel> {
+    const choice = await this.showQuickPick?.(proxyConfigurationItems, {
+      placeHolder: "Configure Git proxy"
+    });
+    if (!choice) {
+      return {
+        message: "Proxy configuration cancelled",
+        status: "cancelled"
+      };
+    }
+
+    if (choice.mode === "disable") {
+      await this.settingsService.updateSettings({
+        proxy: {
+          enabled: false,
+          http: "",
+          https: "",
+          noProxy: ""
+        }
+      });
+      this.lastConfig = noProxyConfig;
+      return {
+        message: "Custom proxy disabled",
+        status: "ok"
+      };
+    }
+
+    const current = this.settingsService.getSettings().proxy;
+    const http = await this.showInputBox?.({
+      placeHolder: "http://127.0.0.1:7890",
+      prompt: "HTTP proxy",
+      value: current.http
+    });
+    if (http === undefined) {
+      return {
+        message: "Proxy configuration cancelled",
+        status: "cancelled"
+      };
+    }
+
+    const https = await this.showInputBox?.({
+      placeHolder: "http://127.0.0.1:7890",
+      prompt: "HTTPS proxy",
+      value: current.https || http
+    });
+    if (https === undefined) {
+      return {
+        message: "Proxy configuration cancelled",
+        status: "cancelled"
+      };
+    }
+
+    const noProxy = await this.showInputBox?.({
+      placeHolder: "localhost,127.0.0.1",
+      prompt: "No proxy hosts",
+      value: current.noProxy
+    });
+    if (noProxy === undefined) {
+      return {
+        message: "Proxy configuration cancelled",
+        status: "cancelled"
+      };
+    }
+
+    await this.settingsService.updateSettings({
+      proxy: {
+        enabled: true,
+        http: http.trim(),
+        https: https.trim(),
+        noProxy: noProxy.trim()
+      }
+    });
+    return {
+      message: "Custom proxy configured",
+      status: "ok"
+    };
+  }
+
+  public async refreshProxy(): Promise<OperationResultViewModel> {
+    const config = await this.getProxyConfig();
+    return {
+      message: `Proxy refreshed: ${describeProxyConfig(config)}`,
+      status: "ok"
+    };
   }
 
   private applyProxyToEnvironment(config: ProxyConfig): void {
@@ -252,6 +351,24 @@ export class ProxyService {
 
     return undefined;
   }
+}
+
+interface ProxyQuickPickItem {
+  label: string;
+  mode: "disable" | "enable";
+}
+
+const proxyConfigurationItems = [
+  { label: "Enable custom proxy", mode: "enable" },
+  { label: "Disable custom proxy", mode: "disable" }
+] as const satisfies readonly ProxyQuickPickItem[];
+
+function describeProxyConfig(config: ProxyConfig): string {
+  if (!config.enabled) {
+    return "disabled";
+  }
+
+  return `${config.source} ${config.https ?? config.http}`;
 }
 
 function parseNetworkSetupProxy(output: string): string | undefined {

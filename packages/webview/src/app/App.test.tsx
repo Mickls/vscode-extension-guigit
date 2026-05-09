@@ -24,6 +24,65 @@ describe("App", () => {
     expect(screen.getByRole("dialog", { name: "Remote Manager" })).toBeInTheDocument();
   });
 
+  it("positions the settings menu under the settings button", async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    settingsButton.getBoundingClientRect = vi.fn(() => ({
+      bottom: 36,
+      height: 28,
+      left: 480,
+      right: 540,
+      top: 8,
+      width: 60,
+      x: 480,
+      y: 8,
+      toJSON: () => undefined
+    }));
+
+    await user.click(settingsButton);
+
+    expect(screen.getByRole("menu", { name: "Settings actions" })).toHaveStyle({
+      left: "320px",
+      top: "40px"
+    });
+  });
+
+  it("posts settings menu actions to the backend", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Reset Auto Stash Preference" }));
+    expect(latestRequest(rpcClient, "settings.resetAutoStash")).toEqual(expect.objectContaining({
+      type: "settings.resetAutoStash"
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configure Proxy" }));
+    expect(latestRequest(rpcClient, "proxy.configure")).toEqual(expect.objectContaining({
+      type: "proxy.configure"
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Refresh Proxy" }));
+    expect(latestRequest(rpcClient, "proxy.refresh")).toEqual(expect.objectContaining({
+      type: "proxy.refresh"
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Change Language" }));
+    expect(latestRequest(rpcClient, "settings.changeLanguage")).toEqual(expect.objectContaining({
+      type: "settings.changeLanguage"
+    }));
+  });
+
   it("loads and updates remotes through the remote manager", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

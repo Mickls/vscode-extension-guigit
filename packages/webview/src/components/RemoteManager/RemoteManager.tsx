@@ -28,6 +28,8 @@ export function RemoteManager({
 }: RemoteManagerProps): ReactElement | null {
   const [newRemoteName, setNewRemoteName] = useState("");
   const [newRemoteUrl, setNewRemoteUrl] = useState("");
+  const [validationStatus, setValidationStatus] = useState<RemoteManagerStatus | undefined>();
+  const displayedStatus = validationStatus ?? status;
 
   if (!open) {
     return null;
@@ -35,7 +37,18 @@ export function RemoteManager({
 
   const submitNewRemote = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onAddRemote?.(newRemoteName.trim(), newRemoteUrl.trim());
+    const name = newRemoteName.trim();
+    const url = newRemoteUrl.trim();
+    if (!isValidRemoteUrl(url)) {
+      setValidationStatus({
+        kind: "error",
+        message: invalidRemoteUrlMessage
+      });
+      return;
+    }
+
+    setValidationStatus(undefined);
+    onAddRemote?.(name, url);
     setNewRemoteName("");
     setNewRemoteUrl("");
   };
@@ -70,12 +83,12 @@ export function RemoteManager({
           </button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-5 pt-4">
-          {status ? (
+          {displayedStatus ? (
             <div
-              className={`rounded border px-2.5 py-2 text-xs ${statusClasses[status.kind]}`}
+              className={`rounded border px-2.5 py-2 text-xs ${statusClasses[displayedStatus.kind]}`}
               role="status"
             >
-              {status.message}
+              {displayedStatus.message}
             </div>
           ) : null}
           <div
@@ -96,7 +109,9 @@ export function RemoteManager({
                 remotes.map((remote) => (
                   <RemoteManagerRow
                     key={remote.name}
+                    onClearStatus={() => setValidationStatus(undefined)}
                     onDeleteRemote={onDeleteRemote}
+                    onInvalidUrl={(message) => setValidationStatus({ kind: "error", message })}
                     onUpdateRemote={onUpdateRemote}
                     remote={remote}
                   />
@@ -137,13 +152,25 @@ export function RemoteManager({
 }
 
 interface RemoteManagerRowProps {
+  onClearStatus?: () => void;
   onDeleteRemote?: (name: string) => void;
+  onInvalidUrl?: (message: string) => void;
   onUpdateRemote?: (name: string, url: string) => void;
   remote: RemoteViewModel;
 }
 
-function RemoteManagerRow({ onDeleteRemote, onUpdateRemote, remote }: RemoteManagerRowProps): ReactElement {
+function RemoteManagerRow({ onClearStatus, onDeleteRemote, onInvalidUrl, onUpdateRemote, remote }: RemoteManagerRowProps): ReactElement {
   const [url, setUrl] = useState(remote.fetchUrl);
+  const saveRemote = () => {
+    const trimmedUrl = url.trim();
+    if (!isValidRemoteUrl(trimmedUrl)) {
+      onInvalidUrl?.(invalidRemoteUrlMessage);
+      return;
+    }
+
+    onClearStatus?.();
+    onUpdateRemote?.(remote.name, trimmedUrl);
+  };
 
   return (
     <div
@@ -167,7 +194,7 @@ function RemoteManagerRow({ onDeleteRemote, onUpdateRemote, remote }: RemoteMana
         <button
           aria-label={`Save ${remote.name}`}
           className={secondaryButtonClassName}
-          onClick={() => onUpdateRemote?.(remote.name, url.trim())}
+          onClick={saveRemote}
           type="button"
         >
           Save
@@ -204,3 +231,9 @@ const statusClasses = {
   success:
     "border-[var(--vscode-editorWidget-border)] bg-[var(--vscode-editorWidget-background)] text-[var(--vscode-foreground)]"
 } as const;
+
+const invalidRemoteUrlMessage = "Remote URL must start with git@ or https://";
+
+function isValidRemoteUrl(url: string): boolean {
+  return url.startsWith("git@") || url.startsWith("https://");
+}

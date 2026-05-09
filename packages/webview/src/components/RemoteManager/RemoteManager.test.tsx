@@ -72,4 +72,18 @@ describe("RemoteManager", () => {
     expect(onAddRemote).toHaveBeenCalledWith("upstream", "https://example.com/up.git");
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it("rejects remote URLs that are not ssh or https git URLs", async () => {
+    const user = userEvent.setup();
+    const onAddRemote = vi.fn();
+
+    render(<RemoteManager onAddRemote={onAddRemote} open />);
+
+    await user.type(screen.getByPlaceholderText("Remote name"), "upstream");
+    await user.type(screen.getByPlaceholderText("Remote URL (https://... or git@...)"), "ftp://example.com/repo.git");
+    await user.click(screen.getByRole("button", { name: "Add Remote" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Remote URL must start with git@ or https://");
+    expect(onAddRemote).not.toHaveBeenCalled();
+  });
 });

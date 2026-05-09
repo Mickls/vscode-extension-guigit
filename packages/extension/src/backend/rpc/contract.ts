@@ -15,6 +15,10 @@ export const allRpcRequestTypes = [
   "remotes.delete",
   "settings.get",
   "settings.update",
+  "settings.resetAutoStash",
+  "settings.changeLanguage",
+  "proxy.configure",
+  "proxy.refresh",
   "git.pull",
   "git.advancedPull",
   "git.operationState",
@@ -198,6 +202,10 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "remotes.delete"; repositoryId: string; name: string })
   | (RpcEnvelope & { type: "settings.get" })
   | (RpcEnvelope & { type: "settings.update"; settings: Partial<SettingsViewModel> })
+  | (RpcEnvelope & { type: "settings.resetAutoStash" })
+  | (RpcEnvelope & { type: "settings.changeLanguage" })
+  | (RpcEnvelope & { type: "proxy.configure" })
+  | (RpcEnvelope & { type: "proxy.refresh" })
   | (RpcEnvelope & { type: "git.pull"; repositoryId: string })
   | (RpcEnvelope & { type: "git.advancedPull"; repositoryId: string })
   | (RpcEnvelope & { type: "git.operationState"; repositoryId: string })
@@ -240,6 +248,10 @@ export interface RpcPayloadByType {
   "remotes.delete": OperationResultViewModel;
   "settings.get": { settings: SettingsViewModel };
   "settings.update": { settings: SettingsViewModel };
+  "settings.resetAutoStash": OperationResultViewModel;
+  "settings.changeLanguage": OperationResultViewModel;
+  "proxy.configure": OperationResultViewModel;
+  "proxy.refresh": OperationResultViewModel;
   "git.pull": OperationResultViewModel;
   "git.advancedPull": OperationResultViewModel;
   "git.operationState": OperationResultViewModel;

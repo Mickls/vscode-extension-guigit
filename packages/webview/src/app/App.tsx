@@ -36,6 +36,8 @@ const defaultFileViewMode: FileViewMode = "list";
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
 type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
 type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
+type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
+type ProxyOperationType = "proxy.configure" | "proxy.refresh";
 type ContextGitOperationType =
   | "git.cherryPick"
   | "git.compareCommits"
@@ -56,6 +58,13 @@ const gitOperationLabels = {
   "git.pull": "Pull",
   "git.push": "Push"
 } as const satisfies Record<PrimaryGitOperationType, string>;
+
+const settingsMenuRequests = {
+  changeLanguage: "settings.changeLanguage",
+  configureProxy: "proxy.configure",
+  refreshProxy: "proxy.refresh",
+  resetStash: "settings.resetAutoStash"
+} as const satisfies Partial<Record<SettingsMenuAction, SettingsOperationType | ProxyOperationType>>;
 
 const contextGitOperationLabels = {
   "git.cherryPick": "Cherry Pick",
@@ -87,7 +96,11 @@ interface OperationNotification {
 }
 
 export function App({ rpcClient }: AppProps): ReactElement {
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [settingsMenu, setSettingsMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 44
+  });
   const [remoteManagerOpen, setRemoteManagerOpen] = useState(false);
   const [compareOverlayOpen, setCompareOverlayOpen] = useState(false);
   const [commits, setCommits] = useState<readonly CommitListItemViewModel[]>([]);
@@ -302,6 +315,16 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
       }
 
+      if (isSettingsMenuOperationResponse(response)) {
+        setOperationNotification({
+          message: response.payload.message,
+          state: response.payload.status === "ok" ? "success" : "warning"
+        });
+        if (response.payload.status === "ok" && response.type !== "proxy.refresh") {
+          requestSettings(client);
+        }
+      }
+
       if (isPrimaryGitOperationResponse(response)) {
         setActiveGitOperation(undefined);
         if (response.payload.status === "conflict") {
@@ -428,7 +451,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
   const openCommitContextMenu = (event: MouseEvent<HTMLElement>, commit: CommitListItemViewModel) => {
     event.preventDefault();
-    setSettingsMenuOpen(false);
+    setSettingsMenu((current) => ({ ...current, visible: false }));
     if (!selectedCommitHashesRef.current.includes(commit.hash)) {
       updateSelectedCommitHashes([commit.hash]);
       focusCommit(commit);
@@ -470,11 +493,20 @@ export function App({ rpcClient }: AppProps): ReactElement {
   };
 
   const handleSettingsMenuAction = (action: SettingsMenuAction) => {
-    setSettingsMenuOpen(false);
+    setSettingsMenu((current) => ({ ...current, visible: false }));
 
     if (action === "manageRemotes") {
       setRemoteManagerOpen(true);
       requestRemotes(client, selectedRepositoryIdRef.current);
+      return;
+    }
+
+    const type = settingsMenuRequests[action];
+    if (type) {
+      client?.post({
+        id: crypto.randomUUID(),
+        type
+      });
     }
   };
 
@@ -629,11 +661,16 @@ export function App({ rpcClient }: AppProps): ReactElement {
             repositoryId: selectedRepositoryIdRef.current
           });
         }}
-        onSettingsClick={() => {
+        onSettingsClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
           setContextMenu((current) => ({ ...current, visible: false }));
-          setSettingsMenuOpen((open) => !open);
+          setSettingsMenu((current) => ({
+            visible: !current.visible,
+            x: Math.max(0, rect.right - 220),
+            y: rect.bottom + 4
+          }));
         }}
-        settingsOpen={settingsMenuOpen}
+        settingsOpen={settingsMenu.visible}
       />
       {conflictOperation ? (
         <ConflictBanner
@@ -676,7 +713,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         x={contextMenu.x}
         y={contextMenu.y}
       />
-      <SettingsMenu onAction={handleSettingsMenuAction} visible={settingsMenuOpen} x={0} y={44} />
+      <SettingsMenu onAction={handleSettingsMenuAction} visible={settingsMenu.visible} x={settingsMenu.x} y={settingsMenu.y} />
       <RemoteManager
         onAddRemote={addRemote}
         onClose={() => setRemoteManagerOpen(false)}
@@ -819,6 +856,17 @@ function isRemoteOperationResponse(
   response: RpcResponse
 ): response is Extract<RpcResponse, { type: RemoteOperationType }> {
   return isRemoteOperationType(response.type);
+}
+
+function isSettingsMenuOperationResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: ProxyOperationType | SettingsOperationType }> {
+  return (
+    response.type === "proxy.configure" ||
+    response.type === "proxy.refresh" ||
+    response.type === "settings.changeLanguage" ||
+    response.type === "settings.resetAutoStash"
+  );
 }
 
 function isGitOperationType(type: string): type is ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType {

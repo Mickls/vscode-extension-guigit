@@ -31,6 +31,7 @@ export class RemoteService {
   }
 
   public async addRemote(repositoryRoot: string, name: string, url: string): Promise<OperationResultViewModel> {
+    validateRemoteUrl(url);
     await this.gitRaw(repositoryRoot, ["remote", "add", name, url]);
     return {
       message: `Added remote ${name}`,
@@ -39,6 +40,7 @@ export class RemoteService {
   }
 
   public async updateRemote(repositoryRoot: string, name: string, url: string): Promise<OperationResultViewModel> {
+    validateRemoteUrl(url);
     await this.gitRaw(repositoryRoot, ["remote", "set-url", name, url]);
     await this.gitRaw(repositoryRoot, ["remote", "set-url", "--push", name, url]);
     return {
@@ -61,6 +63,12 @@ export class RemoteService {
       message: `Removed remote ${name}`,
       status: "ok"
     };
+  }
+}
+
+function validateRemoteUrl(url: string): void {
+  if (!url.startsWith("git@") && !url.startsWith("https://")) {
+    throw new Error("Remote URL must start with git@ or https://");
   }
 }
 

@@ -3,6 +3,7 @@ import type { CommitService } from "../git/CommitService";
 import type { FileService } from "../git/FileService";
 import type { GitService } from "../git/GitService";
 import type { GraphService } from "../git/GraphService";
+import type { ProxyService } from "../git/ProxyService";
 import type { RemoteService } from "../git/RemoteService";
 import type { RepositoryService } from "../git/RepositoryService";
 import type { DiffService } from "../vscode/DiffService";
@@ -44,13 +45,14 @@ export interface GitHistoryRpcHandlerInput {
     | "squashCommits"
   >;
   graphService: Pick<GraphService, "getLayout">;
+  proxyService: Pick<ProxyService, "configureProxy" | "refreshProxy">;
   remoteService: Pick<RemoteService, "addRemote" | "deleteRemote" | "listRemotes" | "updateRemote">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
   repositoryService: Pick<
     RepositoryService,
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
   >;
-  settingsService: Pick<SettingsService, "getSettings" | "updateSettings">;
+  settingsService: Pick<SettingsService, "changeLanguagePreference" | "getSettings" | "resetAutoStashPreference" | "updateSettings">;
 }
 
 export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): RpcHandlerMap {
@@ -133,6 +135,17 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
         settings: input.settingsService.getSettings()
       };
     },
+    "settings.resetAutoStash": async () => {
+      await input.settingsService.resetAutoStashPreference();
+
+      return {
+        message: "Auto stash preference reset to Ask",
+        status: "ok"
+      };
+    },
+    "settings.changeLanguage": () => input.settingsService.changeLanguagePreference(),
+    "proxy.configure": () => input.proxyService.configureProxy(),
+    "proxy.refresh": () => input.proxyService.refreshProxy(),
     "git.pull": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 

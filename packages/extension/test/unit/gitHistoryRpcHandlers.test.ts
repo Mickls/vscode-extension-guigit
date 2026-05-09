@@ -105,6 +105,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" }),
         switchToActiveEditorRepository: () => ({ id: "/repo", name: "repo", rootPath: "/repo" })
       },
+      proxyService: createProxyService(),
       remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
@@ -118,7 +119,9 @@ describe("Git history RPC handlers", () => {
   });
 
   it("reads and updates settings", async () => {
+    let resetAutoStashPreferenceCalled = false;
     const updates: unknown[] = [];
+    const proxyCalls: string[] = [];
     const handlers = createGitHistoryRpcHandlers({
       branchService: {
         listBranches: async () => branches
@@ -153,9 +156,23 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      proxyService: {
+        configureProxy: async () => {
+          proxyCalls.push("configure");
+          return { message: "proxy configured", status: "ok" };
+        },
+        refreshProxy: async () => {
+          proxyCalls.push("refresh");
+          return { message: "proxy refreshed", status: "ok" };
+        }
+      },
       remoteService: createRemoteService(),
       settingsService: {
+        changeLanguagePreference: async () => ({ message: "language changed", status: "ok" }),
         getSettings: () => createSettings("tree"),
+        resetAutoStashPreference: async () => {
+          resetAutoStashPreferenceCalled = true;
+        },
         updateSettings: async (settings) => {
           updates.push(settings);
         }
@@ -174,7 +191,25 @@ describe("Git history RPC handlers", () => {
     ).resolves.toEqual({
       settings: createSettings("tree")
     });
+    await expect(handlers["settings.resetAutoStash"]!({ id: "settings-3", type: "settings.resetAutoStash" })).resolves.toEqual({
+      message: "Auto stash preference reset to Ask",
+      status: "ok"
+    });
+    await expect(handlers["settings.changeLanguage"]!({ id: "settings-4", type: "settings.changeLanguage" })).resolves.toEqual({
+      message: "language changed",
+      status: "ok"
+    });
+    await expect(handlers["proxy.configure"]!({ id: "settings-5", type: "proxy.configure" })).resolves.toEqual({
+      message: "proxy configured",
+      status: "ok"
+    });
+    await expect(handlers["proxy.refresh"]!({ id: "settings-6", type: "proxy.refresh" })).resolves.toEqual({
+      message: "proxy refreshed",
+      status: "ok"
+    });
     expect(updates).toEqual([{ fileViewMode: "list" }]);
+    expect(resetAutoStashPreferenceCalled).toBe(true);
+    expect(proxyCalls).toEqual(["configure", "refresh"]);
   });
 
   it("returns commit details for the requested repository", async () => {
@@ -212,6 +247,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      proxyService: createProxyService(),
       remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
@@ -264,6 +300,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      proxyService: createProxyService(),
       remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
@@ -325,6 +362,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      proxyService: createProxyService(),
       remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
@@ -397,6 +435,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      proxyService: createProxyService(),
       remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
@@ -455,6 +494,7 @@ describe("Git history RPC handlers", () => {
         openWorkingFile: async () => ({ message: "ok", status: "ok" })
       },
       gitService: createGitService(),
+      proxyService: createProxyService(),
       remoteService: {
         addRemote: async (repositoryRoot, name, url) => {
           remoteCalls.push(["add", repositoryRoot, name, url]);
@@ -632,6 +672,7 @@ describe("Git history RPC handlers", () => {
         getCurrentRepository: () => undefined,
         switchToActiveEditorRepository: () => undefined
       },
+      proxyService: createProxyService(),
       remoteService: createRemoteService(),
       settingsService: createSettingsService()
     });
@@ -699,8 +740,17 @@ function createSettings(mode: "tree" | "list") {
 
 function createSettingsService() {
   return {
+    changeLanguagePreference: async () => ({ message: "language changed", status: "ok" as const }),
     getSettings: () => createSettings("tree"),
+    resetAutoStashPreference: async () => undefined,
     updateSettings: async () => undefined
+  };
+}
+
+function createProxyService() {
+  return {
+    configureProxy: async () => ({ message: "proxy configured", status: "ok" as const }),
+    refreshProxy: async () => ({ message: "proxy refreshed", status: "ok" as const })
   };
 }
 

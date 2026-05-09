@@ -60,6 +60,19 @@ describe("RemoteService", () => {
     ]);
   });
 
+  it("rejects invalid remote URLs before running git commands", async () => {
+    const gitRaw = vi.fn().mockResolvedValue("");
+    const service = createService({ gitRaw });
+
+    await expect(service.addRemote("/repo", "upstream", "ftp://example.com/repo.git")).rejects.toThrow(
+      "Remote URL must start with git@ or https://"
+    );
+    await expect(service.updateRemote("/repo", "origin", "http://example.com/repo.git")).rejects.toThrow(
+      "Remote URL must start with git@ or https://"
+    );
+    expect(gitRaw).not.toHaveBeenCalled();
+  });
+
   it("removes remotes only after modal confirmation", async () => {
     const calls: string[] = [];
     const showWarningMessage = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce("Remove Remote");
