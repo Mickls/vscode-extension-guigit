@@ -785,7 +785,8 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Advanced Pull" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Advanced Push" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Pull" }), { ctrlKey: true });
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Pull" }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }));
     const advancedPullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.advancedPull")![0];
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -793,15 +794,19 @@ describe("App", () => {
         type: "git.advancedPull"
       })
     );
+    expect(rpcClient.post.mock.calls.some(([request]) => request.type === "git.pull")).toBe(false);
     dispatchOperationResponse(advancedPullRequest.id, "git.advancedPull");
 
-    fireEvent.click(screen.getByRole("button", { name: "Push" }), { ctrlKey: true });
+    rpcClient.post.mockClear();
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Push" }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Push" }));
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
         repositoryId: "/repo",
         type: "git.advancedPush"
       })
     );
+    expect(rpcClient.post.mock.calls.some(([request]) => request.type === "git.push")).toBe(false);
   });
 
   it("loads history context and selects a commit requested by the backend", () => {

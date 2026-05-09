@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactElement } from "react";
+import { useRef, type MouseEvent, type ReactElement } from "react";
 
 type ToolbarAction = "fetch" | "pull" | "push" | "refresh" | "settings";
 
@@ -71,9 +71,19 @@ export function Header({
   settingsOpen = false
 }: HeaderProps): ReactElement {
   const graphLabel = graphVisible ? "Hide Git Graph" : "Show Git Graph";
+  const skippedClickActionRef = useRef<ToolbarAction | undefined>(undefined);
+  const advancedHandlers: Partial<Record<ToolbarAction, () => void>> = {
+    pull: onAdvancedPull,
+    push: onAdvancedPush
+  };
   const actionHandlers: Record<ToolbarAction, ((event: MouseEvent<HTMLButtonElement>) => void) | undefined> = {
     fetch: onFetch,
     pull: (event) => {
+      if (skippedClickActionRef.current === "pull") {
+        skippedClickActionRef.current = undefined;
+        return;
+      }
+
       if (event.ctrlKey) {
         onAdvancedPull?.();
         return;
@@ -82,6 +92,11 @@ export function Header({
       onPull?.();
     },
     push: (event) => {
+      if (skippedClickActionRef.current === "push") {
+        skippedClickActionRef.current = undefined;
+        return;
+      }
+
       if (event.ctrlKey) {
         onAdvancedPush?.();
         return;
@@ -91,6 +106,21 @@ export function Header({
     },
     refresh: onRefresh,
     settings: onSettingsClick
+  };
+  const handleMouseDown = (event: MouseEvent<HTMLButtonElement>, action: ToolbarAction) => {
+    if (!event.ctrlKey) {
+      return;
+    }
+
+    const advancedHandler = advancedHandlers[action];
+    if (!advancedHandler) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    skippedClickActionRef.current = action;
+    advancedHandler();
   };
 
   return (
@@ -133,6 +163,7 @@ export function Header({
             className="flex h-7 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
             disabled={item.gitOperation && gitOperationBusy}
             key={item.action}
+            onMouseDown={(event) => handleMouseDown(event, item.action)}
             onClick={actionHandlers[item.action]}
             title={item.title ?? item.label}
             type="button"
