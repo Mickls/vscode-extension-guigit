@@ -15,16 +15,16 @@ export function parsePorcelainStatus(output: string): PorcelainStatusViewModel {
     const path = line.slice(3);
 
     if (line.startsWith("?? ")) {
-      unstaged.push(toFileChange("untracked", path, "A"));
+      unstaged.push(toFileChange("untracked", path, "A", indexStatus, workTreeStatus));
       continue;
     }
 
     if (indexStatus !== " ") {
-      staged.push(toFileChange("staged", path, indexStatus));
+      staged.push(toFileChange("staged", path, indexStatus, indexStatus, workTreeStatus));
     }
 
     if (workTreeStatus !== " ") {
-      unstaged.push(toFileChange("unstaged", path, workTreeStatus));
+      unstaged.push(toFileChange("unstaged", path, workTreeStatus, indexStatus, workTreeStatus));
     }
   }
 
@@ -52,9 +52,11 @@ export function parseStashList(output: string): readonly StashEntryViewModel[] {
 function toFileChange(
   area: WorkingTreeFileChangeViewModel["area"],
   path: string,
-  statusCode: string
+  statusCode: string,
+  indexStatus: string,
+  workTreeStatus: string
 ): WorkingTreeFileChangeViewModel {
-  const parsedPath = parseStatusPath(statusCode, path);
+  const parsedPath = parseStatusPath(statusCode, path, indexStatus, workTreeStatus);
 
   return {
     area,
@@ -67,12 +69,21 @@ function toFileChange(
   };
 }
 
-function parseStatusPath(statusCode: string, path: string): Pick<WorkingTreeFileChangeViewModel, "path" | "previousPath"> {
-  if (statusCode !== "R" && statusCode !== "C") {
+function parseStatusPath(
+  statusCode: string,
+  path: string,
+  indexStatus: string,
+  workTreeStatus: string
+): Pick<WorkingTreeFileChangeViewModel, "path" | "previousPath"> {
+  if (![indexStatus, workTreeStatus].some((status) => status === "R" || status === "C")) {
     return { path };
   }
 
   const [previousPath, nextPath] = path.split(" -> ");
+  if (statusCode !== "R" && statusCode !== "C") {
+    return { path: nextPath };
+  }
+
   return {
     path: nextPath,
     previousPath

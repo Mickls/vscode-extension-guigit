@@ -26,6 +26,27 @@ describe("WorkingTreeParser", () => {
     ]);
   });
 
+  it("uses the current path for unstaged changes on staged renames", () => {
+    const result = parsePorcelainStatus("RM src/old.ts -> src/new.ts");
+
+    expect(result.staged).toMatchObject([
+      {
+        area: "staged",
+        path: "src/new.ts",
+        previousPath: "src/old.ts",
+        status: "renamed"
+      }
+    ]);
+    expect(result.unstaged).toMatchObject([
+      {
+        area: "unstaged",
+        path: "src/new.ts",
+        previousPath: undefined,
+        status: "modified"
+      }
+    ]);
+  });
+
   it("parses stash list entries", () => {
     expect(parseStashList("stash@{0}: WIP on main: abc1234 message\nstash@{1}: On feature: save work")).toEqual([
       {
