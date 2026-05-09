@@ -5,6 +5,7 @@ import type {
   BranchesViewModel,
   CommitDetailsViewModel,
   CommitListItemViewModel,
+  CurrentUserViewModel,
   FileChangeViewModel,
   FileViewMode,
   GitResetMode,
@@ -101,6 +102,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [graph, setGraph] = useState<GraphLayoutViewModel>(emptyGraph);
   const [graphVisible, setGraphVisible] = useState(true);
   const [repositories, setRepositories] = useState<readonly RepositoryViewModel[]>(emptyRepositories);
+  const [currentUser, setCurrentUser] = useState<CurrentUserViewModel | undefined>();
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   const [selectedBranches, setSelectedBranches] = useState<readonly string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -291,6 +293,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         setCommits(nextCommits);
         setBranches(response.payload.branches);
         setRepositories(response.payload.repositories);
+        setCurrentUser(response.payload.currentUser);
         if (nextCommits.length === 0) {
           setGraph(emptyGraph);
         }
@@ -483,6 +486,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const changeRepository = (repositoryId: string) => {
     updateSelectedRepository(repositoryId);
     updateSelectedBranches([]);
+    setCurrentUser(undefined);
     setCommits([]);
     commitsRef.current = [];
     setGraph(emptyGraph);
@@ -730,6 +734,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         graphVisible={graphVisible}
         labels={{
           allBranches: tx("allBranches", "All branches"),
+          authorMe: tx("authorFilterMe", "Me"),
           authorPlaceholder: tx("authorFilterPlaceholder", "Author"),
           branch: tx("header.branch", "Branches"),
           fetch: tx("gitOperations.fetch", "Fetch"),
@@ -748,6 +753,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           settings: tx("gitOperations.settings", "Settings"),
           showGraph: tx("graph.show", "Show Git Graph")
         }}
+        currentUser={currentUser}
         onAdvancedPull={() => startGitOperation("git.advancedPull")}
         onAdvancedPush={() => startGitOperation("git.advancedPush")}
         onAuthorChange={changeAuthor}
@@ -757,10 +763,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         onPull={() => startGitOperation("git.pull")}
         onPush={() => startGitOperation("git.push")}
         onRefresh={() => {
-          requestHistory(client, pendingHistoryRequestsRef.current, {
-            preserveSelection: true,
-            repositoryId: selectedRepositoryIdRef.current
-          });
+          reloadHistory({ preserveSelection: true });
         }}
         onRepositoryChange={changeRepository}
         onSearchChange={changeSearch}

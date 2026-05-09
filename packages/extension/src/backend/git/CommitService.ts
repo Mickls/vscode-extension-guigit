@@ -13,6 +13,11 @@ export interface CommitServiceInput {
   logger?: Pick<Logger, "debug">;
 }
 
+export interface CurrentGitUser {
+  email: string;
+  name: string;
+}
+
 export interface CommitHistoryInput {
   author?: string;
   branch?: string;
@@ -93,12 +98,28 @@ export class CommitService {
 
     const args = ["rev-list", "--count", ...refArgs(input.branch, input.branches)];
     if (input.author) {
-      args.push(`--author=${input.author}`);
+      args.push(...authorArgs(input.author));
     }
 
     const count = Number.parseInt((await this.gitRaw(input.repositoryRoot, args)).trim(), 10);
     this.cache.setTotalCommitCount(cacheKey, count);
     return count;
+  }
+
+  public async getCurrentUser(repositoryRoot: string): Promise<CurrentGitUser | undefined> {
+    try {
+      const [userName, userEmail] = await Promise.all([
+        this.gitRaw(repositoryRoot, ["config", "user.name"]),
+        this.gitRaw(repositoryRoot, ["config", "user.email"])
+      ]);
+
+      return {
+        email: userEmail.trim(),
+        name: userName.trim()
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   private async loadMatchingCommits(input: CommitHistoryInput, skip: number): Promise<readonly ParsedCommit[]> {
@@ -139,16 +160,16 @@ export class CommitService {
 
   private async getEditableContext(repositoryRoot: string): Promise<EditableContext | undefined> {
     try {
-      const [latestHash, userName, userEmail] = await Promise.all([
-        this.gitRaw(repositoryRoot, ["rev-parse", "HEAD"]),
-        this.gitRaw(repositoryRoot, ["config", "user.name"]),
-        this.gitRaw(repositoryRoot, ["config", "user.email"])
-      ]);
+      const [latestHash, currentUser] = await Promise.all([this.gitRaw(repositoryRoot, ["rev-parse", "HEAD"]), this.getCurrentUser(repositoryRoot)]);
+
+      if (!currentUser) {
+        return undefined;
+      }
 
       return {
         latestHash: latestHash.trim(),
-        userEmail: userEmail.trim(),
-        userName: userName.trim()
+        userEmail: currentUser.email,
+        userName: currentUser.name
       };
     } catch {
       return undefined;
@@ -173,7 +194,7 @@ function buildLogArgs(
   }
 
   if (input.author) {
-    args.push(`--author=${input.author}`);
+    args.push(...authorArgs(input.author));
   }
 
   if (grep) {
@@ -183,12 +204,29 @@ function buildLogArgs(
   return args;
 }
 
+function authorArgs(author: string): string[] {
+  const authors = author
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (authors.length > 1) {
+    return ["--extended-regexp", `--author=(${authors.map(escapeExtendedRegex).join("|")})`];
+  }
+
+  return [`--author=${author}`];
+}
+
 function refArgs(branch: string | undefined, branches: readonly string[] | undefined): string[] {
   if (branches && branches.length > 0) {
     return [...branches];
   }
 
   return branch && branch !== "all" ? [branch] : ["--branches", "--remotes", "--tags"];
+}
+
+function escapeExtendedRegex(value: string): string {
+  return value.replace(/[()[\]{}.*+?^$\\|]/g, "\\$&");
 }
 
 function parseCommitLog(output: string): readonly ParsedCommit[] {

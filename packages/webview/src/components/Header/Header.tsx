@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type MouseEvent, type ReactElement } from "react";
-import type { BranchesViewModel, RepositoryViewModel } from "../../app/rpcContract.generated";
+import type { BranchesViewModel, CurrentUserViewModel, RepositoryViewModel } from "../../app/rpcContract.generated";
 
 type ToolbarAction = "fetch" | "pull" | "push" | "refresh" | "settings";
 
@@ -13,6 +13,7 @@ interface ToolbarActionItem {
 
 export interface HeaderLabels {
   allBranches: string;
+  authorMe: string;
   authorPlaceholder: string;
   branch: string;
   fetch: string;
@@ -34,6 +35,7 @@ export interface HeaderLabels {
 
 const defaultLabels: HeaderLabels = {
   allBranches: "All branches",
+  authorMe: "Me",
   authorPlaceholder: "Author",
   branch: "Branches",
   fetch: "Fetch",
@@ -56,6 +58,7 @@ const defaultLabels: HeaderLabels = {
 export interface HeaderProps {
   authorValue?: string;
   branches?: BranchesViewModel;
+  currentUser?: CurrentUserViewModel;
   labels?: Partial<HeaderLabels>;
   graphVisible?: boolean;
   repositories?: readonly RepositoryViewModel[];
@@ -81,6 +84,7 @@ export interface HeaderProps {
 export function Header({
   authorValue = "",
   branches,
+  currentUser,
   labels,
   graphVisible = true,
   repositories = [],
@@ -201,6 +205,9 @@ export function Header({
   const updateAuthor = (event: ChangeEvent<HTMLInputElement>) => {
     onAuthorChange?.(event.currentTarget.value);
   };
+  const filterCurrentUser = () => {
+    onAuthorChange?.(currentUser!.name);
+  };
   const updateRepository = (event: ChangeEvent<HTMLSelectElement>) => {
     onRepositoryChange?.(event.currentTarget.value);
   };
@@ -277,14 +284,27 @@ export function Header({
         type="search"
         value={searchValue}
       />
-      <input
-        aria-label={text.filterAuthor}
-        className="h-7 w-[150px] rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
-        onChange={updateAuthor}
-        placeholder={text.authorPlaceholder}
-        type="search"
-        value={authorValue}
-      />
+      <div className="flex items-center gap-1">
+        <input
+          aria-label={text.filterAuthor}
+          className="h-7 w-[150px] rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
+          onChange={updateAuthor}
+          placeholder={text.authorPlaceholder}
+          type="search"
+          value={authorValue}
+        />
+        <button
+          aria-label={text.authorMe}
+          className="flex h-7 items-center justify-center gap-1 rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+          disabled={!currentUser}
+          onClick={filterCurrentUser}
+          title={currentUser ? `${currentUser.name} <${currentUser.email}>` : text.authorMe}
+          type="button"
+        >
+          <UserIcon />
+          <span>{text.authorMe}</span>
+        </button>
+      </div>
       <div className="flex items-center gap-1">
         <button
           aria-label={graphLabel}
@@ -383,6 +403,15 @@ function FetchIcon(): ReactElement {
     <HeaderIcon>
       <path d="M5.1 12.2H4.6a3 3 0 0 1-.3-6 4.1 4.1 0 0 1 7.9 1.1 2.5 2.5 0 0 1-.8 4.9h-.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
       <path d="M8 7.4v6M5.8 11.2 8 13.4l2.2-2.2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
+    </HeaderIcon>
+  );
+}
+
+function UserIcon(): ReactElement {
+  return (
+    <HeaderIcon>
+      <circle cx="8" cy="5" r="2.25" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M3.75 13c.55-2.2 2.05-3.4 4.25-3.4s3.7 1.2 4.25 3.4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
     </HeaderIcon>
   );
 }

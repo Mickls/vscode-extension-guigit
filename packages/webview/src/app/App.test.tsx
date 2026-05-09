@@ -11,6 +11,7 @@ import type {
   CommitListItemViewModel,
   GraphNodeViewModel,
   I18nBundleViewModel,
+  RpcPayloadByType,
   RepositoryViewModel
 } from "./rpcContract.generated";
 import type { RpcClient, RpcRequest, RpcResponse } from "./rpcClient";
@@ -385,6 +386,38 @@ describe("App", () => {
       author: "Ada",
       repositoryId: "/repo-two",
       search: "fix",
+      type: "history.load"
+    }));
+
+    await user.clear(screen.getByRole("searchbox", { name: "Filter author" }));
+    await user.type(screen.getByRole("searchbox", { name: "Filter author" }), "Ada | Grace");
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      author: "Ada | Grace",
+      repositoryId: "/repo-two",
+      search: "fix",
+      type: "history.load"
+    }));
+  });
+
+  it("quickly filters history to the current git user", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, {
+      currentUser: {
+        email: "ada@example.com",
+        name: "Ada"
+      }
+    });
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Me" }));
+    expect(screen.getByRole("searchbox", { name: "Filter author" })).toHaveValue("Ada");
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      author: "Ada",
+      repositoryId: "/repo",
       type: "history.load"
     }));
   });
@@ -1446,6 +1479,7 @@ function latestRequest<TType extends RpcRequest["type"]>(
 interface HistoryResponseOptions {
   branches?: BranchesViewModel;
   commits?: readonly ReturnType<typeof createCommit>[];
+  currentUser?: RpcPayloadByType["history.load"]["currentUser"];
   hasMore?: boolean;
   nextCursor?: string;
   repositories?: readonly RepositoryViewModel[];
@@ -1491,6 +1525,7 @@ function dispatchHistoryResponse(
                 shortHash: "def4567"
               }
             ],
+            currentUser: options.currentUser,
             hasMore: options.hasMore ?? false,
             nextCursor: options.nextCursor,
             repositories: options.repositories ?? [{ id: "/repo", name: "repo", rootPath: "/repo" }]

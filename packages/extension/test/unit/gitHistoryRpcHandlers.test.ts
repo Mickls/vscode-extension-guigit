@@ -76,6 +76,10 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => ({
+          email: "ada@example.com",
+          name: "Ada"
+        }),
         loadHistory: async () => ({
           commits: [commit],
           hasMore: false
@@ -114,6 +118,10 @@ describe("Git history RPC handlers", () => {
     await expect(handlers["history.load"]!({ id: "1", pageSize: 50, type: "history.load" })).resolves.toEqual({
       branches,
       commits: [commit],
+      currentUser: {
+        email: "ada@example.com",
+        name: "Ada"
+      },
       hasMore: false,
       repositories: [{ id: "/repo", name: "repo", rootPath: "/repo" }]
     });
@@ -128,6 +136,7 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => undefined,
         loadHistory: async () => ({
           commits: [],
           hasMore: false
@@ -245,6 +254,7 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => undefined,
         loadHistory: async () => ({
           commits: [],
           hasMore: false
@@ -296,6 +306,7 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => undefined,
         loadHistory: async () => ({
           commits: [],
           hasMore: false
@@ -356,6 +367,7 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => undefined,
         loadHistory: async () => ({
           commits: [],
           hasMore: false
@@ -430,6 +442,7 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => undefined,
         loadHistory: async () => ({
           commits: [],
           hasMore: false
@@ -501,6 +514,7 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => undefined,
         loadHistory: async () => ({
           commits: [],
           hasMore: false
@@ -598,6 +612,7 @@ describe("Git history RPC handlers", () => {
         listBranches: async () => branches
       },
       commitService: {
+        getCurrentUser: async () => undefined,
         loadHistory: async () => ({
           commits: [],
           hasMore: false

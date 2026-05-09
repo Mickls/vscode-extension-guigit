@@ -20,7 +20,7 @@ const emptyBranches: BranchesViewModel = {
 
 export interface GitHistoryRpcHandlerInput {
   branchService: Pick<BranchService, "listBranches">;
-  commitService: Pick<CommitService, "loadHistory">;
+  commitService: Pick<CommitService, "getCurrentUser" | "loadHistory">;
   fileService: Pick<FileService, "getCommitDetails" | "getFileChanges">;
   fileHistoryPanel: Pick<FileHistoryPanel, "openHistory" | "openWorkingFile">;
   gitService: Pick<
@@ -250,8 +250,9 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
         };
       }
 
-      const [branches, history] = await Promise.all([
+      const [branches, currentUser, history] = await Promise.all([
         input.branchService.listBranches(repository.rootPath),
+        input.commitService.getCurrentUser(repository.rootPath),
         input.commitService.loadHistory({
           author: request.author,
           branch: request.branch,
@@ -266,6 +267,7 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       return {
         branches,
         commits: history.commits,
+        currentUser,
         hasMore: history.hasMore,
         nextCursor: history.nextCursor,
         repositories

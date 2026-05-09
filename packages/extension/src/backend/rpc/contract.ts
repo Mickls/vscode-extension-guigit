@@ -75,6 +75,11 @@ export interface BranchesViewModel {
   remotes: readonly RemoteBranchGroupViewModel[];
 }
 
+export interface CurrentUserViewModel {
+  name: string;
+  email: string;
+}
+
 export interface CommitListItemViewModel {
   hash: string;
   shortHash: string;
@@ -240,6 +245,7 @@ export interface RpcPayloadByType {
   "history.load": {
     repositories: readonly RepositoryViewModel[];
     branches: BranchesViewModel;
+    currentUser?: CurrentUserViewModel;
     commits: readonly CommitListItemViewModel[];
     hasMore: boolean;
     nextCursor?: string;

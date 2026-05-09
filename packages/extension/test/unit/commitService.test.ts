@@ -137,6 +137,52 @@ describe("CommitService", () => {
     expect(logCalls[0]).not.toContain("--tags");
   });
 
+  it("loads history for multiple authors", async () => {
+    const logCalls: string[][] = [];
+    const service = new CommitService({
+      cache: new CacheService(),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args[0] === "log") {
+          logCalls.push([...args]);
+          return "";
+        }
+
+        return "Mickls\n";
+      }
+    });
+
+    await service.loadHistory({
+      author: "Ada | Grace",
+      pageSize: 20,
+      repositoryRoot: "/workspace/repo"
+    });
+
+    expect(logCalls[0]).toContain("--extended-regexp");
+    expect(logCalls[0]).toContain("--author=(Ada|Grace)");
+  });
+
+  it("returns the repository git user for quick author filters", async () => {
+    const service = new CommitService({
+      cache: new CacheService(),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args.join(" ") === "config user.name") {
+          return "Ada\n";
+        }
+
+        if (args.join(" ") === "config user.email") {
+          return "ada@example.com\n";
+        }
+
+        return "";
+      }
+    });
+
+    await expect(service.getCurrentUser("/workspace/repo")).resolves.toEqual({
+      email: "ada@example.com",
+      name: "Ada"
+    });
+  });
+
   it("loads selected refs together", async () => {
     const logCalls: string[][] = [];
     const service = new CommitService({
