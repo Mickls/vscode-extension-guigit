@@ -25,6 +25,31 @@ describe("RPC contract", () => {
     expect(allRpcRequestTypes).toEqual(expect.arrayContaining(requiredRequestTypes));
   });
 
+  it("covers working tree, stash, and commit message request areas", () => {
+    expect(allRpcRequestTypes).toEqual(
+      expect.arrayContaining([
+        "workingTree.load",
+        "workingTree.stageFile",
+        "workingTree.stageAll",
+        "workingTree.unstageFile",
+        "workingTree.unstageAll",
+        "workingTree.discardFile",
+        "workingTree.openFile",
+        "workingTree.openDiff",
+        "workingTree.commit",
+        "stash.list",
+        "stash.getDetails",
+        "stash.openDiff",
+        "stash.apply",
+        "stash.pop",
+        "stash.drop",
+        "commitMessage.generate",
+        "settings.configureAiProvider",
+        "settings.testAiProvider"
+      ])
+    );
+  });
+
   it("has a backend handler marker for every request type", () => {
     expect([...backendRpcHandlerTypes].sort()).toEqual([...allRpcRequestTypes].sort());
   });

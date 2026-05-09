@@ -36,7 +36,25 @@ export const allRpcRequestTypes = [
   "git.squashCommits",
   "git.createBranchFromCommit",
   "git.pushAllCommitsToHere",
-  "git.editCommitMessage"
+  "git.editCommitMessage",
+  "workingTree.load",
+  "workingTree.stageFile",
+  "workingTree.stageAll",
+  "workingTree.unstageFile",
+  "workingTree.unstageAll",
+  "workingTree.discardFile",
+  "workingTree.openFile",
+  "workingTree.openDiff",
+  "workingTree.commit",
+  "stash.list",
+  "stash.getDetails",
+  "stash.openDiff",
+  "stash.apply",
+  "stash.pop",
+  "stash.drop",
+  "commitMessage.generate",
+  "settings.configureAiProvider",
+  "settings.testAiProvider"
 ] as const;
 
 export const backendRpcHandlerTypes = allRpcRequestTypes;
@@ -47,6 +65,9 @@ export type FileViewMode = "tree" | "list";
 export type AutoStashPreference = "ask" | "always" | "never";
 export type LanguagePreference = "auto" | "en" | "zh" | "es" | "fr" | "de" | "ja" | "ru";
 export type GitResetMode = "soft" | "mixed" | "hard";
+export type WorkingTreeFileArea = "staged" | "unstaged" | "untracked" | "stash";
+export type WorkingTreeDiffKind = "staged" | "unstaged" | "stash";
+export type AiProviderKind = "vscodeLanguageModel" | "openAICompatible";
 
 export interface RpcEnvelope {
   id: string;
@@ -116,6 +137,28 @@ export interface FileChangeViewModel {
   binary: boolean;
 }
 
+export interface WorkingTreeFileChangeViewModel extends FileChangeViewModel {
+  area: WorkingTreeFileArea;
+}
+
+export interface StashEntryViewModel {
+  ref: string;
+  message: string;
+  branch: string;
+  date: string;
+  files?: readonly WorkingTreeFileChangeViewModel[];
+}
+
+export interface WorkingTreeViewModel {
+  repositoryId: string;
+  repositoryRoot: string;
+  branch: string;
+  staged: readonly WorkingTreeFileChangeViewModel[];
+  unstaged: readonly WorkingTreeFileChangeViewModel[];
+  stashes: readonly StashEntryViewModel[];
+  operationState?: OperationResultViewModel;
+}
+
 export interface GraphLayoutViewModel {
   nodes: readonly GraphNodeViewModel[];
   edges: readonly GraphEdgeViewModel[];
@@ -157,6 +200,7 @@ export interface SettingsViewModel {
   language: LanguagePreference;
   fileViewMode: FileViewMode;
   proxy: ProxySettingsViewModel;
+  ai: AiProviderSettingsViewModel;
 }
 
 export interface ProxySettingsViewModel {
@@ -164,6 +208,19 @@ export interface ProxySettingsViewModel {
   http: string;
   https: string;
   noProxy: string;
+}
+
+export interface AiProviderSettingsViewModel {
+  provider: AiProviderKind;
+  openAICompatible: {
+    baseUrl: string;
+    model: string;
+    configured: boolean;
+  };
+}
+
+export interface CommitMessageSuggestionViewModel {
+  message: string;
 }
 
 export type I18nMessages = {
@@ -238,7 +295,31 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "git.squashCommits"; repositoryId: string; hashes: readonly string[] })
   | (RpcEnvelope & { type: "git.createBranchFromCommit"; repositoryId: string; hash: string })
   | (RpcEnvelope & { type: "git.pushAllCommitsToHere"; repositoryId: string; hash: string })
-  | (RpcEnvelope & { type: "git.editCommitMessage"; repositoryId: string; hash: string });
+  | (RpcEnvelope & { type: "git.editCommitMessage"; repositoryId: string; hash: string })
+  | (RpcEnvelope & { type: "workingTree.load"; repositoryId: string })
+  | (RpcEnvelope & { type: "workingTree.stageFile"; repositoryId: string; filePath: string })
+  | (RpcEnvelope & { type: "workingTree.stageAll"; repositoryId: string })
+  | (RpcEnvelope & { type: "workingTree.unstageFile"; repositoryId: string; filePath: string })
+  | (RpcEnvelope & { type: "workingTree.unstageAll"; repositoryId: string })
+  | (RpcEnvelope & { type: "workingTree.discardFile"; repositoryId: string; filePath: string })
+  | (RpcEnvelope & { type: "workingTree.openFile"; repositoryId: string; filePath: string })
+  | (RpcEnvelope & {
+      type: "workingTree.openDiff";
+      repositoryId: string;
+      filePath: string;
+      kind: WorkingTreeDiffKind;
+      stashRef?: string;
+    })
+  | (RpcEnvelope & { type: "workingTree.commit"; repositoryId: string; message: string })
+  | (RpcEnvelope & { type: "stash.list"; repositoryId: string })
+  | (RpcEnvelope & { type: "stash.getDetails"; repositoryId: string; stashRef: string })
+  | (RpcEnvelope & { type: "stash.openDiff"; repositoryId: string; stashRef: string; filePath: string })
+  | (RpcEnvelope & { type: "stash.apply"; repositoryId: string; stashRef: string })
+  | (RpcEnvelope & { type: "stash.pop"; repositoryId: string; stashRef: string })
+  | (RpcEnvelope & { type: "stash.drop"; repositoryId: string; stashRef: string })
+  | (RpcEnvelope & { type: "commitMessage.generate"; repositoryId: string })
+  | (RpcEnvelope & { type: "settings.configureAiProvider" })
+  | (RpcEnvelope & { type: "settings.testAiProvider" });
 
 export interface RpcPayloadByType {
   "history.load": {
@@ -286,6 +367,28 @@ export interface RpcPayloadByType {
   "git.createBranchFromCommit": OperationResultViewModel;
   "git.pushAllCommitsToHere": OperationResultViewModel;
   "git.editCommitMessage": OperationResultViewModel;
+  "workingTree.load": { workingTree: WorkingTreeViewModel };
+  "workingTree.stageFile": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "workingTree.stageAll": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "workingTree.unstageFile": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "workingTree.unstageAll": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "workingTree.discardFile": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "workingTree.openFile": OperationResultViewModel;
+  "workingTree.openDiff": OperationResultViewModel;
+  "workingTree.commit": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "stash.list": { stashes: readonly StashEntryViewModel[] };
+  "stash.getDetails": { stash: StashEntryViewModel };
+  "stash.openDiff": OperationResultViewModel;
+  "stash.apply": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "stash.pop": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "stash.drop": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
+  "commitMessage.generate": { suggestion: CommitMessageSuggestionViewModel };
+  "settings.configureAiProvider": {
+    i18n: I18nBundleViewModel;
+    settings: SettingsViewModel;
+    result: OperationResultViewModel;
+  };
+  "settings.testAiProvider": OperationResultViewModel;
 }
 
 export type RpcSuccessResponse<TType extends RpcRequestType = RpcRequestType> = {
@@ -325,4 +428,9 @@ export type BackendNotification =
   | {
       type: "operation.completed";
       result: OperationResultViewModel;
+    }
+  | {
+      type: "workingTree.changed";
+      reason: "watcher" | "operation";
+      repositoryId?: string;
     };
