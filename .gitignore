@@ -8,3 +8,4 @@ coverage/
 .vscode-test/
 .pnpm-store/
 webview-dist/
+.superpowers/
