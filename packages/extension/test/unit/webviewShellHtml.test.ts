@@ -15,6 +15,7 @@ describe("webview shell html", () => {
     expect(html).toContain('href="vscode-webview://style.css"');
     expect(html).toContain("Content-Security-Policy");
     expect(html).toContain("script-src 'nonce-nonce-1'");
+    expect(html).toContain("img-src vscode-webview: https://www.gravatar.com");
     expect(html).not.toContain(">GUI Git History</div>");
   });
 });
