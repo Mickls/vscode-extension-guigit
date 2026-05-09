@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "vscode";
-import { commands as vscodeCommands, ConfigurationTarget, Disposable, extensions, RelativePattern, window, workspace } from "vscode";
+import { commands as vscodeCommands, ConfigurationTarget, Disposable, extensions, Range, RelativePattern, window, workspace } from "vscode";
 import type { FileViewMode } from "../backend/rpc/contract";
 import { createGitHistoryRpcHandlers } from "../backend/rpc/gitHistoryRpcHandlers";
 import { createRpcRouter } from "../backend/rpc/router";
@@ -13,6 +13,7 @@ import { RepositoryService } from "../backend/git/RepositoryService";
 import { SafetyService } from "../backend/git/SafetyService";
 import { ProxyService } from "../backend/git/ProxyService";
 import { DiffService } from "../backend/vscode/DiffService";
+import { BlameController } from "../backend/vscode/BlameController";
 import { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
 import { LoggerService, type LogLevel } from "../logging/LoggerService";
 import { CacheService } from "../state/CacheService";
@@ -80,6 +81,27 @@ export function activate(context: ExtensionContext): void {
     logger,
     repositoryService
   });
+  const blameController = new BlameController({
+    activeEditor: () => window.activeTextEditor as never,
+    createDecorationType: () => window.createTextEditorDecorationType({
+      after: {
+        color: "editorCodeLens.foreground",
+        fontStyle: "italic",
+        margin: "0 0 0 3em"
+      }
+    }),
+    createRange: (startLine, startCharacter, endLine, endCharacter) => new Range(startLine, startCharacter, endLine, endCharacter),
+    gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
+    onDidChangeActiveTextEditor: (listener) => window.onDidChangeActiveTextEditor(listener as never),
+    onDidChangeConfiguration: (listener) => workspace.onDidChangeConfiguration(listener),
+    onDidChangeTextDocument: (listener) => workspace.onDidChangeTextDocument(listener as never),
+    onDidChangeTextEditorSelection: (listener) => window.onDidChangeTextEditorSelection(listener as never),
+    repositoryService,
+    settingsService,
+    updateBlameEnabled: async (enabled) => {
+      await workspace.getConfiguration().update("guigit.blame.enabled", enabled, ConfigurationTarget.Global);
+    }
+  });
   const router = createRpcRouter(
     createGitHistoryRpcHandlers({
       branchService,
@@ -107,7 +129,9 @@ export function activate(context: ExtensionContext): void {
     }),
     ...registerGitHistoryCommands({
       blame: {
-        toggleBlame: () => logger.info("command.toggleBlame.pending")
+        toggleBlame: () => {
+          void blameController.toggleBlame();
+        }
       },
       executeCommand: vscodeCommands.executeCommand,
       logger,
@@ -125,6 +149,7 @@ export function activate(context: ExtensionContext): void {
       workspaceFolders: workspace.workspaceFolders ?? []
     }),
     outputChannel,
+    blameController,
     new Disposable(() => undefined)
   );
 }

@@ -31,6 +31,10 @@ const vscodeMocks = vi.hoisted(() => {
       appendLine: vi.fn(),
       dispose: vi.fn()
     })),
+    createTextEditorDecorationType: vi.fn(() => ({ dispose: vi.fn() })),
+    onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
+    onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+    onDidChangeTextEditorSelection: vi.fn(() => ({ dispose: vi.fn() })),
     registerWebviewViewProvider: vi.fn(() => providerDisposable)
   };
 });
@@ -41,6 +45,7 @@ vi.mock("vscode", () => ({
     registerCommand: vscodeMocks.registerCommand
   },
   ConfigurationTarget: {
+    Global: 1,
     Workspace: 2
   },
   Disposable: class {
@@ -55,6 +60,14 @@ vi.mock("vscode", () => ({
       public readonly pattern: string
     ) {}
   },
+  Range: class {
+    public constructor(
+      public readonly startLine: number,
+      public readonly startCharacter: number,
+      public readonly endLine: number,
+      public readonly endCharacter: number
+    ) {}
+  },
   Uri: {
     joinPath: vi.fn((base: { path: string }, ...paths: readonly string[]) => ({
       path: [base.path, ...paths].join("/")
@@ -63,7 +76,9 @@ vi.mock("vscode", () => ({
   window: {
     activeTextEditor: undefined,
     createOutputChannel: vscodeMocks.createOutputChannel,
+    createTextEditorDecorationType: vscodeMocks.createTextEditorDecorationType,
     onDidChangeActiveTextEditor: vscodeMocks.onDidChangeActiveTextEditor,
+    onDidChangeTextEditorSelection: vscodeMocks.onDidChangeTextEditorSelection,
     registerWebviewViewProvider: vscodeMocks.registerWebviewViewProvider
   },
   workspace: {
@@ -72,6 +87,8 @@ vi.mock("vscode", () => ({
       get: vi.fn(() => "tree"),
       update: vi.fn()
     })),
+    onDidChangeConfiguration: vscodeMocks.onDidChangeConfiguration,
+    onDidChangeTextDocument: vscodeMocks.onDidChangeTextDocument,
     workspaceFolders: []
   }
 }));

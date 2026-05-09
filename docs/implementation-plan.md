@@ -400,13 +400,13 @@ gui-git-history/
 
 - Create: `packages/extension/src/backend/vscode/BlameController.ts`
 
-- [ ] Implement blame provider and editor decoration.
-- [ ] Support `guigit.blame.enabled`.
-- [ ] Support `guigit.blame.showOnlyCurrentLine`.
-- [ ] Support `guigit.blame.format`.
-- [ ] Hover includes commit details.
-- [ ] Command jump to commit remains compatible.
-- [ ] Commit with `feat: add git blame integration`.
+- [x] Implement blame provider and editor decoration.
+- [x] Support `guigit.blame.enabled`.
+- [x] Support `guigit.blame.showOnlyCurrentLine`.
+- [x] Support `guigit.blame.format`.
+- [x] Hover includes commit details.
+- [x] Command jump to commit remains compatible.
+- [x] Commit with `feat: add git blame integration`.
 
 ### Task 6.4: i18n
 
