@@ -386,13 +386,13 @@ gui-git-history/
 
 - Create: `packages/extension/src/backend/git/ProxyService.ts`
 
-- [ ] Support custom proxy settings.
-- [ ] Support VS Code proxy settings.
-- [ ] Support environment proxy variables.
-- [ ] Support system proxy detection on macOS, Windows, and Linux.
-- [ ] Support common local proxy app port detection.
-- [ ] Apply proxy to simple-git config.
-- [ ] Commit with `feat: add git proxy service`.
+- [x] Support custom proxy settings.
+- [x] Support VS Code proxy settings.
+- [x] Support environment proxy variables.
+- [x] Support system proxy detection on macOS, Windows, and Linux.
+- [x] Support common local proxy app port detection.
+- [x] Apply proxy to simple-git config.
+- [x] Commit with `feat: add git proxy service`.
 
 ### Task 6.3: Blame controller
 

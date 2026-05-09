@@ -2,6 +2,7 @@ import { simpleGit } from "simple-git";
 import { env, window } from "vscode";
 import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
+import type { ProxyService } from "./ProxyService";
 import type { SettingsService } from "../../state/SettingsService";
 import type { Logger } from "../../logging/LoggerService";
 import { parseGitFileChanges } from "./FileChangeParser";
@@ -16,6 +17,7 @@ export interface GitServiceInput {
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
+  proxyService?: Pick<ProxyService, "runRaw">;
   safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
@@ -41,7 +43,7 @@ export class GitService {
     this.gitClone = input.gitClone ?? (async (targetDirectory, url) => {
       await simpleGit(targetDirectory).clone(url, ".");
     });
-    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.gitRaw = input.gitRaw ?? input.proxyService?.runRaw.bind(input.proxyService) ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
     this.safetyService = input.safetyService;
     this.settingsService = input.settingsService;

@@ -11,6 +11,7 @@ import { GraphService } from "../backend/git/GraphService";
 import { RemoteService } from "../backend/git/RemoteService";
 import { RepositoryService } from "../backend/git/RepositoryService";
 import { SafetyService } from "../backend/git/SafetyService";
+import { ProxyService } from "../backend/git/ProxyService";
 import { DiffService } from "../backend/vscode/DiffService";
 import { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
 import { LoggerService, type LogLevel } from "../logging/LoggerService";
@@ -61,11 +62,16 @@ export function activate(context: ExtensionContext): void {
     }
   });
   const graphService = new GraphService({ logger });
+  const proxyService = new ProxyService({
+    settingsService,
+    vscodeProxy: () => workspace.getConfiguration("http").get<string>("proxy")
+  });
   const remoteService = new RemoteService();
   const diffService = new DiffService({ logger });
   const safetyService = new SafetyService({ logger });
   const gitService = new GitService({
     logger,
+    proxyService,
     safetyService,
     settingsService
   });
