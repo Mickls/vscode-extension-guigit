@@ -9,3 +9,4 @@ coverage/
 .pnpm-store/
 webview-dist/
 .superpowers/
+.worktrees/
