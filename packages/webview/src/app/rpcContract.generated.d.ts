@@ -218,12 +218,9 @@ export type RpcRequest = (RpcEnvelope & {
     repositoryId: string;
 }) | (RpcEnvelope & {
     type: "git.clone";
-    targetDirectory: string;
-    url: string;
 }) | (RpcEnvelope & {
     type: "git.checkout";
     repositoryId: string;
-    branch: string;
 }) | (RpcEnvelope & {
     type: "git.copyHash";
     repositoryId: string;

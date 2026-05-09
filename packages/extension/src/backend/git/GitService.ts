@@ -1,4 +1,5 @@
 import { simpleGit } from "simple-git";
+import type { Uri } from "vscode";
 import { env, window } from "vscode";
 import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
@@ -22,6 +23,7 @@ export interface GitServiceInput {
   settingsService: Pick<SettingsService, "getSettings">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
+  showOpenDialog?: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly Pick<Uri, "fsPath">[] | undefined>;
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 }
@@ -35,6 +37,7 @@ export class GitService {
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly showInformationMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   private readonly showInputBox: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
+  private readonly showOpenDialog: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly Pick<Uri, "fsPath">[] | undefined>;
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 
@@ -53,6 +56,9 @@ export class GitService {
     this.showInputBox =
       input.showInputBox ??
       ((options) => window.showInputBox(options));
+    this.showOpenDialog =
+      input.showOpenDialog ??
+      ((options) => window.showOpenDialog(options));
     this.showQuickPick =
       input.showQuickPick ??
       ((items, options) => window.showQuickPick([...items], options));
@@ -174,7 +180,26 @@ export class GitService {
     };
   }
 
-  public async clone(targetDirectory: string, url: string): Promise<OperationResultViewModel> {
+  public async clone(): Promise<OperationResultViewModel> {
+    const url = await this.showInputBox({
+      placeHolder: "https://github.com/owner/repo.git",
+      prompt: "Enter repository URL"
+    });
+    if (!url) {
+      return { message: "Clone cancelled", status: "cancelled" };
+    }
+
+    const targetDirectories = await this.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: "Clone Here"
+    });
+    const targetDirectory = targetDirectories?.[0]?.fsPath;
+    if (!targetDirectory) {
+      return { message: "Clone cancelled", status: "cancelled" };
+    }
+
     this.logger?.debug("git.clone", { targetDirectory, url });
     this.logGitCommand(targetDirectory, ["clone", url, "."]);
     await this.gitClone(targetDirectory, url);
@@ -185,12 +210,17 @@ export class GitService {
     };
   }
 
-  public async checkout(repositoryRoot: string, branch: string): Promise<OperationResultViewModel> {
+  public async checkout(repositoryRoot: string): Promise<OperationResultViewModel> {
+    const branch = await this.pickCheckoutBranch(repositoryRoot);
+    if (!branch) {
+      return { message: "Checkout cancelled", status: "cancelled" };
+    }
+
     this.logger?.debug("git.checkout", { branch, repositoryRoot });
-    await this.runGitRaw(repositoryRoot, ["checkout", branch]);
+    await this.runGitRaw(repositoryRoot, ["checkout", branch.value]);
 
     return {
-      message: `Checked out ${branch}`,
+      message: `Checked out ${branch.value}`,
       status: "ok"
     };
   }
@@ -418,6 +448,17 @@ export class GitService {
     return this.showQuickPick(
       branches.map((branch) => ({ label: branch, value: branch })),
       { placeHolder }
+    );
+  }
+
+  private async pickCheckoutBranch(repositoryRoot: string): Promise<QuickPickItem | undefined> {
+    const branches = (await this.runGitRaw(repositoryRoot, ["branch", "--all", "--format=%(refname:short)"]))
+      .split("\n")
+      .map((branch) => branch.trim())
+      .filter((branch) => branch.length > 0);
+    return this.showQuickPick(
+      branches.map((branch) => ({ label: branch, value: branch })),
+      { placeHolder: "Select branch to checkout" }
     );
   }
 

@@ -649,16 +649,16 @@ describe("Git history RPC handlers", () => {
           gitCalls.push(["advancedPush", repositoryRoot]);
           return { message: "advanced push", status: "ok" };
         },
-        checkout: async (repositoryRoot, branch) => {
-          gitCalls.push(["checkout", repositoryRoot, branch]);
+        checkout: async (repositoryRoot) => {
+          gitCalls.push(["checkout", repositoryRoot]);
           return { message: "checkout", status: "ok" };
         },
         cherryPick: async (repositoryRoot, hash) => {
           gitCalls.push(["cherryPick", repositoryRoot, hash]);
           return { message: "cherry pick", status: "ok" };
         },
-        clone: async (targetDirectory, url) => {
-          gitCalls.push(["clone", targetDirectory, url]);
+        clone: async () => {
+          gitCalls.push(["clone"]);
           return { message: "clone", status: "ok" };
         },
         compareCommits: async (repositoryRoot, hashes) => {
@@ -733,8 +733,8 @@ describe("Git history RPC handlers", () => {
     await handlers["git.push"]!({ id: "10", repositoryId: "/repo", type: "git.push" });
     await handlers["git.advancedPush"]!({ id: "11", repositoryId: "/repo", type: "git.advancedPush" });
     await handlers["git.fetch"]!({ id: "12", repositoryId: "/repo", type: "git.fetch" });
-    await handlers["git.checkout"]!({ branch: "feature", id: "13", repositoryId: "/repo", type: "git.checkout" });
-    await handlers["git.clone"]!({ id: "14", targetDirectory: "/target", type: "git.clone", url: "https://example.com/repo.git" });
+    await handlers["git.checkout"]!({ id: "13", repositoryId: "/repo", type: "git.checkout" });
+    await handlers["git.clone"]!({ id: "14", type: "git.clone" });
     await handlers["git.copyHash"]!({ hash: "abc123", id: "15", repositoryId: "/repo", type: "git.copyHash" });
     await handlers["git.cherryPick"]!({ hash: "abc123", id: "16", repositoryId: "/repo", type: "git.cherryPick" });
     await handlers["git.revert"]!({ hash: "abc123", id: "17", repositoryId: "/repo", type: "git.revert" });
@@ -754,8 +754,8 @@ describe("Git history RPC handlers", () => {
       ["push", "/repo"],
       ["advancedPush", "/repo"],
       ["fetch", "/repo"],
-      ["checkout", "/repo", "feature"],
-      ["clone", "/target", "https://example.com/repo.git"],
+      ["checkout", "/repo"],
+      ["clone"],
       ["copyHash", "abc123"],
       ["cherryPick", "/repo", "abc123"],
       ["revert", "/repo", "abc123"],

@@ -54,6 +54,7 @@ export interface BlameControllerInput {
   createMarkdownString: (value: string) => MarkdownStringLike;
   createRange: (startLine: number, startCharacter: number, endLine: number, endCharacter: number) => unknown;
   gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  now?: () => Date;
   onDidChangeActiveTextEditor?: (listener: (editor: TextEditorLike | undefined) => void) => DisposableLike;
   onDidChangeConfiguration?: (listener: (event: { affectsConfiguration(section: string): boolean }) => void) => DisposableLike;
   onDidChangeTextDocument?: (listener: (event: { document: TextEditorLike["document"] }) => void) => DisposableLike;
@@ -74,6 +75,7 @@ export class BlameController {
   private readonly decorationType: unknown;
   private readonly disposables: DisposableLike[];
   private readonly gitRaw: BlameControllerInput["gitRaw"];
+  private readonly now: () => Date;
   private readonly repositoryService: Pick<RepositoryService, "discoverRepositories">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly updateBlameEnabled: (enabled: boolean) => Promise<void>;
@@ -84,6 +86,7 @@ export class BlameController {
     this.createRange = input.createRange;
     this.decorationType = input.createDecorationType();
     this.gitRaw = input.gitRaw;
+    this.now = input.now ?? (() => new Date());
     this.repositoryService = input.repositoryService;
     this.settingsService = input.settingsService;
     this.updateBlameEnabled = input.updateBlameEnabled;
@@ -155,7 +158,7 @@ export class BlameController {
       renderOptions: {
         after: {
           color: "rgba(127, 127, 127, 0.72)",
-          contentText: `  ${createInlineBlameText(line)}`,
+          contentText: `  ${createInlineBlameText(line, this.now())}`,
           fontStyle: "italic"
         }
       }
@@ -201,8 +204,8 @@ function parseBlameOutput(output: string): readonly BlameLine[] {
   return lines;
 }
 
-function createInlineBlameText(line: BlameLine): string {
-  return truncateText(`${line.author}: ${line.summary}`, 86);
+function createInlineBlameText(line: BlameLine, now: Date): string {
+  return truncateText(`${line.author} ${formatRelativeDate(line.date, now)}: ${line.summary}`, 86);
 }
 
 function createHover(line: BlameLine, createMarkdownString: BlameControllerInput["createMarkdownString"]): MarkdownStringLike {
@@ -251,4 +254,31 @@ function formatAuthorDate(timestamp: number, timezone: string): string {
 
 function pad(value: number): string {
   return value.toString().padStart(2, "0");
+}
+
+function formatRelativeDate(value: string, now: Date): string {
+  const date = parseBlameDate(value);
+  const diffMinutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000));
+  if (diffMinutes < 1) {
+    return "一分钟内";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} 分钟前`;
+  }
+
+  const diffDays = Math.max(1, Math.floor(diffMinutes / 1440));
+  if (diffDays < 30) {
+    return `${diffDays} 天前`;
+  }
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function parseBlameDate(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{2})(\d{2})$/.exec(value);
+  const isoValue = match
+    ? `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}${match[7]}:${match[8]}`
+    : value;
+  return new Date(isoValue);
 }

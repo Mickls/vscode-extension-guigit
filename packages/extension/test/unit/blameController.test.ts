@@ -3,6 +3,25 @@ import { BlameController } from "../../src/backend/vscode/BlameController";
 import type { SettingsViewModel } from "../../src/backend/rpc/contract";
 
 describe("BlameController", () => {
+  it("shows relative commit time after the author in inline blame", async () => {
+    const editor = createEditor(0);
+    const controller = createController({
+      editor,
+      now: () => new Date("2026-05-07T10:05:00+08:00"),
+      settings: createSettings({})
+    });
+
+    await controller.refreshEditor(editor);
+
+    expect(editor.setDecorations).toHaveBeenCalledWith("decoration", [
+      expect.objectContaining({
+        renderOptions: expect.objectContaining({
+          after: expect.objectContaining({ contentText: "  Ada 5 分钟前: Wire data" })
+        })
+      })
+    ]);
+  });
+
   it("decorates only the active line with subdued truncated author and summary text", async () => {
     const editor = createEditor(1);
     const hoverMessages: unknown[] = [];
@@ -27,7 +46,7 @@ describe("BlameController", () => {
         range: { endCharacter: 13, line: 1, startCharacter: 13 },
         renderOptions: {
           after: {
-            contentText: "  Grace: Add graph with an intentionally long commit summary that should be trimmed b...",
+            contentText: "  Grace 2 天前: Add graph with an intentionally long commit summary that should be trim...",
             color: "rgba(127, 127, 127, 0.72)",
             fontStyle: "italic"
           }
@@ -62,7 +81,7 @@ describe("BlameController", () => {
     const decorations = editor.setDecorations.mock.calls.at(-1)![1];
     expect(decorations).toHaveLength(1);
     expect(decorations.map((item) => item.renderOptions.after.contentText)).toEqual([
-      "  Ada: Wire data"
+      "  Ada 2 天前: Wire data"
     ]);
   });
 
@@ -97,7 +116,7 @@ describe("BlameController", () => {
     expect(editor.setDecorations).toHaveBeenCalledWith("decoration", [
       expect.objectContaining({
         renderOptions: expect.objectContaining({
-          after: expect.objectContaining({ contentText: "  Ada: Wire data" })
+          after: expect.objectContaining({ contentText: "  Ada 2 天前: Wire data" })
         })
       })
     ]);
@@ -106,6 +125,7 @@ describe("BlameController", () => {
 
 function createController(input: {
   editor: ReturnType<typeof createEditor>;
+  now?: () => Date;
   settings: SettingsViewModel;
   updateBlameEnabled?: (enabled: boolean) => Promise<void>;
   createMarkdownString?: (value: string) => unknown;
@@ -120,6 +140,7 @@ function createController(input: {
     }),
     createMarkdownString: input.createMarkdownString ?? ((value) => ({ isTrusted: true, value })),
     gitRaw: async () => blameOutput,
+    now: input.now,
     repositoryService: {
       discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }]
     },

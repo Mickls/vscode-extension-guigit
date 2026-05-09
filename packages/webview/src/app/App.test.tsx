@@ -90,6 +90,32 @@ describe("App", () => {
     }));
   });
 
+  it("posts checkout and clone actions from the header", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Checkout" }));
+    const checkoutRequest = latestRequest(rpcClient, "git.checkout");
+    expect(checkoutRequest).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      type: "git.checkout"
+    }));
+    dispatchOperationResponse(checkoutRequest.id, "git.checkout", {
+      message: "Checkout completed",
+      status: "ok"
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clone" }));
+    expect(latestRequest(rpcClient, "git.clone")).toEqual(expect.objectContaining({
+      type: "git.clone"
+    }));
+  });
+
   it("refreshes webview labels from settings bootstrap without reloading history", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -556,7 +582,8 @@ describe("App", () => {
 
     expect(screen.queryByText("Select a commit to view details.")).not.toBeInTheDocument();
     expect(screen.getAllByText("Second real commit")).toHaveLength(2);
-    expect(screen.getByText("Grace - 2026-05-07 09:00:00 +0800")).toBeInTheDocument();
+    expect(screen.getAllByText("Grace")).toHaveLength(2);
+    expect(screen.getAllByText("2026-05-07 09:00:00 +0800")).toHaveLength(2);
   });
 
   it("preserves the selected commit when history reloads with that commit still present", async () => {
@@ -1685,6 +1712,8 @@ function dispatchOperationResponse(
     | "git.advancedPull"
     | "git.advancedPush"
     | "git.cherryPick"
+    | "git.checkout"
+    | "git.clone"
     | "git.copyHash"
     | "git.createBranchFromCommit"
     | "git.editCommitMessage"

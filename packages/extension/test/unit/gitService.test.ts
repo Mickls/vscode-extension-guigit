@@ -8,9 +8,13 @@ vi.mock("vscode", () => ({
       writeText: vi.fn()
     }
   },
+  Uri: {
+    file: (fsPath: string) => ({ fsPath })
+  },
   window: {
     showInformationMessage: vi.fn(),
     showInputBox: vi.fn(),
+    showOpenDialog: vi.fn(),
     showWarningMessage: vi.fn(),
     showQuickPick: vi.fn()
   }
@@ -39,7 +43,10 @@ describe("GitService", () => {
       logger: {
         debug: () => undefined,
         info: (_message, context) => logs.push(context)
-      }
+      },
+      showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }]),
+      showQuickPick: vi.fn().mockResolvedValue({ label: "feature/demo", value: "feature/demo" })
     });
 
     await expect(service.pull("/repo")).resolves.toEqual({ message: "Pull completed", status: "ok" });
@@ -134,6 +141,47 @@ describe("GitService", () => {
       "Create Pull Request",
       "Dismiss"
     );
+  });
+
+  it("checks out a picked branch", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "feature/demo", value: "feature/demo" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch --all --format=%(refname:short)") {
+          return "main\nfeature/demo\norigin/release\n";
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.checkout("/repo")).resolves.toEqual({ message: "Checked out feature/demo", status: "ok" });
+    expect(calls).toEqual(["branch --all --format=%(refname:short)", "checkout feature/demo"]);
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "main", value: "main" },
+        { label: "feature/demo", value: "feature/demo" },
+        { label: "origin/release", value: "origin/release" }
+      ],
+      { placeHolder: "Select branch to checkout" }
+    );
+  });
+
+  it("prompts for clone url and target directory", async () => {
+    const cloneCalls: unknown[] = [];
+    const service = createService({
+      gitClone: async (targetDirectory, url) => {
+        cloneCalls.push([targetDirectory, url]);
+      },
+      showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target/repo" }])
+    });
+
+    await expect(service.clone()).resolves.toEqual({ message: "Clone completed", status: "ok" });
+    expect(cloneCalls).toEqual([["/target/repo", "https://example.com/repo.git"]]);
   });
 
   it("completes push without waiting for the pull request prompt", async () => {
@@ -352,21 +400,25 @@ describe("GitService", () => {
       logger: {
         debug: () => undefined,
         info: (_message, context) => logs.push(context)
-      }
+      },
+      showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }]),
+      showQuickPick: vi.fn().mockResolvedValue({ label: "feature/demo", value: "feature/demo" })
     });
 
-    await expect(service.clone("/target", "https://example.com/repo.git")).resolves.toEqual({
+    await expect(service.clone()).resolves.toEqual({
       message: "Clone completed",
       status: "ok"
     });
-    await expect(service.checkout("/repo", "feature/demo")).resolves.toEqual({
+    await expect(service.checkout("/repo")).resolves.toEqual({
       message: "Checked out feature/demo",
       status: "ok"
     });
 
-    expect(calls).toEqual(["clone https://example.com/repo.git /target", "checkout feature/demo"]);
+    expect(calls).toEqual(["clone https://example.com/repo.git /target", "branch --all --format=%(refname:short)", "checkout feature/demo"]);
     expect(logs).toEqual([
       { command: "git -C /target clone https://example.com/repo.git ." },
+      { command: "git -C /repo branch --all --format=%(refname:short)" },
       { command: "git -C /repo checkout feature/demo" }
     ]);
   });
@@ -678,6 +730,7 @@ function createService(input: {
   };
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined> | Promise<string | undefined>;
   showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined> | Promise<string | undefined>;
+  showOpenDialog?: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly { fsPath: string }[] | undefined> | Promise<readonly { fsPath: string }[] | undefined>;
   showQuickPick?: (
     items: readonly { label: string; value: string }[],
     options: { placeHolder: string }
@@ -708,6 +761,7 @@ function createService(input: {
     logger: input.logger,
     showInformationMessage: input.showInformationMessage,
     showInputBox: input.showInputBox,
+    showOpenDialog: input.showOpenDialog,
     showQuickPick: input.showQuickPick,
     showWarningMessage: input.showWarningMessage
   });

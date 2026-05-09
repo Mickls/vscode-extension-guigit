@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactElement } from "react";
+import { FileText, History } from "lucide-react";
 import type { FileChangeViewModel, FileViewMode } from "../../app/rpcContract.generated";
 
 export interface FileChangesLabels {
@@ -309,22 +310,10 @@ function FileActionButton({
 
 function FileActionIcon({ icon }: { icon: "history" | "openFile" }): ReactElement {
   if (icon === "history") {
-    return (
-      <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 16 16">
-        <path d="M3.2 5.1A5.2 5.2 0 1 1 2.8 8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
-        <path d="M3.2 2.6v2.8h2.8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
-        <path d="M8 4.8v3.4l2.2 1.4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
-      </svg>
-    );
+    return <History aria-hidden="true" className="h-3.5 w-3.5" />;
   }
 
-  return (
-    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 16 16">
-      <path d="M4 2.5h5.2L12 5.3v8.2H4z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.3" />
-      <path d="M9.1 2.7v2.8h2.7" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.3" />
-      <path d="M6.2 10.3h3.7M6.2 12h2.4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.3" />
-    </svg>
-  );
+  return <FileText aria-hidden="true" className="h-3.5 w-3.5" />;
 }
 
 function buildTree(files: readonly FileChangeViewModel[]): TreeNode {

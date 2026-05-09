@@ -48,6 +48,7 @@ const maximumGraphViewportWidth = 240;
 const defaultFileViewMode: FileViewMode = "list";
 const emptyI18nMessages: I18nMessages = {};
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
+type PromptGitOperationType = "git.checkout" | "git.clone";
 type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
 type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
@@ -117,7 +118,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [remotes, setRemotes] = useState<readonly RemoteViewModel[]>(emptyRemotes);
   const [remoteStatus, setRemoteStatus] = useState<OperationNotification | undefined>();
   const [operationNotification, setOperationNotification] = useState<OperationNotification | undefined>();
-  const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | undefined>();
+  const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | PromptGitOperationType | undefined>();
   const [conflictOperation, setConflictOperation] = useState<OperationNotification | undefined>();
   const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
   const hasMoreRef = useRef(false);
@@ -152,6 +153,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
     "git.pull": tx("gitOperations.pull", "Pull"),
     "git.push": tx("gitOperations.push", "Push")
   } as const satisfies Record<PrimaryGitOperationType, string>;
+  const promptGitOperationLabels = {
+    "git.checkout": tx("gitOperations.checkout", "Checkout"),
+    "git.clone": tx("gitOperations.clone", "Clone")
+  } as const satisfies Record<PromptGitOperationType, string>;
   const contextGitOperationLabels = {
     "git.cherryPick": tx("contextMenu.cherryPick", "Cherry Pick"),
     "git.compareCommits": tx("contextMenu.compareSelected", "Compare Commits"),
@@ -381,6 +386,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
 
         setConflictOperation(undefined);
+        setOperationNotification({
+          message: response.payload.message,
+          state: response.payload.status === "ok" ? "success" : "warning"
+        });
+        if (response.payload.status === "ok") {
+          reloadHistory({ preserveSelection: true });
+        }
+      }
+
+      if (isPromptGitOperationResponse(response)) {
+        setActiveGitOperation(undefined);
         setOperationNotification({
           message: response.payload.message,
           state: response.payload.status === "ok" ? "success" : "warning"
@@ -695,6 +711,28 @@ export function App({ rpcClient }: AppProps): ReactElement {
       type
     });
   };
+  const startPromptGitOperation = (type: PromptGitOperationType) => {
+    if ((type === "git.checkout" && !selectedRepositoryIdRef.current) || activeGitOperation || conflictOperation) {
+      return;
+    }
+
+    const label = promptGitOperationLabels[type];
+    setActiveGitOperation(type);
+    setOperationNotification({ message: tx("status.running", "{0} is running...", label), state: "running" });
+    if (type === "git.checkout") {
+      client?.post({
+        id: crypto.randomUUID(),
+        repositoryId: selectedRepositoryIdRef.current!,
+        type
+      });
+      return;
+    }
+
+    client?.post({
+      id: crypto.randomUUID(),
+      type
+    });
+  };
 
   const sendConflictOperation = (type: ConflictGitOperationType) => {
     if (!selectedRepositoryIdRef.current || activeGitOperation) {
@@ -737,6 +775,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
           authorMe: tx("authorFilterMe", "Me"),
           authorPlaceholder: tx("authorFilterPlaceholder", "Author"),
           branch: tx("header.branch", "Branches"),
+          checkout: tx("gitOperations.checkout", "Checkout"),
+          clone: tx("gitOperations.clone", "Clone"),
           fetch: tx("gitOperations.fetch", "Fetch"),
           filterAuthor: tx("header.filterAuthor", "Filter author"),
           graph: tx("graph.toggle", "Graph"),
@@ -758,6 +798,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
         onAdvancedPush={() => startGitOperation("git.advancedPush")}
         onAuthorChange={changeAuthor}
         onBranchSelectionChange={changeBranches}
+        onCheckout={() => startPromptGitOperation("git.checkout")}
+        onClone={() => startPromptGitOperation("git.clone")}
         onGraphToggle={() => setGraphVisible((visible) => !visible)}
         onFetch={() => startGitOperation("git.fetch")}
         onPull={() => startGitOperation("git.pull")}
@@ -1051,6 +1093,12 @@ function isPrimaryGitOperationResponse(
   return isPrimaryGitOperationType(response.type);
 }
 
+function isPromptGitOperationResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: PromptGitOperationType }> {
+  return isPromptGitOperationType(response.type);
+}
+
 function isConflictGitOperationResponse(
   response: RpcResponse
 ): response is Extract<RpcResponse, { type: ConflictGitOperationType }> {
@@ -1084,14 +1132,19 @@ function isSettingsMenuOperationResponse(
   );
 }
 
-function isGitOperationType(type: string): type is ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType {
+function isGitOperationType(type: string): type is ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | PromptGitOperationType {
   return (
     isPrimaryGitOperationType(type) ||
+    isPromptGitOperationType(type) ||
     isContextGitOperationType(type) ||
     type === "git.abortOperation" ||
     type === "git.continueOperation" ||
     type === "git.operationState"
   );
+}
+
+function isPromptGitOperationType(type: string): type is PromptGitOperationType {
+  return type === "git.checkout" || type === "git.clone";
 }
 
 function isRemoteOperationType(type: string): type is RemoteOperationType {

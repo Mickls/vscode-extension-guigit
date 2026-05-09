@@ -71,14 +71,14 @@
       }
     },
     "gitOperations": {
-      "pull": "pull",
-      "push": "push",
-      "fetch": "fetch",
-      "clone": "clone",
-      "checkout": "checkout",
+      "pull": "拉取",
+      "push": "推送",
+      "fetch": "获取",
+      "clone": "克隆",
+      "checkout": "签出",
       "settings": "设置",
-      "advancedPull": "advanced pull",
-      "advancedPush": "advanced push"
+      "advancedPull": "高级拉取",
+      "advancedPush": "高级推送"
     },
     "clone": {
       "prompt": "输入要克隆的仓库地址",

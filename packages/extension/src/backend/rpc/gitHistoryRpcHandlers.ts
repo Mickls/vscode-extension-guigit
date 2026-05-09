@@ -190,11 +190,11 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
 
       return input.gitService.fetch(repository.rootPath);
     },
-    "git.clone": (request) => input.gitService.clone(request.targetDirectory, request.url),
+    "git.clone": () => input.gitService.clone(),
     "git.checkout": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
-      return input.gitService.checkout(repository.rootPath, request.branch);
+      return input.gitService.checkout(repository.rootPath);
     },
     "git.copyHash": async (request) => input.gitService.copyHash(request.hash),
     "git.cherryPick": async (request) => {
