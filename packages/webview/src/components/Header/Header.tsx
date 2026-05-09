@@ -1,4 +1,5 @@
-import { useRef, type MouseEvent, type ReactElement } from "react";
+import { useRef, useState, type ChangeEvent, type MouseEvent, type ReactElement } from "react";
+import type { BranchesViewModel, RepositoryViewModel } from "../../app/rpcContract.generated";
 
 type ToolbarAction = "fetch" | "pull" | "push" | "refresh" | "settings";
 
@@ -11,7 +12,9 @@ interface ToolbarActionItem {
 }
 
 export interface HeaderLabels {
+  allBranches: string;
   authorPlaceholder: string;
+  branch: string;
   fetch: string;
   filterAuthor: string;
   graph: string;
@@ -21,14 +24,18 @@ export interface HeaderLabels {
   push: string;
   pushTitle: string;
   refresh: string;
+  repository: string;
   searchCommits: string;
   searchPlaceholder: string;
+  selectedBranches: string;
   settings: string;
   showGraph: string;
 }
 
 const defaultLabels: HeaderLabels = {
+  allBranches: "All branches",
   authorPlaceholder: "Author",
+  branch: "Branches",
   fetch: "Fetch",
   filterAuthor: "Filter author",
   graph: "Graph",
@@ -38,43 +45,73 @@ const defaultLabels: HeaderLabels = {
   push: "Push",
   pushTitle: "Push (Command+click for Advanced Push)",
   refresh: "Refresh",
+  repository: "Repository",
   searchCommits: "Search commits",
   searchPlaceholder: "Search commits",
+  selectedBranches: "{0} branches",
   settings: "Settings",
   showGraph: "Show Git Graph"
 };
 
 export interface HeaderProps {
+  authorValue?: string;
+  branches?: BranchesViewModel;
   labels?: Partial<HeaderLabels>;
   graphVisible?: boolean;
+  repositories?: readonly RepositoryViewModel[];
+  searchValue?: string;
+  selectedBranches?: readonly string[];
+  selectedRepositoryId?: string;
   onGraphToggle?: () => void;
   onAdvancedPull?: () => void;
   onAdvancedPush?: () => void;
+  onAuthorChange?: (value: string) => void;
+  onBranchSelectionChange?: (branches: readonly string[]) => void;
   onRefresh?: () => void;
   onFetch?: () => void;
   onPull?: () => void;
   onPush?: () => void;
+  onRepositoryChange?: (repositoryId: string) => void;
+  onSearchChange?: (value: string) => void;
   onSettingsClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   gitOperationBusy?: boolean;
   settingsOpen?: boolean;
 }
 
 export function Header({
+  authorValue = "",
+  branches,
   labels,
   graphVisible = true,
+  repositories = [],
+  searchValue = "",
+  selectedBranches = [],
+  selectedRepositoryId,
   onAdvancedPull,
   onAdvancedPush,
+  onAuthorChange,
+  onBranchSelectionChange,
   onGraphToggle,
   onFetch,
   onPull,
   onPush,
   onRefresh,
+  onRepositoryChange,
+  onSearchChange,
   onSettingsClick,
   gitOperationBusy = false,
   settingsOpen = false
 }: HeaderProps): ReactElement {
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const text = { ...defaultLabels, ...labels };
   const graphLabel = graphVisible ? text.hideGraph : text.showGraph;
+  const branchOptions = flattenBranches(branches);
+  const selectedBranchSet = new Set(selectedBranches);
+  const branchLabel = selectedBranches.length === 0
+    ? text.allBranches
+    : selectedBranches.length === 1
+      ? selectedBranches[0]!
+      : text.selectedBranches.replace("{0}", selectedBranches.length.toString());
   const toolbarActions: readonly ToolbarActionItem[] = [
     {
       action: "refresh",
@@ -158,26 +195,95 @@ export function Header({
     skippedClickActionRef.current = action;
     advancedHandler();
   };
+  const updateSearch = (event: ChangeEvent<HTMLInputElement>) => {
+    onSearchChange?.(event.currentTarget.value);
+  };
+  const updateAuthor = (event: ChangeEvent<HTMLInputElement>) => {
+    onAuthorChange?.(event.currentTarget.value);
+  };
+  const updateRepository = (event: ChangeEvent<HTMLSelectElement>) => {
+    onRepositoryChange?.(event.currentTarget.value);
+  };
+  const toggleBranch = (branch: string) => {
+    const nextBranches = selectedBranchSet.has(branch)
+      ? selectedBranches.filter((selectedBranch) => selectedBranch !== branch)
+      : [...selectedBranches, branch];
+    onBranchSelectionChange?.(nextBranches);
+  };
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] px-2">
-      <button
-        className="h-7 max-w-[220px] truncate rounded-[3px] border border-[var(--vscode-dropdown-border)] bg-[var(--vscode-dropdown-background)] px-2 text-left text-xs text-[var(--vscode-dropdown-foreground)]"
-        type="button"
+    <header className="relative flex h-11 shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] px-2">
+      <select
+        aria-label={text.repository}
+        className="h-7 max-w-[220px] rounded-[3px] border border-[var(--vscode-dropdown-border)] bg-[var(--vscode-dropdown-background)] px-2 text-xs text-[var(--vscode-dropdown-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
+        onChange={updateRepository}
+        value={selectedRepositoryId ?? repositories[0]?.id ?? ""}
       >
-        main
-      </button>
+        {repositories.map((repository) => (
+          <option key={repository.id} value={repository.id}>
+            {repository.name}
+          </option>
+        ))}
+      </select>
+      <div className="relative">
+        <button
+          aria-expanded={branchMenuOpen}
+          aria-label={text.branch}
+          className="h-7 max-w-[220px] truncate rounded-[3px] border border-[var(--vscode-dropdown-border)] bg-[var(--vscode-dropdown-background)] px-2 text-left text-xs text-[var(--vscode-dropdown-foreground)]"
+          onClick={() => setBranchMenuOpen((open) => !open)}
+          type="button"
+        >
+          {branchLabel}
+        </button>
+        {branchMenuOpen ? (
+          <div
+            aria-label={text.branch}
+            className="absolute left-0 top-8 z-[1000] max-h-[320px] min-w-[220px] overflow-y-auto rounded border border-[var(--vscode-menu-border)] bg-[var(--vscode-menu-background)] py-1 text-xs shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+            onPointerDown={(event) => event.stopPropagation()}
+            role="menu"
+          >
+            <button
+              className="block w-full bg-transparent px-3 py-2 text-left text-[var(--vscode-menu-foreground,var(--vscode-foreground))] hover:bg-[var(--vscode-menu-selectionBackground)]"
+              onClick={() => {
+                onBranchSelectionChange?.([]);
+                setBranchMenuOpen(false);
+              }}
+              role="menuitem"
+              type="button"
+            >
+              {text.allBranches}
+            </button>
+            {branchOptions.map((branch) => (
+              <label
+                className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[var(--vscode-menu-foreground,var(--vscode-foreground))] hover:bg-[var(--vscode-menu-selectionBackground)]"
+                key={branch}
+              >
+                <input
+                  checked={selectedBranchSet.has(branch)}
+                  onChange={() => toggleBranch(branch)}
+                  type="checkbox"
+                />
+                <span>{branch}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
+      </div>
       <input
         aria-label={text.searchCommits}
         className="h-7 min-w-[180px] flex-1 rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
+        onChange={updateSearch}
         placeholder={text.searchPlaceholder}
         type="search"
+        value={searchValue}
       />
       <input
         aria-label={text.filterAuthor}
         className="h-7 w-[150px] rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
+        onChange={updateAuthor}
         placeholder={text.authorPlaceholder}
         type="search"
+        value={authorValue}
       />
       <div className="flex items-center gap-1">
         <button
@@ -211,6 +317,17 @@ export function Header({
       </div>
     </header>
   );
+}
+
+function flattenBranches(branches: BranchesViewModel | undefined): readonly string[] {
+  if (!branches) {
+    return [];
+  }
+
+  return [
+    ...branches.locals.map((branch) => branch.name),
+    ...branches.remotes.flatMap((remote) => remote.branches.map((branch) => branch.name))
+  ];
 }
 
 function HeaderIcon({ children }: { children: ReactElement | readonly ReactElement[] }): ReactElement {

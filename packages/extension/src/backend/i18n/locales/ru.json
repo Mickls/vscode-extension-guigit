@@ -219,7 +219,10 @@
     },
     "header": {
       "searchCommits": "Поиск коммитов",
-      "filterAuthor": "Фильтр автора"
+      "filterAuthor": "Фильтр автора",
+      "repository": "Репозиторий",
+      "branch": "Ветки",
+      "selectedBranches": "{0} веток"
     },
     "graph": {
       "toggle": "Граф",

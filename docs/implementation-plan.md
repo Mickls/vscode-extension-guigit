@@ -459,10 +459,10 @@ gui-git-history/
 - [ ] Bottom panel view still appears as `Git History / Commit History`.
 - [ ] Existing user settings are read without migration prompts.
 - [ ] Main UI visually matches old project screenshots.
-- [ ] Multi-repository switching works.
+- [x] Multi-repository switching works.
 - [ ] Commit history infinite scroll works.
 - [ ] Branch switching and recent branches work.
-- [ ] Search and author filter work.
+- [x] Search and author filter work.
 - [ ] Commit details and file changes work.
 - [ ] Diff opens in VS Code editor.
 - [ ] File history panel can jump back to main view.

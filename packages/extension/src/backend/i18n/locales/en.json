@@ -219,7 +219,10 @@
     },
     "header": {
       "searchCommits": "Search commits",
-      "filterAuthor": "Filter author"
+      "filterAuthor": "Filter author",
+      "repository": "Repository",
+      "branch": "Branches",
+      "selectedBranches": "{0} branches"
     },
     "graph": {
       "toggle": "Graph",

@@ -219,7 +219,10 @@
     },
     "header": {
       "searchCommits": "搜索提交",
-      "filterAuthor": "筛选作者"
+      "filterAuthor": "筛选作者",
+      "repository": "仓库",
+      "branch": "分支",
+      "selectedBranches": "{0} 个分支"
     },
     "graph": {
       "toggle": "图谱",

@@ -16,6 +16,7 @@ export interface CommitServiceInput {
 export interface CommitHistoryInput {
   author?: string;
   branch?: string;
+  branches?: readonly string[];
   cursor?: string;
   pageSize: number;
   repositoryRoot: string;
@@ -31,6 +32,7 @@ export interface CommitHistoryResult {
 export interface CommitCountInput {
   author?: string;
   branch?: string;
+  branches?: readonly string[];
   repositoryRoot: string;
 }
 
@@ -89,7 +91,7 @@ export class CommitService {
       return cached;
     }
 
-    const args = ["rev-list", "--count", ...refArgs(input.branch)];
+    const args = ["rev-list", "--count", ...refArgs(input.branch, input.branches)];
     if (input.author) {
       args.push(`--author=${input.author}`);
     }
@@ -160,7 +162,7 @@ function buildLogArgs(
   skip: number | undefined,
   grep?: string
 ): string[] {
-  const args = ["log", ...refArgs(input.branch), "--topo-order", `--pretty=format:${prettyFormat}`, "--encoding=UTF-8"];
+  const args = ["log", ...refArgs(input.branch, input.branches), "--topo-order", `--pretty=format:${prettyFormat}`, "--encoding=UTF-8"];
 
   if (maxCount !== undefined) {
     args.push(`--max-count=${maxCount}`);
@@ -181,7 +183,11 @@ function buildLogArgs(
   return args;
 }
 
-function refArgs(branch: string | undefined): string[] {
+function refArgs(branch: string | undefined, branches: readonly string[] | undefined): string[] {
+  if (branches && branches.length > 0) {
+    return [...branches];
+  }
+
   return branch && branch !== "all" ? [branch] : ["--branches", "--remotes", "--tags"];
 }
 
@@ -263,5 +269,5 @@ function isHashPrefix(search: string): boolean {
 }
 
 function totalCommitCountKey(input: CommitCountInput): string {
-  return `${input.repositoryRoot}:${input.branch ?? "all"}:${input.author ?? "all"}`;
+  return `${input.repositoryRoot}:${input.branches?.join("|") ?? input.branch ?? "all"}:${input.author ?? "all"}`;
 }

@@ -2,6 +2,8 @@ import type { MouseEvent, ReactElement, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 export interface SplitPanelsProps {
+  graphHeaderVisible?: boolean;
+  graphHeaderWidth?: number;
   initialLeftCollapsed?: boolean;
   initialRightCollapsed?: boolean;
   labels?: Partial<SplitPanelsLabels>;
@@ -20,6 +22,7 @@ export interface SplitPanelsLabels {
   expandCommitList: string;
   hash: string;
   message: string;
+  graph: string;
   refs: string;
   resizePanels: string;
 }
@@ -34,12 +37,15 @@ const defaultLabels: SplitPanelsLabels = {
   expandCommitDetails: "Expand commit details panel",
   expandCommitList: "Expand commit list panel",
   hash: "Hash",
+  graph: "Graph",
   message: "Message",
   refs: "Refs",
   resizePanels: "Resize panels"
 };
 
 export function SplitPanels({
+  graphHeaderVisible = false,
+  graphHeaderWidth = 120,
   initialLeftCollapsed = false,
   initialRightCollapsed = false,
   labels,
@@ -139,14 +145,24 @@ export function SplitPanels({
         data-resizing={isResizing}
         style={leftStyle}
       >
-        <div className="sticky top-0 z-10 flex h-10 shrink-0 items-center justify-between border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)] px-3 py-0.5 data-[collapsed=true]:justify-center data-[collapsed=true]:border-b-0">
+        <div className="sticky top-0 z-10 flex h-10 shrink-0 items-center justify-between border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)] py-0.5 pl-0 pr-3 data-[collapsed=true]:justify-center data-[collapsed=true]:border-b-0">
           {!leftCollapsed ? (
-            <div className="grid flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] gap-3 text-[11px] text-[var(--vscode-descriptionForeground)]">
-              <span>{text.hash}</span>
-              <span>{text.message}</span>
-              <span>{text.refs}</span>
-              <span>{text.author}</span>
-              <span>{text.date}</span>
+            <div className="flex min-w-0 flex-1 text-[11px] text-[var(--vscode-descriptionForeground)]">
+              {graphHeaderVisible ? (
+                <span
+                  className="shrink-0 border-r border-[var(--vscode-panel-border)]"
+                  style={{ width: `${graphHeaderWidth}px` }}
+                >
+                  {text.graph}
+                </span>
+              ) : null}
+              <div className="grid min-w-[550px] flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] gap-3 px-3">
+                <span>{text.hash}</span>
+                <span>{text.message}</span>
+                <span>{text.refs}</span>
+                <span>{text.author}</span>
+                <span>{text.date}</span>
+              </div>
             </div>
           ) : null}
           <button

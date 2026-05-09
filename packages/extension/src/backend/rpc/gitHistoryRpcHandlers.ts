@@ -255,6 +255,7 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
         input.commitService.loadHistory({
           author: request.author,
           branch: request.branch,
+          branches: request.branches,
           cursor: request.cursor,
           pageSize: request.pageSize,
           repositoryRoot: repository.rootPath,

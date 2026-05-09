@@ -137,6 +137,33 @@ describe("CommitService", () => {
     expect(logCalls[0]).not.toContain("--tags");
   });
 
+  it("loads selected refs together", async () => {
+    const logCalls: string[][] = [];
+    const service = new CommitService({
+      cache: new CacheService(),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args[0] === "log") {
+          logCalls.push([...args]);
+          return "";
+        }
+
+        return "Mickls\n";
+      }
+    });
+
+    await service.loadHistory({
+      branches: ["feature/a", "origin/release"],
+      pageSize: 20,
+      repositoryRoot: "/workspace/repo"
+    });
+
+    expect(logCalls[0]).toContain("feature/a");
+    expect(logCalls[0]).toContain("origin/release");
+    expect(logCalls[0]).not.toContain("--branches");
+    expect(logCalls[0]).not.toContain("--remotes");
+    expect(logCalls[0]).not.toContain("--tags");
+  });
+
   it("loads history in topology order for graph-readable merge groups", async () => {
     const logCalls: string[][] = [];
     const service = new CommitService({

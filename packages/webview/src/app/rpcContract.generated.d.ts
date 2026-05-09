@@ -118,6 +118,7 @@ export type RpcRequest = (RpcEnvelope & {
     type: "history.load";
     repositoryId?: string;
     branch?: string;
+    branches?: readonly string[];
     search?: string;
     author?: string;
     cursor?: string;

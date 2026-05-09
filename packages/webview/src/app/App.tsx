@@ -2,6 +2,7 @@ import type { MouseEvent, ReactElement } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   BackendNotification,
+  BranchesViewModel,
   CommitDetailsViewModel,
   CommitListItemViewModel,
   FileChangeViewModel,
@@ -10,6 +11,7 @@ import type {
   GraphLayoutViewModel,
   I18nMessages,
   OperationResultViewModel,
+  RepositoryViewModel,
   RpcRequest,
   RemoteViewModel,
   RpcResponse
@@ -31,9 +33,17 @@ const emptyGraph: GraphLayoutViewModel = {
   width: 120
 };
 
+const emptyBranches: BranchesViewModel = {
+  locals: [],
+  remotes: []
+};
+
 const emptyRemotes: readonly RemoteViewModel[] = [];
+const emptyRepositories: readonly RepositoryViewModel[] = [];
 const emptyCompareFiles: readonly FileChangeViewModel[] = [];
 const pageSize = 50;
+const minimumGraphViewportWidth = 120;
+const maximumGraphViewportWidth = 240;
 const defaultFileViewMode: FileViewMode = "list";
 const emptyI18nMessages: I18nMessages = {};
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
@@ -87,9 +97,14 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [remoteManagerOpen, setRemoteManagerOpen] = useState(false);
   const [compareOverlayOpen, setCompareOverlayOpen] = useState(false);
   const [commits, setCommits] = useState<readonly CommitListItemViewModel[]>([]);
+  const [branches, setBranches] = useState<BranchesViewModel>(emptyBranches);
   const [graph, setGraph] = useState<GraphLayoutViewModel>(emptyGraph);
   const [graphVisible, setGraphVisible] = useState(true);
+  const [repositories, setRepositories] = useState<readonly RepositoryViewModel[]>(emptyRepositories);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
+  const [selectedBranches, setSelectedBranches] = useState<readonly string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [authorQuery, setAuthorQuery] = useState("");
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
   const [selectedCommitHashes, setSelectedCommitHashes] = useState<readonly string[]>([]);
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
@@ -107,6 +122,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const nextCursorRef = useRef<string | undefined>(undefined);
   const pendingHistoryRequestsRef = useRef(new Map<string, HistoryRequestMeta>());
   const selectedRepositoryIdRef = useRef<string | undefined>(undefined);
+  const selectedBranchesRef = useRef<readonly string[]>([]);
+  const searchQueryRef = useRef("");
+  const authorQueryRef = useRef("");
   const loadingMoreRef = useRef(false);
   const selectedCommitHashRef = useRef<string | undefined>(undefined);
   const selectedCommitHashesRef = useRef<readonly string[]>([]);
@@ -143,6 +161,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
     "git.revert": tx("contextMenu.revert", "Revert"),
     "git.squashCommits": tx("contextMenu.squashCommits", "Squash Commits")
   } as const satisfies Record<ContextGitOperationType, string>;
+  const graphHeaderWidth = Math.min(Math.max(graph.width, minimumGraphViewportWidth), maximumGraphViewportWidth);
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
     setCommitDetails(details);
@@ -151,9 +170,26 @@ export function App({ rpcClient }: AppProps): ReactElement {
     selectedCommitHashesRef.current = hashes;
     setSelectedCommitHashes(hashes);
   };
+  const updateSelectedBranches = (branchNames: readonly string[]) => {
+    selectedBranchesRef.current = branchNames;
+    setSelectedBranches(branchNames);
+  };
+  const updateSelectedRepository = (repositoryId: string | undefined) => {
+    selectedRepositoryIdRef.current = repositoryId;
+    setSelectedRepositoryId(repositoryId);
+  };
+  const reloadHistory = (options: { preserveSelection?: boolean; repositoryId?: string } = {}) => {
+    requestHistory(client, pendingHistoryRequestsRef.current, {
+      author: trimFilter(authorQueryRef.current),
+      branches: selectedBranchesRef.current.length > 0 ? selectedBranchesRef.current : undefined,
+      preserveSelection: options.preserveSelection ?? false,
+      repositoryId: options.repositoryId ?? selectedRepositoryIdRef.current,
+      search: trimFilter(searchQueryRef.current)
+    });
+  };
 
   useEffect(() => {
-    requestHistory(client, pendingHistoryRequestsRef.current);
+    reloadHistory();
     requestSettings(client);
   }, [client]);
 
@@ -194,14 +230,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
       const response = event.data;
       if (isBackendNotification(response)) {
         if (response.type === "history.changed") {
-          requestHistory(client, pendingHistoryRequestsRef.current, {
-            preserveSelection: response.reason === "watcher",
-            repositoryId: selectedRepositoryIdRef.current
-          });
+          reloadHistory({ preserveSelection: response.reason === "watcher" });
         }
 
         if (response.type === "history.revealCommit") {
           requestHistory(client, pendingHistoryRequestsRef.current, {
+            author: trimFilter(authorQueryRef.current),
+            branches: selectedBranchesRef.current.length > 0 ? selectedBranchesRef.current : undefined,
             repositoryId: selectedRepositoryIdRef.current,
             revealHash: response.hash
           });
@@ -253,12 +288,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
         commitsRef.current = nextCommits;
         hasMoreRef.current = response.payload.hasMore;
         nextCursorRef.current = response.payload.nextCursor;
-        selectedRepositoryIdRef.current = repositoryId;
         setCommits(nextCommits);
+        setBranches(response.payload.branches);
+        setRepositories(response.payload.repositories);
         if (nextCommits.length === 0) {
           setGraph(emptyGraph);
         }
-        setSelectedRepositoryId(repositoryId);
+        updateSelectedRepository(repositoryId);
 
         if (historyRequest?.revealHash && !commit && response.payload.hasMore && response.payload.nextCursor) {
           requestHistory(client, pendingHistoryRequestsRef.current, {
@@ -347,10 +383,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           state: response.payload.status === "ok" ? "success" : "warning"
         });
         if (response.payload.status === "ok") {
-          requestHistory(client, pendingHistoryRequestsRef.current, {
-            preserveSelection: true,
-            repositoryId: selectedRepositoryIdRef.current
-          });
+          reloadHistory({ preserveSelection: true });
         }
       }
 
@@ -367,10 +400,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           message: response.payload.message,
           state: response.payload.status === "ok" ? "success" : "warning"
         });
-        requestHistory(client, pendingHistoryRequestsRef.current, {
-          preserveSelection: true,
-          repositoryId: selectedRepositoryIdRef.current
-        });
+        reloadHistory({ preserveSelection: true });
       }
 
       if (isContextGitOperationResponse(response)) {
@@ -384,10 +414,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           state: result.status === "ok" ? "success" : "warning"
         });
         if (result.status === "ok" && response.type !== "git.copyHash" && response.type !== "git.compareCommits") {
-          requestHistory(client, pendingHistoryRequestsRef.current, {
-            preserveSelection: true,
-            repositoryId: selectedRepositoryIdRef.current
-          });
+          reloadHistory({ preserveSelection: true });
         }
       }
     };
@@ -402,8 +429,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
     selectedCommitHashRef.current = commit.hash;
     showCommitDetails(createPendingCommitDetails(commit));
 
-    if (selectedRepositoryId) {
-      requestCommitDetails(client, selectedRepositoryId, commit.hash);
+    if (selectedRepositoryIdRef.current) {
+      requestCommitDetails(client, selectedRepositoryIdRef.current, commit.hash);
     }
   };
 
@@ -445,9 +472,51 @@ export function App({ rpcClient }: AppProps): ReactElement {
     loadingMoreRef.current = true;
     requestHistory(client, pendingHistoryRequestsRef.current, {
       append: true,
+      author: trimFilter(authorQueryRef.current),
+      branches: selectedBranchesRef.current.length > 0 ? selectedBranchesRef.current : undefined,
       cursor: nextCursorRef.current,
-      repositoryId: selectedRepositoryIdRef.current
+      repositoryId: selectedRepositoryIdRef.current,
+      search: trimFilter(searchQueryRef.current)
     });
+  };
+
+  const changeRepository = (repositoryId: string) => {
+    updateSelectedRepository(repositoryId);
+    updateSelectedBranches([]);
+    setCommits([]);
+    commitsRef.current = [];
+    setGraph(emptyGraph);
+    updateSelectedCommitHashes([]);
+    setSelectedCommitHash(undefined);
+    selectedCommitHashRef.current = undefined;
+    showCommitDetails(undefined);
+    requestHistory(client, pendingHistoryRequestsRef.current, {
+      author: trimFilter(authorQueryRef.current),
+      repositoryId,
+      search: trimFilter(searchQueryRef.current)
+    });
+  };
+
+  const changeBranches = (branchNames: readonly string[]) => {
+    updateSelectedBranches(branchNames);
+    requestHistory(client, pendingHistoryRequestsRef.current, {
+      author: trimFilter(authorQueryRef.current),
+      branches: branchNames.length > 0 ? branchNames : undefined,
+      repositoryId: selectedRepositoryIdRef.current,
+      search: trimFilter(searchQueryRef.current)
+    });
+  };
+
+  const changeSearch = (value: string) => {
+    searchQueryRef.current = value;
+    setSearchQuery(value);
+    reloadHistory();
+  };
+
+  const changeAuthor = (value: string) => {
+    authorQueryRef.current = value;
+    setAuthorQuery(value);
+    reloadHistory();
   };
 
   const selectGraphNode = (hash: string) => {
@@ -655,10 +724,14 @@ export function App({ rpcClient }: AppProps): ReactElement {
   return (
     <main className="flex h-screen overflow-hidden flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
       <Header
+        authorValue={authorQuery}
+        branches={branches}
         gitOperationBusy={Boolean(activeGitOperation || conflictOperation)}
         graphVisible={graphVisible}
         labels={{
+          allBranches: tx("allBranches", "All branches"),
           authorPlaceholder: tx("authorFilterPlaceholder", "Author"),
+          branch: tx("header.branch", "Branches"),
           fetch: tx("gitOperations.fetch", "Fetch"),
           filterAuthor: tx("header.filterAuthor", "Filter author"),
           graph: tx("graph.toggle", "Graph"),
@@ -668,13 +741,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
           push: tx("gitOperations.push", "Push"),
           pushTitle: tx("pushTooltip", "Push (Command+click for Advanced Push)"),
           refresh: tx("refreshTooltip", "Refresh"),
+          repository: tx("header.repository", "Repository"),
           searchCommits: tx("header.searchCommits", "Search commits"),
           searchPlaceholder: tx("placeholderCommitMessage", "Search commits"),
+          selectedBranches: tx("header.selectedBranches", "{0} branches"),
           settings: tx("gitOperations.settings", "Settings"),
           showGraph: tx("graph.show", "Show Git Graph")
         }}
         onAdvancedPull={() => startGitOperation("git.advancedPull")}
         onAdvancedPush={() => startGitOperation("git.advancedPush")}
+        onAuthorChange={changeAuthor}
+        onBranchSelectionChange={changeBranches}
         onGraphToggle={() => setGraphVisible((visible) => !visible)}
         onFetch={() => startGitOperation("git.fetch")}
         onPull={() => startGitOperation("git.pull")}
@@ -685,6 +762,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
             repositoryId: selectedRepositoryIdRef.current
           });
         }}
+        onRepositoryChange={changeRepository}
+        onSearchChange={changeSearch}
         onSettingsClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
           setContextMenu((current) => ({ ...current, visible: false }));
@@ -694,6 +773,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
             y: rect.bottom + 4
           }));
         }}
+        repositories={repositories}
+        searchValue={searchQuery}
+        selectedBranches={selectedBranches}
+        selectedRepositoryId={selectedRepositoryId}
         settingsOpen={settingsMenu.visible}
       />
       {conflictOperation ? (
@@ -709,6 +792,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
         />
       ) : null}
       <SplitPanels
+        graphHeaderVisible={graphVisible}
+        graphHeaderWidth={graphHeaderWidth}
         labels={{
           author: tx("headers.author", "Author"),
           collapseCommitDetails: tx("panels.collapseCommitDetails", "Collapse commit details panel"),
@@ -719,6 +804,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           expandCommitDetails: tx("panels.expandCommitDetails", "Expand commit details panel"),
           expandCommitList: tx("panels.expandCommitList", "Expand commit list panel"),
           hash: tx("headers.hash", "Hash"),
+          graph: tx("graph.toggle", "Graph"),
           message: tx("headers.message", "Message"),
           refs: tx("headers.refs", "Refs"),
           resizePanels: tx("panels.resize", "Resize panels")
@@ -911,6 +997,8 @@ function requestHistory(
   pendingRequests: Map<string, HistoryRequestMeta>,
   options: {
     append?: boolean;
+    author?: string;
+    branches?: readonly string[];
     cursor?: string;
     preserveSelection?: boolean;
     probeHash?: string;
@@ -929,6 +1017,8 @@ function requestHistory(
   });
   client?.post({
     cursor: options.cursor,
+    author: options.author,
+    branches: options.branches,
     id,
     pageSize,
     repositoryId: options.repositoryId,
@@ -1227,6 +1317,11 @@ function formatMessage(message: string, args: readonly unknown[]): string {
     const value = args[Number.parseInt(index, 10)];
     return value === undefined ? match : formatArgument(value);
   });
+}
+
+function trimFilter(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function formatArgument(value: unknown): string {

@@ -219,7 +219,10 @@
     },
     "header": {
       "searchCommits": "コミットを検索",
-      "filterAuthor": "作者をフィルター"
+      "filterAuthor": "作者をフィルター",
+      "repository": "リポジトリ",
+      "branch": "ブランチ",
+      "selectedBranches": "{0} ブランチ"
     },
     "graph": {
       "toggle": "グラフ",

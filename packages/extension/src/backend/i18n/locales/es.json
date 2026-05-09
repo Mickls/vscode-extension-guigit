@@ -219,7 +219,10 @@
     },
     "header": {
       "searchCommits": "Buscar commits",
-      "filterAuthor": "Filtrar autor"
+      "filterAuthor": "Filtrar autor",
+      "repository": "Repositorio",
+      "branch": "Ramas",
+      "selectedBranches": "{0} ramas"
     },
     "graph": {
       "toggle": "Grafo",

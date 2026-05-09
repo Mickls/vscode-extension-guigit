@@ -6,7 +6,13 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { CommitListItemViewModel, GraphNodeViewModel, I18nBundleViewModel } from "./rpcContract.generated";
+import type {
+  BranchesViewModel,
+  CommitListItemViewModel,
+  GraphNodeViewModel,
+  I18nBundleViewModel,
+  RepositoryViewModel
+} from "./rpcContract.generated";
 import type { RpcClient, RpcRequest, RpcResponse } from "./rpcClient";
 
 describe("App", () => {
@@ -299,6 +305,87 @@ describe("App", () => {
       name: "origin",
       repositoryId: "/repo",
       type: "remotes.delete"
+    }));
+  });
+
+  it("loads history for selected repositories, branches, search text, and authors", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+    const testBranches = {
+      locals: [
+        { current: true, name: "main" },
+        { current: false, name: "feature/ui" }
+      ],
+      remotes: [
+        {
+          remote: "origin",
+          branches: [{ current: false, name: "origin/release", remote: "origin" }]
+        }
+      ]
+    } satisfies BranchesViewModel;
+    const testRepositories = [
+      { id: "/repo", name: "repo", rootPath: "/repo" },
+      { id: "/repo-two", name: "repo-two", rootPath: "/repo-two" }
+    ] satisfies readonly RepositoryViewModel[];
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, {
+      branches: testBranches,
+      repositories: testRepositories
+    });
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    expect(screen.getAllByText("Graph")).toHaveLength(2);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Repository" }), "/repo-two");
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      repositoryId: "/repo-two",
+      type: "history.load"
+    }));
+
+    dispatchHistoryResponse(rpcClient, {
+      branches: testBranches,
+      requestId: latestRequest(rpcClient, "history.load").id,
+      repositories: testRepositories
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Branches" }));
+    await user.click(screen.getByRole("checkbox", { name: "feature/ui" }));
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      branches: ["feature/ui"],
+      repositoryId: "/repo-two",
+      type: "history.load"
+    }));
+
+    await user.click(screen.getByRole("checkbox", { name: "origin/release" }));
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      branches: ["feature/ui", "origin/release"],
+      repositoryId: "/repo-two",
+      type: "history.load"
+    }));
+
+    await user.click(screen.getByRole("menuitem", { name: "All branches" }));
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      branches: undefined,
+      repositoryId: "/repo-two",
+      type: "history.load"
+    }));
+
+    await user.type(screen.getByRole("searchbox", { name: "Search commits" }), "fix");
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      repositoryId: "/repo-two",
+      search: "fix",
+      type: "history.load"
+    }));
+
+    await user.type(screen.getByRole("searchbox", { name: "Filter author" }), "Ada");
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      author: "Ada",
+      repositoryId: "/repo-two",
+      search: "fix",
+      type: "history.load"
     }));
   });
 
@@ -1357,9 +1444,11 @@ function latestRequest<TType extends RpcRequest["type"]>(
 }
 
 interface HistoryResponseOptions {
+  branches?: BranchesViewModel;
   commits?: readonly ReturnType<typeof createCommit>[];
   hasMore?: boolean;
   nextCursor?: string;
+  repositories?: readonly RepositoryViewModel[];
   requestId?: string;
 }
 
@@ -1376,7 +1465,7 @@ function dispatchHistoryResponse(
           ok: true,
           type: "history.load",
           payload: {
-            branches: {
+            branches: options.branches ?? {
               locals: [],
               remotes: []
             },
@@ -1404,7 +1493,7 @@ function dispatchHistoryResponse(
             ],
             hasMore: options.hasMore ?? false,
             nextCursor: options.nextCursor,
-            repositories: [{ id: "/repo", name: "repo", rootPath: "/repo" }]
+            repositories: options.repositories ?? [{ id: "/repo", name: "repo", rootPath: "/repo" }]
           }
         } satisfies RpcResponse
       })
