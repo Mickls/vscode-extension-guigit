@@ -162,6 +162,42 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
     };
   }
 
+  public async openStashFileDiff(
+    repositoryRoot: string,
+    stashRef: string,
+    filePath: string,
+    previousPath?: string
+  ): Promise<OperationResultViewModel> {
+    this.logger?.debug("diff.stashFile.open", {
+      filePath,
+      previousPath,
+      repositoryRoot,
+      stashRef
+    });
+    const [leftContent, rightContent] = await Promise.all([
+      this.getFileContent(repositoryRoot, `${stashRef}^1`, previousPath ?? filePath),
+      this.getFileContent(repositoryRoot, stashRef, filePath)
+    ]);
+
+    await this.openContentDiff({
+      filePath,
+      leftContent,
+      rightContent,
+      title: `${baseFileName(filePath)} (${stashRef})`
+    });
+    this.logger?.debug("diff.stashFile.opened", {
+      filePath,
+      previousPath,
+      repositoryRoot,
+      stashRef
+    });
+
+    return {
+      message: `Opened diff for ${filePath}`,
+      status: "ok"
+    };
+  }
+
   private async getFirstParent(repositoryRoot: string, hash: string): Promise<string | undefined> {
     const output = await this.gitRaw(repositoryRoot, ["show", "--no-patch", "--pretty=%P", hash]);
     return output.trim().split(" ")[0] || undefined;

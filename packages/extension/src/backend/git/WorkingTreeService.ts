@@ -1,16 +1,21 @@
 import { simpleGit } from "simple-git";
-import type { OperationResultViewModel, WorkingTreeViewModel } from "../rpc/contract";
-import { parsePorcelainStatus, parseStashList } from "./WorkingTreeParser";
+import type { OperationResultViewModel, StashEntryViewModel, WorkingTreeViewModel } from "../rpc/contract";
+import { parsePorcelainStatus, parseStashFiles, parseStashList } from "./WorkingTreeParser";
 
 export interface WorkingTreeServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  showWarningMessage?: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
 }
 
 export class WorkingTreeService {
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  private readonly showWarningMessage: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
 
   public constructor(input: WorkingTreeServiceInput = {}) {
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.showWarningMessage =
+      input.showWarningMessage ??
+      (() => Promise.resolve(undefined));
   }
 
   public async load(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeViewModel> {
@@ -47,6 +52,51 @@ export class WorkingTreeService {
     return this.withResult(repositoryId, repositoryRoot, ["restore", "--staged", "--", "."], "Unstaged all changes");
   }
 
+  public async discardFile(repositoryId: string, repositoryRoot: string, filePath: string): Promise<WorkingTreeActionResult> {
+    const confirmation = await this.showWarningMessage(`Discard changes in ${filePath}?`, { modal: true }, "Discard");
+    if (confirmation !== "Discard") {
+      return this.cancelledResult(repositoryId, repositoryRoot, "Discard cancelled");
+    }
+
+    return this.withResult(repositoryId, repositoryRoot, ["restore", "--worktree", "--", filePath], "Discarded file");
+  }
+
+  public async applyStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
+    return this.withResult(repositoryId, repositoryRoot, ["stash", "apply", stashRef], "Applied stash");
+  }
+
+  public async popStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
+    const confirmation = await this.showWarningMessage(`Pop stash ${stashRef}?`, { modal: true }, "Pop Stash");
+    if (confirmation !== "Pop Stash") {
+      return this.cancelledResult(repositoryId, repositoryRoot, "Pop stash cancelled");
+    }
+
+    return this.withResult(repositoryId, repositoryRoot, ["stash", "pop", stashRef], "Popped stash");
+  }
+
+  public async dropStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
+    const confirmation = await this.showWarningMessage(`Drop stash ${stashRef}?`, { modal: true }, "Drop Stash");
+    if (confirmation !== "Drop Stash") {
+      return this.cancelledResult(repositoryId, repositoryRoot, "Drop stash cancelled");
+    }
+
+    return this.withResult(repositoryId, repositoryRoot, ["stash", "drop", stashRef], "Dropped stash");
+  }
+
+  public async getStashDetails(repositoryRoot: string, stashRef: string): Promise<StashEntryViewModel> {
+    const [stashListOutput, nameStatusOutput, numstatOutput] = await Promise.all([
+      this.gitRaw(repositoryRoot, ["stash", "list"]),
+      this.gitRaw(repositoryRoot, ["stash", "show", "--name-status", stashRef]),
+      this.gitRaw(repositoryRoot, ["stash", "show", "--numstat", stashRef])
+    ]);
+    const stash = parseStashList(stashListOutput).find((entry) => entry.ref === stashRef)!;
+
+    return {
+      ...stash,
+      files: parseStashFiles(nameStatusOutput, numstatOutput)
+    };
+  }
+
   private async withResult(
     repositoryId: string,
     repositoryRoot: string,
@@ -59,6 +109,20 @@ export class WorkingTreeService {
       result: {
         message,
         status: "ok"
+      },
+      workingTree: await this.load(repositoryId, repositoryRoot)
+    };
+  }
+
+  private async cancelledResult(
+    repositoryId: string,
+    repositoryRoot: string,
+    message: string
+  ): Promise<WorkingTreeActionResult> {
+    return {
+      result: {
+        message,
+        status: "cancelled"
       },
       workingTree: await this.load(repositoryId, repositoryRoot)
     };

@@ -344,6 +344,242 @@ describe("App", () => {
     }));
   });
 
+  it("posts discard and stash action intents from the changes panel", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: abc1234 message", ref: "stash@{0}" }],
+      unstaged: [
+        { area: "unstaged", binary: false, deletions: 1, insertions: 0, path: "src/unstaged.ts", status: "modified" }
+      ]
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Discard src/unstaged.ts" }));
+    const discardRequest = latestRequest(rpcClient, "workingTree.discardFile");
+    expect(discardRequest).toEqual(expect.objectContaining({
+      filePath: "src/unstaged.ts",
+      repositoryId: "/repo",
+      type: "workingTree.discardFile"
+    }));
+    dispatchWorkingTreeActionResponse(discardRequest.id, "workingTree.discardFile", {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: abc1234 message", ref: "stash@{0}" }],
+      unstaged: []
+    });
+    expect(await screen.findByRole("heading", { name: "Changes (0)" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    const detailsRequest = latestRequest(rpcClient, "stash.getDetails");
+    expect(detailsRequest).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      stashRef: "stash@{0}",
+      type: "stash.getDetails"
+    }));
+    dispatchStashDetailsResponse(detailsRequest.id);
+
+    await user.click(await screen.findByRole("button", { name: "Open diff for src/stashed.ts" }));
+    expect(latestRequest(rpcClient, "stash.openDiff")).toEqual(expect.objectContaining({
+      filePath: "src/stashed.ts",
+      previousPath: "src/old-stashed.ts",
+      repositoryId: "/repo",
+      stashRef: "stash@{0}",
+      type: "stash.openDiff"
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Apply stash stash@{0}" }));
+    expect(latestRequest(rpcClient, "stash.apply")).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      stashRef: "stash@{0}",
+      type: "stash.apply"
+    }));
+    await user.click(screen.getByRole("button", { name: "Pop stash stash@{0}" }));
+    expect(latestRequest(rpcClient, "stash.pop")).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      stashRef: "stash@{0}",
+      type: "stash.pop"
+    }));
+    await user.click(screen.getByRole("button", { name: "Drop stash stash@{0}" }));
+    expect(latestRequest(rpcClient, "stash.drop")).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      stashRef: "stash@{0}",
+      type: "stash.drop"
+    }));
+  });
+
+  it("ignores stale stash detail responses after switching repositories", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+    const repositories = [
+      { id: "/repo", name: "repo", rootPath: "/repo" },
+      { id: "/repo-two", name: "repo-two", rootPath: "/repo-two" }
+    ] satisfies readonly RepositoryViewModel[];
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, { repositories });
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const repoOneLoadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(repoOneLoadRequest.id, {
+      ...createWorkingTree("/repo", "src/repo-one.ts"),
+      stashes: [{ branch: "main", date: "", message: "WIP on main: stale", ref: "stash@{0}" }]
+    });
+
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    const staleDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Repository" }), "/repo-two");
+    dispatchHistoryResponse(rpcClient, {
+      repositories,
+      requestId: latestRequest(rpcClient, "history.load").id
+    });
+    const repoTwoLoadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(repoTwoLoadRequest.id, {
+      ...createWorkingTree("/repo-two", "src/repo-two.ts"),
+      stashes: [{ branch: "main", date: "", message: "WIP on main: current", ref: "stash@{1}" }]
+    });
+    await screen.findByText("WIP on main: current");
+
+    dispatchStashDetailsResponse(staleDetailsRequest.id, {
+      files: [{ area: "stash", binary: false, deletions: 1, insertions: 1, path: "src/stale-stashed.ts", status: "modified" }],
+      ref: "stash@{0}"
+    });
+
+    expect(screen.queryByText("src/stale-stashed.ts")).not.toBeInTheDocument();
+    expect(screen.getByText("WIP on main: current")).toBeInTheDocument();
+  });
+
+  it("ignores older stash detail responses for the same repository and stash", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: current", ref: "stash@{0}" }]
+    });
+
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    const staleDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    const currentDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
+
+    dispatchStashDetailsResponse(staleDetailsRequest.id, {
+      files: [{ area: "stash", binary: false, deletions: 1, insertions: 1, path: "src/stale-stashed.ts", status: "modified" }]
+    });
+
+    expect(screen.queryByText("src/stale-stashed.ts")).not.toBeInTheDocument();
+
+    dispatchStashDetailsResponse(currentDetailsRequest.id, {
+      files: [{ area: "stash", binary: false, deletions: 1, insertions: 1, path: "src/current-stashed.ts", status: "modified" }]
+    });
+    expect(await screen.findByText("src/current-stashed.ts")).toBeInTheDocument();
+  });
+
+  it("ignores stale working tree action notifications", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      unstaged: [
+        { area: "unstaged", binary: false, deletions: 0, insertions: 1, path: "src/first.ts", status: "modified" },
+        { area: "unstaged", binary: false, deletions: 0, insertions: 1, path: "src/second.ts", status: "modified" }
+      ]
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Stage src/first.ts" }));
+    const staleRequest = latestRequest(rpcClient, "workingTree.stageFile");
+    await user.click(screen.getByRole("button", { name: "Stage src/second.ts" }));
+    const currentRequest = latestRequest(rpcClient, "workingTree.stageFile");
+    dispatchWorkingTreeActionResponse(currentRequest.id, "workingTree.stageFile", createWorkingTree("/repo", "src/current.ts"), "Current action");
+    expect(await screen.findByText("Current action")).toBeInTheDocument();
+
+    dispatchWorkingTreeActionResponse(staleRequest.id, "workingTree.stageFile", createWorkingTree("/repo", "src/stale.ts"), "Stale action");
+
+    expect(screen.queryByText("Stale action")).not.toBeInTheDocument();
+    expect(screen.getByText("Current action")).toBeInTheDocument();
+  });
+
+  it("ignores stale working tree action errors", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      unstaged: [
+        { area: "unstaged", binary: false, deletions: 0, insertions: 1, path: "src/first.ts", status: "modified" },
+        { area: "unstaged", binary: false, deletions: 0, insertions: 1, path: "src/second.ts", status: "modified" }
+      ]
+    });
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Stage src/first.ts" }));
+    const staleRequest = latestRequest(rpcClient, "workingTree.stageFile");
+    await user.click(screen.getByRole("button", { name: "Stage src/second.ts" }));
+    const currentRequest = latestRequest(rpcClient, "workingTree.stageFile");
+    dispatchWorkingTreeActionResponse(currentRequest.id, "workingTree.stageFile", createWorkingTree("/repo", "src/current.ts"), "Current action");
+    expect(await screen.findByText("Current action")).toBeInTheDocument();
+
+    dispatchErrorResponse(staleRequest.id, "workingTree.stageFile", "Stale action failed");
+
+    expect(screen.queryByText("Stale action failed")).not.toBeInTheDocument();
+    expect(screen.getByText("Current action")).toBeInTheDocument();
+  });
+
+  it("ignores stale stash detail errors", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: current", ref: "stash@{0}" }]
+    });
+
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    const staleDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    const currentDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
+    dispatchStashDetailsResponse(currentDetailsRequest.id, {
+      files: [{ area: "stash", binary: false, deletions: 1, insertions: 1, path: "src/current-stashed.ts", status: "modified" }]
+    });
+    expect(await screen.findByText("src/current-stashed.ts")).toBeInTheDocument();
+
+    dispatchErrorResponse(staleDetailsRequest.id, "stash.getDetails", "Stale stash details failed");
+
+    expect(screen.queryByText("Stale stash details failed")).not.toBeInTheDocument();
+    expect(screen.getByText("src/current-stashed.ts")).toBeInTheDocument();
+  });
+
   it("keeps older working tree responses from replacing the selected repository changes", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -2187,8 +2423,17 @@ function dispatchWorkingTreeResponse(id: string, workingTree: WorkingTreeViewMod
 
 function dispatchWorkingTreeActionResponse(
   id: string,
-  type: "workingTree.stageAll" | "workingTree.stageFile" | "workingTree.unstageAll" | "workingTree.unstageFile",
-  workingTree: WorkingTreeViewModel
+  type:
+    | "stash.apply"
+    | "stash.drop"
+    | "stash.pop"
+    | "workingTree.discardFile"
+    | "workingTree.stageAll"
+    | "workingTree.stageFile"
+    | "workingTree.unstageAll"
+    | "workingTree.unstageFile",
+  workingTree: WorkingTreeViewModel,
+  message = "Updated working tree"
 ): void {
   act(() => {
     window.dispatchEvent(
@@ -2199,11 +2444,69 @@ function dispatchWorkingTreeActionResponse(
           type,
           payload: {
             result: {
-              message: "Updated working tree",
+              message,
               status: "ok"
             },
             workingTree
           }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchStashDetailsResponse(
+  id: string,
+  stash: {
+    files?: WorkingTreeViewModel["stashes"][number]["files"];
+    ref?: string;
+  } = {}
+): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type: "stash.getDetails",
+          payload: {
+            stash: {
+              branch: "main",
+              date: "",
+              files: [
+                {
+                  area: "stash",
+                  binary: false,
+                  deletions: 1,
+                  insertions: 2,
+                  path: "src/stashed.ts",
+                  previousPath: "src/old-stashed.ts",
+                  status: "renamed"
+                }
+              ],
+              message: "WIP on main: abc1234 message",
+              ref: "stash@{0}",
+              ...stash
+            }
+          }
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchErrorResponse(id: string, type: RpcResponse["type"], message: string): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          error: {
+            code: "BACKEND_ERROR",
+            message
+          },
+          id,
+          ok: false,
+          type
         } satisfies RpcResponse
       })
     );

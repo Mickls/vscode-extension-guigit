@@ -313,7 +313,7 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "workingTree.commit"; repositoryId: string; message: string })
   | (RpcEnvelope & { type: "stash.list"; repositoryId: string })
   | (RpcEnvelope & { type: "stash.getDetails"; repositoryId: string; stashRef: string })
-  | (RpcEnvelope & { type: "stash.openDiff"; repositoryId: string; stashRef: string; filePath: string })
+  | (RpcEnvelope & { type: "stash.openDiff"; repositoryId: string; stashRef: string; filePath: string; previousPath?: string })
   | (RpcEnvelope & { type: "stash.apply"; repositoryId: string; stashRef: string })
   | (RpcEnvelope & { type: "stash.pop"; repositoryId: string; stashRef: string })
   | (RpcEnvelope & { type: "stash.drop"; repositoryId: string; stashRef: string })

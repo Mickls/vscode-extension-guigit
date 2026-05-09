@@ -213,6 +213,28 @@ describe("DiffService", () => {
     await expect(service.openWorkingTreeFileDiff("/repo", "src/protected.ts", "unstaged")).rejects.toThrow("permission denied");
     expect(executeCommand).not.toHaveBeenCalled();
   });
+
+  it("opens stash diffs against the stash parent", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args[1] === "stash@{0}^1:src/old.ts") {
+        return "before";
+      }
+      if (args[1] === "stash@{0}:src/new.ts") {
+        return "after";
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+    const executeCommand = vi.fn();
+    const service = createService({ executeCommand, gitRaw });
+
+    const result = await service.openStashFileDiff("/repo", "stash@{0}", "src/new.ts", "src/old.ts");
+
+    expect(result).toEqual({ status: "ok", message: "Opened diff for src/new.ts" });
+    expect(executeCommand).toHaveBeenCalledWith("vscode.diff", "src/new.ts:before", "src/new.ts:after", "new.ts (stash@{0})", {
+      preview: true,
+      viewColumn: 1
+    });
+  });
 });
 
 function createService(input: {

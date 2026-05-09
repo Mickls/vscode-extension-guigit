@@ -340,6 +340,7 @@ export type RpcRequest = (RpcEnvelope & {
     repositoryId: string;
     stashRef: string;
     filePath: string;
+    previousPath?: string;
 }) | (RpcEnvelope & {
     type: "stash.apply";
     repositoryId: string;

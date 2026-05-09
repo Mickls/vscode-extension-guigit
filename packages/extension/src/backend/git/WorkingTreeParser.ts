@@ -49,6 +49,45 @@ export function parseStashList(output: string): readonly StashEntryViewModel[] {
     });
 }
 
+export function parseStashFiles(
+  nameStatusOutput: string,
+  numstatOutput: string
+): readonly WorkingTreeFileChangeViewModel[] {
+  const files = new Map<string, WorkingTreeFileChangeViewModel>();
+
+  for (const line of nameStatusOutput.split("\n").filter(Boolean)) {
+    const columns = line.split("\t");
+    const statusCode = columns[0]!.charAt(0);
+    const path = columns.at(-1)!;
+    files.set(path, {
+      area: "stash",
+      binary: false,
+      deletions: 0,
+      insertions: 0,
+      path,
+      previousPath: statusCode === "R" || statusCode === "C" ? columns[1] : undefined,
+      status: mapStatusCode(statusCode)
+    });
+  }
+
+  for (const line of numstatOutput.split("\n").filter(Boolean)) {
+    const columns = line.split("\t");
+    const parsedPath = parseNumstatPath(columns[2]!);
+    const existing = files.get(parsedPath.path);
+    files.set(parsedPath.path, {
+      area: "stash",
+      binary: columns[0] === "-",
+      deletions: columns[1] === "-" ? 0 : Number(columns[1]),
+      insertions: columns[0] === "-" ? 0 : Number(columns[0]),
+      path: parsedPath.path,
+      previousPath: existing?.previousPath ?? parsedPath.previousPath,
+      status: existing?.status ?? "modified"
+    });
+  }
+
+  return [...files.values()];
+}
+
 function toFileChange(
   area: WorkingTreeFileChangeViewModel["area"],
   path: string,
@@ -155,6 +194,31 @@ function unquotePorcelainPath(path: string): string {
 
 function isOctalDigit(character: string): boolean {
   return character >= "0" && character <= "7";
+}
+
+function parseNumstatPath(path: string): Pick<WorkingTreeFileChangeViewModel, "path" | "previousPath"> {
+  const renameMatch = /^(.*)\{(.+) => (.+)\}(.*)$/.exec(path);
+  if (renameMatch) {
+    const prefix = renameMatch[1]!;
+    const previousName = renameMatch[2]!;
+    const nextName = renameMatch[3]!;
+    const suffix = renameMatch[4]!;
+
+    return {
+      path: `${prefix}${nextName}${suffix}`,
+      previousPath: `${prefix}${previousName}${suffix}`
+    };
+  }
+
+  const separatorIndex = path.indexOf(" => ");
+  if (separatorIndex !== -1) {
+    return {
+      path: path.slice(separatorIndex + 4),
+      previousPath: path.slice(0, separatorIndex)
+    };
+  }
+
+  return { path };
 }
 
 function escapedByte(character: string): number {

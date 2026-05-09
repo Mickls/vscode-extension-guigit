@@ -81,7 +81,8 @@ export function activate(context: ExtensionContext): void {
   });
   const remoteService = new RemoteService();
   const workingTreeService = new WorkingTreeService({
-    gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args)
+    gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
+    showWarningMessage: (message, options, ...items) => window.showWarningMessage(message, options, ...items)
   });
   const diffService = new DiffService({ logger });
   const safetyService = new SafetyService({ logger });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePorcelainStatus, parseStashList } from "../../src/backend/git/WorkingTreeParser";
+import { parsePorcelainStatus, parseStashFiles, parseStashList } from "../../src/backend/git/WorkingTreeParser";
 
 describe("WorkingTreeParser", () => {
   it("groups porcelain status into staged, unstaged, and untracked files", () => {
@@ -103,6 +103,43 @@ describe("WorkingTreeParser", () => {
         date: "",
         message: "On feature: save work",
         ref: "stash@{1}"
+      }
+    ]);
+  });
+
+  it("merges real-shaped stash name-status and numstat outputs including renames", () => {
+    const result = parseStashFiles(
+      "M\tsrc/a.ts\nA\tsrc/image.png\nR100\tsrc/old.txt\tsrc/new.txt\n",
+      "10\t2\tsrc/a.ts\n-\t-\tsrc/image.png\n3\t1\tsrc/{old.txt => new.txt}\n"
+    );
+
+    expect(result).toEqual([
+      { area: "stash", binary: false, deletions: 2, insertions: 10, path: "src/a.ts", status: "modified" },
+      { area: "stash", binary: true, deletions: 0, insertions: 0, path: "src/image.png", status: "added" },
+      {
+        area: "stash",
+        binary: false,
+        deletions: 1,
+        insertions: 3,
+        path: "src/new.txt",
+        previousPath: "src/old.txt",
+        status: "renamed"
+      }
+    ]);
+  });
+
+  it("merges unbraced cross-directory rename numstat paths into renamed stash files", () => {
+    const result = parseStashFiles("R073\tsrc/old.txt\tdst/new.txt\n", "1\t0\tsrc/old.txt => dst/new.txt\n");
+
+    expect(result).toEqual([
+      {
+        area: "stash",
+        binary: false,
+        deletions: 0,
+        insertions: 1,
+        path: "dst/new.txt",
+        previousPath: "src/old.txt",
+        status: "renamed"
       }
     ]);
   });

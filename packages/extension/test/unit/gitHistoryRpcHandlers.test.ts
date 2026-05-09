@@ -311,6 +311,125 @@ describe("Git history RPC handlers", () => {
     ]);
   });
 
+  it("routes discard and stash operations for the requested repository", async () => {
+    const calls: unknown[] = [];
+    const stash = {
+      branch: "main",
+      date: "",
+      files: [{ area: "stash", binary: false, deletions: 1, insertions: 2, path: "src/a.ts", status: "modified" }],
+      message: "WIP on main: abc1234 message",
+      ref: "stash@{0}"
+    } as const;
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        getCurrentUser: async () => undefined,
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openStashFileDiff: async (...args) => {
+          calls.push(["stashDiff", ...args]);
+          return { message: "stash diff opened", status: "ok" };
+        },
+        openWorkingTreeFileDiff: async () => ({ message: "working tree diff opened", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: createGitService(),
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      proxyService: createProxyService(),
+      remoteService: createRemoteService(),
+      languageService: createLanguageService(),
+      settingsService: createSettingsService(),
+      workingTreeService: {
+        ...createWorkingTreeService(),
+        applyStash: async (repositoryId, repositoryRoot, stashRef) => {
+          calls.push(["apply", repositoryId, repositoryRoot, stashRef]);
+          return { result: { message: "Applied stash", status: "ok" }, workingTree };
+        },
+        discardFile: async (repositoryId, repositoryRoot, filePath) => {
+          calls.push(["discard", repositoryId, repositoryRoot, filePath]);
+          return { result: { message: "Discarded file", status: "ok" }, workingTree };
+        },
+        dropStash: async (repositoryId, repositoryRoot, stashRef) => {
+          calls.push(["drop", repositoryId, repositoryRoot, stashRef]);
+          return { result: { message: "Dropped stash", status: "ok" }, workingTree };
+        },
+        getStashDetails: async (repositoryRoot, stashRef) => {
+          calls.push(["details", repositoryRoot, stashRef]);
+          return stash;
+        },
+        popStash: async (repositoryId, repositoryRoot, stashRef) => {
+          calls.push(["pop", repositoryId, repositoryRoot, stashRef]);
+          return { result: { message: "Popped stash", status: "ok" }, workingTree };
+        }
+      }
+    });
+
+    await handlers["workingTree.discardFile"]!({
+      filePath: "src/a.ts",
+      id: "discard",
+      repositoryId: "/repo",
+      type: "workingTree.discardFile"
+    });
+    await expect(handlers["stash.list"]!({ id: "stash-list", repositoryId: "/repo", type: "stash.list" })).resolves.toEqual({
+      stashes: workingTree.stashes
+    });
+    await expect(
+      handlers["stash.getDetails"]!({
+        id: "stash-details",
+        repositoryId: "/repo",
+        stashRef: "stash@{0}",
+        type: "stash.getDetails"
+      })
+    ).resolves.toEqual({ stash });
+    await expect(
+      handlers["stash.openDiff"]!({
+        filePath: "src/a.ts",
+        id: "stash-diff",
+        previousPath: "src/old-a.ts",
+        repositoryId: "/repo",
+        stashRef: "stash@{0}",
+        type: "stash.openDiff"
+      })
+    ).resolves.toEqual({ message: "stash diff opened", status: "ok" });
+    await handlers["stash.apply"]!({ id: "apply", repositoryId: "/repo", stashRef: "stash@{0}", type: "stash.apply" });
+    await handlers["stash.pop"]!({ id: "pop", repositoryId: "/repo", stashRef: "stash@{0}", type: "stash.pop" });
+    await handlers["stash.drop"]!({ id: "drop", repositoryId: "/repo", stashRef: "stash@{0}", type: "stash.drop" });
+
+    expect(calls).toEqual([
+      ["discard", "/repo", "/repo", "src/a.ts"],
+      ["details", "/repo", "stash@{0}"],
+      ["stashDiff", "/repo", "stash@{0}", "src/a.ts", "src/old-a.ts"],
+      ["apply", "/repo", "/repo", "stash@{0}"],
+      ["pop", "/repo", "/repo", "stash@{0}"],
+      ["drop", "/repo", "/repo", "stash@{0}"]
+    ]);
+  });
+
   it("loads repositories, branches, and commit history", async () => {
     const handlers = createGitHistoryRpcHandlers({
       branchService: {

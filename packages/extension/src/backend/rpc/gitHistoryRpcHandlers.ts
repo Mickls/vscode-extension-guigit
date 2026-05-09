@@ -50,13 +50,25 @@ export interface GitHistoryRpcHandlerInput {
   languageService: Pick<LanguageService, "changeLanguagePreference" | "getBundle">;
   proxyService: Pick<ProxyService, "configureProxy" | "refreshProxy">;
   remoteService: Pick<RemoteService, "addRemote" | "deleteRemote" | "listRemotes" | "updateRemote">;
-  diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff" | "openWorkingTreeFileDiff">;
+  diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff" | "openStashFileDiff" | "openWorkingTreeFileDiff">;
   repositoryService: Pick<
     RepositoryService,
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
   >;
   settingsService: Pick<SettingsService, "getSettings" | "resetAutoStashPreference" | "updateSettings">;
-  workingTreeService: Pick<WorkingTreeService, "load" | "stageAll" | "stageFile" | "unstageAll" | "unstageFile">;
+  workingTreeService: Pick<
+    WorkingTreeService,
+    | "applyStash"
+    | "discardFile"
+    | "dropStash"
+    | "getStashDetails"
+    | "load"
+    | "popStash"
+    | "stageAll"
+    | "stageFile"
+    | "unstageAll"
+    | "unstageFile"
+  >;
 }
 
 export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): RpcHandlerMap {
@@ -266,6 +278,11 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
 
       return input.workingTreeService.unstageAll(repository.id, repository.rootPath);
     },
+    "workingTree.discardFile": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.workingTreeService.discardFile(repository.id, repository.rootPath, request.filePath);
+    },
     "workingTree.openFile": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
@@ -275,6 +292,41 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.diffService.openWorkingTreeFileDiff(repository.rootPath, request.filePath, request.kind, request.previousPath);
+    },
+    "stash.list": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+      const workingTree = await input.workingTreeService.load(repository.id, repository.rootPath);
+
+      return {
+        stashes: workingTree.stashes
+      };
+    },
+    "stash.getDetails": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return {
+        stash: await input.workingTreeService.getStashDetails(repository.rootPath, request.stashRef)
+      };
+    },
+    "stash.openDiff": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.diffService.openStashFileDiff(repository.rootPath, request.stashRef, request.filePath, request.previousPath);
+    },
+    "stash.apply": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.workingTreeService.applyStash(repository.id, repository.rootPath, request.stashRef);
+    },
+    "stash.pop": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.workingTreeService.popStash(repository.id, repository.rootPath, request.stashRef);
+    },
+    "stash.drop": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.workingTreeService.dropStash(repository.id, repository.rootPath, request.stashRef);
     },
     "history.load": async (request) => {
       const repositories = await input.repositoryService.discoverRepositories();

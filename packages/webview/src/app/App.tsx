@@ -16,6 +16,7 @@ import type {
   RpcRequest,
   RemoteViewModel,
   RpcResponse,
+  StashEntryViewModel,
   WorkingTreeDiffKind,
   WorkingTreeViewModel
 } from "./rpcContract.generated";
@@ -64,7 +65,15 @@ type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
 type ProxyOperationType = "proxy.configure" | "proxy.refresh";
 type FileOperationType = "diff.openCommitFile" | "diff.openCompareFile" | "files.openHistory" | "files.openWorkingFile";
-type WorkingTreeActionType = "workingTree.stageAll" | "workingTree.stageFile" | "workingTree.unstageAll" | "workingTree.unstageFile";
+type WorkingTreeActionType =
+  | "stash.apply"
+  | "stash.drop"
+  | "stash.pop"
+  | "workingTree.discardFile"
+  | "workingTree.stageAll"
+  | "workingTree.stageFile"
+  | "workingTree.unstageAll"
+  | "workingTree.unstageFile";
 type ContextGitOperationType =
   | "git.cherryPick"
   | "git.compareCommits"
@@ -95,6 +104,11 @@ interface HistoryRequestMeta {
   probeHash?: string;
   revealHash?: string;
   repositoryId?: string;
+}
+
+interface StashDetailsRequestMeta {
+  repositoryId: string;
+  stashRef: string;
 }
 
 interface OperationNotification {
@@ -152,6 +166,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const selectedCommitHashesRef = useRef<readonly string[]>([]);
   const commitDetailsRef = useRef<CommitDetailsViewModel | undefined>(undefined);
   const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
+  const pendingStashDetailsRequestsRef = useRef(new Map<string, StashDetailsRequestMeta>());
+  const currentStashDetailsRequestsRef = useRef(new Map<string, string>());
   const latestWorkingTreeOperationRef = useRef<{ id: string; repositoryId: string; sequence: number } | undefined>(undefined);
   const workingTreeOperationSequenceRef = useRef(0);
   const rightPanelTabRef = useRef<RightPanelTab>("details");
@@ -361,6 +377,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (!response.ok) {
+        if (
+          isStaleWorkingTreeActionError(response, latestWorkingTreeOperationRef.current, selectedRepositoryIdRef.current) ||
+          isStaleStashDetailsError(
+            response,
+            pendingStashDetailsRequestsRef.current,
+            currentStashDetailsRequestsRef.current,
+            selectedRepositoryIdRef.current
+          )
+        ) {
+          return;
+        }
         if (isGitOperationType(response.type)) {
           setActiveGitOperation(undefined);
         }
@@ -456,13 +483,35 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (isWorkingTreeActionResponse(response)) {
-        if (isCurrentWorkingTreeOperation(latestWorkingTreeOperationRef.current, response.id, response.payload.workingTree.repositoryId, selectedRepositoryIdRef.current)) {
+        const isCurrentOperation = isCurrentWorkingTreeOperation(
+          latestWorkingTreeOperationRef.current,
+          response.id,
+          response.payload.workingTree.repositoryId,
+          selectedRepositoryIdRef.current
+        );
+        if (isCurrentOperation) {
           setWorkingTree(response.payload.workingTree);
+          setOperationNotification({
+            message: response.payload.result.message,
+            state: response.payload.result.status === "ok" ? "success" : "warning"
+          });
         }
-        setOperationNotification({
-          message: response.payload.result.message,
-          state: response.payload.result.status === "ok" ? "success" : "warning"
-        });
+      }
+
+      if (response.type === "stash.getDetails") {
+        const stashRequest = pendingStashDetailsRequestsRef.current.get(response.id);
+        pendingStashDetailsRequestsRef.current.delete(response.id);
+        if (stashRequest) {
+          const requestKey = stashDetailsRequestKey(stashRequest.repositoryId, stashRequest.stashRef);
+          if (currentStashDetailsRequestsRef.current.get(requestKey) === response.id) {
+            currentStashDetailsRequestsRef.current.delete(requestKey);
+            setWorkingTree((current) =>
+              current && isCurrentStashDetailsResponse(current, response.payload.stash, stashRequest, selectedRepositoryIdRef.current)
+                ? mergeStashDetails(current, response.payload.stash)
+                : current
+            );
+          }
+        }
       }
 
       if (response.type === "graph.getLayout") {
@@ -784,11 +833,68 @@ export function App({ rpcClient }: AppProps): ReactElement {
     }
   };
 
+  const discardWorkingTreeFile = (filePath: string) => {
+    const request = postWorkingTreeFileAction(client, selectedRepositoryIdRef.current, "workingTree.discardFile", filePath);
+    if (request) {
+      trackWorkingTreeOperation(request.id, request.repositoryId);
+    }
+  };
+
   const unstageWorkingTreeFile = (filePath: string) => {
     const request = postWorkingTreeFileAction(client, selectedRepositoryIdRef.current, "workingTree.unstageFile", filePath);
     if (request) {
       trackWorkingTreeOperation(request.id, request.repositoryId);
     }
+  };
+
+  const loadStashDetails = (stashRef: string) => {
+    if (!selectedRepositoryIdRef.current) {
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    const requestKey = stashDetailsRequestKey(selectedRepositoryIdRef.current, stashRef);
+    pendingStashDetailsRequestsRef.current.set(id, {
+      repositoryId: selectedRepositoryIdRef.current,
+      stashRef
+    });
+    currentStashDetailsRequestsRef.current.set(requestKey, id);
+    client?.post({
+      id,
+      repositoryId: selectedRepositoryIdRef.current,
+      stashRef,
+      type: "stash.getDetails"
+    });
+  };
+
+  const openStashDiff = (stashRef: string, filePath: string, previousPath?: string) => {
+    if (!selectedRepositoryIdRef.current) {
+      return;
+    }
+
+    client?.post({
+      filePath,
+      id: crypto.randomUUID(),
+      previousPath,
+      repositoryId: selectedRepositoryIdRef.current,
+      stashRef,
+      type: "stash.openDiff"
+    });
+  };
+
+  const runStashAction = (type: "stash.apply" | "stash.drop" | "stash.pop", stashRef: string) => {
+    if (!selectedRepositoryIdRef.current) {
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    client?.post({
+      id,
+      repositoryId: selectedRepositoryIdRef.current,
+      stashRef,
+      type
+    });
+    trackWorkingTreeOperation(id, selectedRepositoryIdRef.current);
   };
 
   const openFileHistory = (filePath: string) => {
@@ -1080,9 +1186,15 @@ export function App({ rpcClient }: AppProps): ReactElement {
             ) : (
               <ChangesPanel
                 fileViewMode={fileViewMode}
+                onApplyStash={(stashRef) => runStashAction("stash.apply", stashRef)}
+                onDiscardFile={discardWorkingTreeFile}
+                onDropStash={(stashRef) => runStashAction("stash.drop", stashRef)}
+                onExpandStash={loadStashDetails}
                 onFileViewModeChange={updateFileViewMode}
                 onOpenFile={openWorkingTreeFile}
                 onOpenFileDiff={openWorkingTreeFileDiff}
+                onOpenStashDiff={openStashDiff}
+                onPopStash={(stashRef) => runStashAction("stash.pop", stashRef)}
                 onStageFile={stageWorkingTreeFile}
                 onUnstageFile={unstageWorkingTreeFile}
                 workingTree={workingTree}
@@ -1240,10 +1352,71 @@ function isCurrentWorkingTreeOperation(
   );
 }
 
+function isStaleWorkingTreeActionError(
+  response: RpcResponse & { ok: false },
+  latestOperation: { id: string; repositoryId: string; sequence: number } | undefined,
+  selectedRepositoryId: string | undefined
+): boolean {
+  return (
+    isWorkingTreeActionType(response.type) &&
+    !(latestOperation?.id === response.id && latestOperation.repositoryId === selectedRepositoryId)
+  );
+}
+
+function isStaleStashDetailsError(
+  response: RpcResponse & { ok: false },
+  pendingRequests: Map<string, StashDetailsRequestMeta>,
+  currentRequests: Map<string, string>,
+  selectedRepositoryId: string | undefined
+): boolean {
+  if (response.type !== "stash.getDetails") {
+    return false;
+  }
+
+  const request = pendingRequests.get(response.id);
+  pendingRequests.delete(response.id);
+  if (!request) {
+    return true;
+  }
+
+  const requestKey = stashDetailsRequestKey(request.repositoryId, request.stashRef);
+  const currentRequestId = currentRequests.get(requestKey);
+  if (currentRequestId === response.id) {
+    currentRequests.delete(requestKey);
+  }
+
+  return request.repositoryId !== selectedRepositoryId || currentRequestId !== response.id;
+}
+
+function mergeStashDetails(workingTree: WorkingTreeViewModel, stash: StashEntryViewModel): WorkingTreeViewModel {
+  return {
+    ...workingTree,
+    stashes: workingTree.stashes.map((entry) => entry.ref === stash.ref ? stash : entry)
+  };
+}
+
+function isCurrentStashDetailsResponse(
+  workingTree: WorkingTreeViewModel,
+  stash: StashEntryViewModel,
+  request: StashDetailsRequestMeta,
+  selectedRepositoryId: string | undefined
+): boolean {
+  return (
+    selectedRepositoryId === request.repositoryId &&
+    workingTree.repositoryId === request.repositoryId &&
+    stash.ref === request.stashRef &&
+    workingTree.stashes.some((entry) => entry.ref === request.stashRef)
+  );
+}
+
+function stashDetailsRequestKey(repositoryId: string, stashRef: string): string {
+  return `${repositoryId}\0${stashRef}`;
+}
+
 function postWorkingTreeFileAction(
   client: RpcClient | undefined,
   repositoryId: string | undefined,
-  type: "workingTree.stageFile" | "workingTree.unstageFile",
+  type: "workingTree.discardFile" | "workingTree.stageFile" | "workingTree.unstageFile",
   filePath: string
 ): { id: string; repositoryId: string } | undefined {
   if (!repositoryId) {
@@ -1397,11 +1570,19 @@ function isRemoteOperationResponse(
 function isWorkingTreeActionResponse(
   response: RpcResponse
 ): response is Extract<RpcResponse, { type: WorkingTreeActionType }> {
+  return isWorkingTreeActionType(response.type);
+}
+
+function isWorkingTreeActionType(type: string): type is WorkingTreeActionType {
   return (
-    response.type === "workingTree.stageAll" ||
-    response.type === "workingTree.stageFile" ||
-    response.type === "workingTree.unstageAll" ||
-    response.type === "workingTree.unstageFile"
+    type === "workingTree.stageAll" ||
+    type === "workingTree.discardFile" ||
+    type === "workingTree.stageFile" ||
+    type === "workingTree.unstageAll" ||
+    type === "workingTree.unstageFile" ||
+    type === "stash.apply" ||
+    type === "stash.drop" ||
+    type === "stash.pop"
   );
 }
 

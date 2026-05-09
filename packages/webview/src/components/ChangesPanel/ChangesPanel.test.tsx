@@ -60,6 +60,51 @@ describe("ChangesPanel", () => {
     expect(onOpenFile).toHaveBeenCalledWith("src/unstaged.ts");
   });
 
+  it("sends discard actions only for unstaged file rows", async () => {
+    const user = userEvent.setup();
+    const onDiscardFile = vi.fn();
+
+    render(<ChangesPanel fileViewMode="list" onDiscardFile={onDiscardFile} workingTree={workingTree} />);
+
+    await user.click(screen.getByRole("button", { name: "Discard src/unstaged.ts" }));
+
+    expect(onDiscardFile).toHaveBeenCalledWith("src/unstaged.ts");
+    expect(screen.queryByRole("button", { name: "Discard src/staged.ts" })).not.toBeInTheDocument();
+  });
+
+  it("expands stash entries and sends stash actions", async () => {
+    const user = userEvent.setup();
+    const onApplyStash = vi.fn();
+    const onDropStash = vi.fn();
+    const onExpandStash = vi.fn();
+    const onOpenStashDiff = vi.fn();
+    const onPopStash = vi.fn();
+
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        onApplyStash={onApplyStash}
+        onDropStash={onDropStash}
+        onExpandStash={onExpandStash}
+        onOpenStashDiff={onOpenStashDiff}
+        onPopStash={onPopStash}
+        workingTree={stashDetailsWorkingTree}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Open diff for src/stashed.ts" }));
+    await user.click(screen.getByRole("button", { name: "Apply stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Pop stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Drop stash stash@{0}" }));
+
+    expect(onExpandStash).toHaveBeenCalledWith("stash@{0}");
+    expect(onOpenStashDiff).toHaveBeenCalledWith("stash@{0}", "src/stashed.ts", "src/old-stashed.ts");
+    expect(onApplyStash).toHaveBeenCalledWith("stash@{0}");
+    expect(onPopStash).toHaveBeenCalledWith("stash@{0}");
+    expect(onDropStash).toHaveBeenCalledWith("stash@{0}");
+  });
+
   it("sends previous paths with renamed working tree diff actions", async () => {
     const user = userEvent.setup();
     const onOpenFileDiff = vi.fn();
@@ -114,6 +159,29 @@ const renameWorkingTree = {
       path: "src/unstaged-new.ts",
       previousPath: "src/unstaged-old.ts",
       status: "renamed"
+    }
+  ]
+} satisfies WorkingTreeViewModel;
+
+const stashDetailsWorkingTree = {
+  ...workingTree,
+  stashes: [
+    {
+      branch: "main",
+      date: "",
+      files: [
+        {
+          area: "stash",
+          binary: false,
+          deletions: 1,
+          insertions: 2,
+          path: "src/stashed.ts",
+          previousPath: "src/old-stashed.ts",
+          status: "renamed"
+        }
+      ],
+      message: "WIP on main: abc1234 message",
+      ref: "stash@{0}"
     }
   ]
 } satisfies WorkingTreeViewModel;
