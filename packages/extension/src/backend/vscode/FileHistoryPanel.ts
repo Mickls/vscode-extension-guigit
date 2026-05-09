@@ -1,13 +1,19 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { basename, isAbsolute, relative, resolve } from "node:path";
 import { simpleGit } from "simple-git";
-import { commands, Uri, ViewColumn, window } from "vscode";
+import { commands, extensions as vscodeExtensions, languages, Uri, ViewColumn, window, workspace } from "vscode";
 import type { RepositoryService } from "../git/RepositoryService";
 import type { OperationResultViewModel } from "../rpc/contract";
 import type { Logger } from "../../logging/LoggerService";
+import { VirtualDocumentService } from "./VirtualDocumentService";
 
 interface UriLike {
   fsPath: string;
 }
+
+type TextDocumentLike<TUri> = {
+  uri: TUri;
+};
 
 interface WebviewPanelLike {
   webview: {
@@ -22,10 +28,24 @@ export interface FileHistoryPanelInput<TUri extends UriLike> {
   activeEditorUri?: () => TUri | undefined;
   createWebviewPanel?: CreateWebviewPanel;
   executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<unknown>;
+  fileExists?: (path: string) => boolean;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  languageIdForPath?: (filePath: string) => string | undefined;
   logger?: Pick<Logger, "debug">;
+  openTextDocument?: (uri: TUri) => Thenable<TextDocumentLike<TUri>>;
   repositoryService: Pick<RepositoryService, "discoverRepositories">;
+  setTextDocumentLanguage?: (
+    document: TextDocumentLike<TUri>,
+    languageId: string
+  ) => Thenable<TextDocumentLike<TUri>>;
+  showTextDocument?: (
+    document: TextDocumentLike<TUri>,
+    options: { preview: boolean; viewColumn: ViewColumn }
+  ) => Thenable<unknown>;
   uriFile?: (path: string) => TUri;
+  virtualDocuments?: {
+    createDocument(content: string, fileName: string): TUri;
+  };
 }
 
 interface FileHistoryCommit {
@@ -40,10 +60,24 @@ export class FileHistoryPanel<TUri extends UriLike = Uri> {
   private readonly activeEditorUri: () => TUri | undefined;
   private readonly createWebviewPanel: CreateWebviewPanel;
   private readonly executeCommand: (command: string, ...args: readonly unknown[]) => Thenable<unknown>;
+  private readonly fileExists: (path: string) => boolean;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  private readonly languageIdForPath: (filePath: string) => string | undefined;
   private readonly logger: Pick<Logger, "debug"> | undefined;
+  private readonly openTextDocument: (uri: TUri) => Thenable<TextDocumentLike<TUri>>;
   private readonly repositoryService: Pick<RepositoryService, "discoverRepositories">;
+  private readonly setTextDocumentLanguage: (
+    document: TextDocumentLike<TUri>,
+    languageId: string
+  ) => Thenable<TextDocumentLike<TUri>>;
+  private readonly showTextDocument: (
+    document: TextDocumentLike<TUri>,
+    options: { preview: boolean; viewColumn: ViewColumn }
+  ) => Thenable<unknown>;
   private readonly uriFile: (path: string) => TUri;
+  private readonly virtualDocuments: {
+    createDocument(content: string, fileName: string): TUri;
+  };
 
   public constructor(input: FileHistoryPanelInput<TUri>) {
     this.activeEditorUri =
@@ -57,15 +91,61 @@ export class FileHistoryPanel<TUri extends UriLike = Uri> {
       (async (command, ...args) => {
         await commands.executeCommand(command, ...args);
       });
+    this.fileExists = input.fileExists ?? existsSync;
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.languageIdForPath = input.languageIdForPath ?? languageIdForPath;
     this.logger = input.logger;
+    this.openTextDocument =
+      input.openTextDocument ??
+      ((uri) => workspace.openTextDocument(uri as unknown as Uri) as unknown as Thenable<TextDocumentLike<TUri>>);
     this.repositoryService = input.repositoryService;
+    this.setTextDocumentLanguage =
+      input.setTextDocumentLanguage ??
+      ((document, languageId) =>
+        languages.setTextDocumentLanguage(document as unknown as Parameters<typeof languages.setTextDocumentLanguage>[0], languageId) as unknown as Thenable<TextDocumentLike<TUri>>);
+    this.showTextDocument =
+      input.showTextDocument ??
+      (async (document, options) => {
+        await window.showTextDocument(document as unknown as Parameters<typeof window.showTextDocument>[0], options);
+      });
     this.uriFile = input.uriFile ?? ((path) => Uri.file(path) as unknown as TUri);
+    this.virtualDocuments = input.virtualDocuments ?? new VirtualDocumentService<TUri>();
   }
 
-  public async openWorkingFile(repositoryRoot: string, filePath: string): Promise<OperationResultViewModel> {
+  public async openWorkingFile(
+    repositoryRoot: string,
+    filePath: string,
+    hash?: string
+  ): Promise<OperationResultViewModel> {
     this.logger?.debug("file.openWorkingFile", { filePath, repositoryRoot });
-    await this.executeCommand("vscode.open", this.uriFile(resolve(repositoryRoot, filePath)), {
+    const workingFilePath = resolve(repositoryRoot, filePath);
+    if (hash === undefined && !this.fileExists(workingFilePath)) {
+      return {
+        message: `Cannot open missing file ${filePath} without a commit snapshot`,
+        status: "cancelled"
+      };
+    }
+
+    if (hash !== undefined && !this.fileExists(workingFilePath)) {
+      const uri = this.virtualDocuments.createDocument(
+        await this.getCommitFileContent(repositoryRoot, hash, filePath),
+        fileSnapshotName(filePath, hash)
+      );
+      const document = await this.openTextDocument(uri);
+      const languageId = this.languageIdForPath(filePath);
+      const displayedDocument = languageId ? await this.setTextDocumentLanguage(document, languageId) : document;
+      await this.showTextDocument(displayedDocument, {
+        preview: false,
+        viewColumn: ViewColumn.One
+      });
+
+      return {
+        message: `Opened ${filePath}`,
+        status: "ok"
+      };
+    }
+
+    await this.executeCommand("vscode.open", this.uriFile(workingFilePath), {
       preview: false,
       viewColumn: ViewColumn.One
     });
@@ -125,6 +205,20 @@ export class FileHistoryPanel<TUri extends UriLike = Uri> {
     }
 
     return this.openHistory(repository.rootPath, toGitPath(relative(repository.rootPath, uri.fsPath)));
+  }
+
+  private async getCommitFileContent(repositoryRoot: string, hash: string, filePath: string): Promise<string> {
+    try {
+      return await this.gitRaw(repositoryRoot, ["show", `${hash}:${filePath}`]);
+    } catch {
+      const parent = await this.getFirstParent(repositoryRoot, hash);
+      return this.gitRaw(repositoryRoot, ["show", `${parent}:${filePath}`]);
+    }
+  }
+
+  private async getFirstParent(repositoryRoot: string, hash: string): Promise<string> {
+    const output = await this.gitRaw(repositoryRoot, ["show", "--no-patch", "--pretty=%P", hash]);
+    return output.trim().split(" ")[0]!;
   }
 }
 
@@ -197,6 +291,47 @@ function isPathInside(targetPath: string, rootPath: string): boolean {
 
 function toGitPath(filePath: string): string {
   return filePath.split("\\").join("/");
+}
+
+function fileSnapshotName(filePath: string, hash: string): string {
+  return `${filePath} (${hash.slice(0, 7)})`;
+}
+
+function languageIdForPath(filePath: string): string | undefined {
+  const normalizedPath = filePath.toLowerCase();
+  const fileName = basename(normalizedPath);
+  let match: { id: string; length: number } | undefined;
+
+  for (const extension of vscodeExtensions.all) {
+    const languagesContribution = (extension.packageJSON as ExtensionPackageJson).contributes?.languages ?? [];
+    for (const language of languagesContribution) {
+      for (const extensionPattern of language.extensions ?? []) {
+        const normalizedExtension = extensionPattern.toLowerCase();
+        if (normalizedPath.endsWith(normalizedExtension) && normalizedExtension.length > (match?.length ?? 0)) {
+          match = { id: language.id, length: normalizedExtension.length };
+        }
+      }
+
+      for (const filenamePattern of language.filenames ?? []) {
+        const normalizedFilename = filenamePattern.toLowerCase();
+        if (fileName === normalizedFilename && normalizedFilename.length > (match?.length ?? 0)) {
+          match = { id: language.id, length: normalizedFilename.length };
+        }
+      }
+    }
+  }
+
+  return match?.id;
+}
+
+interface ExtensionPackageJson {
+  contributes?: {
+    languages?: readonly {
+      extensions?: readonly string[];
+      filenames?: readonly string[];
+      id: string;
+    }[];
+  };
 }
 
 function escapeHtml(value: string): string {

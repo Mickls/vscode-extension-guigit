@@ -81,7 +81,7 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
     "files.openWorkingFile": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
-      return input.fileHistoryPanel.openWorkingFile(repository.rootPath, request.filePath);
+      return input.fileHistoryPanel.openWorkingFile(repository.rootPath, request.filePath, request.hash);
     },
     "files.openHistory": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);

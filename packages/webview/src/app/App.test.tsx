@@ -744,6 +744,7 @@ describe("App", () => {
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
         filePath: "src/app/App.tsx",
+        hash: "abc1234567890abcdef",
         repositoryId: "/repo",
         type: "files.openWorkingFile"
       })

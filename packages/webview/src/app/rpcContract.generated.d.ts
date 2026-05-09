@@ -143,6 +143,7 @@ export type RpcRequest = (RpcEnvelope & {
     type: "files.openWorkingFile";
     repositoryId: string;
     filePath: string;
+    hash: string;
 }) | (RpcEnvelope & {
     type: "files.openHistory";
     repositoryId: string;

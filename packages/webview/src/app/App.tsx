@@ -622,12 +622,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
   };
 
   const openWorkingFile = (filePath: string) => {
-    if (!selectedRepositoryIdRef.current) {
+    if (!selectedRepositoryIdRef.current || !selectedCommitHashRef.current) {
       return;
     }
 
     client?.post({
       filePath,
+      hash: selectedCommitHashRef.current,
       id: crypto.randomUUID(),
       repositoryId: selectedRepositoryIdRef.current,
       type: "files.openWorkingFile"

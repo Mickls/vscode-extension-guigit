@@ -487,6 +487,7 @@ describe("Git history RPC handlers", () => {
     await expect(
       handlers["files.openWorkingFile"]!({
         filePath: "src/file.ts",
+        hash: "abc123",
         id: "6",
         repositoryId: "/repo",
         type: "files.openWorkingFile"
@@ -502,7 +503,7 @@ describe("Git history RPC handlers", () => {
     ).resolves.toEqual({ message: "history opened", status: "ok" });
 
     expect(fileCalls).toEqual([
-      ["open", "/repo", "src/file.ts"],
+      ["open", "/repo", "src/file.ts", "abc123"],
       ["history", "/repo", "src/file.ts"]
     ]);
   });
