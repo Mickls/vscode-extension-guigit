@@ -8,12 +8,14 @@ import type {
   FileViewMode,
   GitResetMode,
   GraphLayoutViewModel,
+  I18nMessages,
   OperationResultViewModel,
   RpcRequest,
   RemoteViewModel,
   RpcResponse
 } from "./rpcContract.generated";
 import type { RpcClient } from "./rpcClient";
+import { createTranslator } from "./i18n";
 import { CompareOverlay } from "../components/CompareOverlay/CompareOverlay";
 import { CommitDetails } from "../components/CommitDetails/CommitDetails";
 import { CommitList, type CommitSelectionIntent } from "../components/CommitList/CommitList";
@@ -33,6 +35,7 @@ const emptyRemotes: readonly RemoteViewModel[] = [];
 const emptyCompareFiles: readonly FileChangeViewModel[] = [];
 const pageSize = 50;
 const defaultFileViewMode: FileViewMode = "list";
+const emptyI18nMessages: I18nMessages = {};
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
 type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
 type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
@@ -111,6 +114,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [selectedCommitHashes, setSelectedCommitHashes] = useState<readonly string[]>([]);
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
+  const [i18nMessages, setI18nMessages] = useState<I18nMessages>(emptyI18nMessages);
   const [compareFiles, setCompareFiles] = useState<readonly FileChangeViewModel[]>(emptyCompareFiles);
   const [compareHashes, setCompareHashes] = useState<readonly [string, string] | undefined>();
   const [remotes, setRemotes] = useState<readonly RemoteViewModel[]>(emptyRemotes);
@@ -136,6 +140,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
   });
 
   const client = useMemo(() => rpcClient, [rpcClient]);
+  const t = useMemo(() => createTranslator(i18nMessages), [i18nMessages]);
+  const tx = (key: string, fallback: string): string => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
     setCommitDetails(details);
@@ -298,6 +307,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (response.type === "settings.get" || response.type === "settings.update") {
         setFileViewMode(response.payload.settings.fileViewMode);
+        setI18nMessages(response.payload.i18n.messages);
       }
 
       if (response.type === "remotes.list") {
@@ -713,8 +723,39 @@ export function App({ rpcClient }: AppProps): ReactElement {
         x={contextMenu.x}
         y={contextMenu.y}
       />
-      <SettingsMenu onAction={handleSettingsMenuAction} visible={settingsMenu.visible} x={settingsMenu.x} y={settingsMenu.y} />
+      <SettingsMenu
+        labels={{
+          changeLanguage: tx("settingsMenu.changeLanguage", "Change Language"),
+          configureProxy: tx("settingsMenu.configureProxy", "Configure Proxy"),
+          manageRemotes: tx("settingsMenu.manageRemotes", "Manage Remotes"),
+          refreshProxy: tx("settingsMenu.refreshProxy", "Refresh Proxy"),
+          resetStash: tx("settingsMenu.resetStash", "Reset Auto Stash Preference")
+        }}
+        onAction={handleSettingsMenuAction}
+        visible={settingsMenu.visible}
+        x={settingsMenu.x}
+        y={settingsMenu.y}
+      />
       <RemoteManager
+        labels={{
+          actions: tx("remoteManager.actions", "Actions"),
+          addButton: tx("remoteManager.addButton", "Add Remote"),
+          addNamePlaceholder: tx("remoteManager.addNamePlaceholder", "Remote name"),
+          addUrlPlaceholder: tx("remoteManager.addUrlPlaceholder", "Remote URL (https://... or git@...)"),
+          buttons: {
+            delete: tx("remoteManager.buttons.delete", "Delete"),
+            save: tx("remoteManager.buttons.save", "Save")
+          },
+          close: tx("remoteManager.close", "Close Remote Manager"),
+          description: tx("remoteManager.description", "Add, update, or remove Git remotes for the current repository."),
+          empty: tx("remoteManager.empty", "No remotes configured"),
+          messages: {
+            invalidUrl: "Remote URL must start with git@ or https://"
+          },
+          name: tx("remoteManager.name", "Name"),
+          title: tx("remoteManager.title", "Remote Manager"),
+          url: tx("remoteManager.url", "URL")
+        }}
         onAddRemote={addRemote}
         onClose={() => setRemoteManagerOpen(false)}
         onDeleteRemote={deleteRemote}

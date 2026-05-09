@@ -162,6 +162,15 @@ export interface ProxySettingsViewModel {
   noProxy: string;
 }
 
+export type I18nMessages = {
+  readonly [key: string]: I18nMessages | string;
+};
+
+export interface I18nBundleViewModel {
+  locale: Exclude<LanguagePreference, "auto">;
+  messages: I18nMessages;
+}
+
 export interface OperationResultViewModel {
   status: "ok" | "cancelled" | "conflict";
   message: string;
@@ -246,8 +255,8 @@ export interface RpcPayloadByType {
   "remotes.add": OperationResultViewModel;
   "remotes.update": OperationResultViewModel;
   "remotes.delete": OperationResultViewModel;
-  "settings.get": { settings: SettingsViewModel };
-  "settings.update": { settings: SettingsViewModel };
+  "settings.get": { i18n: I18nBundleViewModel; settings: SettingsViewModel };
+  "settings.update": { i18n: I18nBundleViewModel; settings: SettingsViewModel };
   "settings.resetAutoStash": OperationResultViewModel;
   "settings.changeLanguage": OperationResultViewModel;
   "proxy.configure": OperationResultViewModel;

@@ -55,7 +55,8 @@ vi.mock("vscode", () => ({
   env: {
     clipboard: {
       writeText: vscodeMocks.clipboardWriteText
-    }
+    },
+    language: "en"
   },
   extensions: {
     getExtension: vscodeMocks.getExtension

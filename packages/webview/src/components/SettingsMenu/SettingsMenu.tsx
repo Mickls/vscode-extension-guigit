@@ -24,13 +24,14 @@ const actionGroups: readonly (readonly SettingsMenuActionItem[])[] = [
 ];
 
 export interface SettingsMenuProps {
+  labels?: Partial<Record<SettingsMenuAction, string>>;
   onAction?: (action: SettingsMenuAction) => void;
   visible: boolean;
   x: number;
   y: number;
 }
 
-export function SettingsMenu({ onAction, visible, x, y }: SettingsMenuProps): ReactElement | null {
+export function SettingsMenu({ labels, onAction, visible, x, y }: SettingsMenuProps): ReactElement | null {
   if (!visible) {
     return null;
   }
@@ -59,7 +60,7 @@ export function SettingsMenu({ onAction, visible, x, y }: SettingsMenuProps): Re
               >
                 {item.icon}
               </span>
-              <span className="truncate">{item.label}</span>
+              <span className="truncate">{labels?.[item.action] ?? item.label}</span>
             </button>
           ))}
           {groupIndex < actionGroups.length - 1 ? (

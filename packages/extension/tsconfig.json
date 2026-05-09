@@ -14,6 +14,7 @@
     ]
   },
   "include": [
+    "src/**/*.json",
     "src/**/*.ts"
   ]
 }

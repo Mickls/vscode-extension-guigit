@@ -3,6 +3,7 @@ import type { CommitService } from "../git/CommitService";
 import type { FileService } from "../git/FileService";
 import type { GitService } from "../git/GitService";
 import type { GraphService } from "../git/GraphService";
+import type { LanguageService } from "../i18n/LanguageService";
 import type { ProxyService } from "../git/ProxyService";
 import type { RemoteService } from "../git/RemoteService";
 import type { RepositoryService } from "../git/RepositoryService";
@@ -45,6 +46,7 @@ export interface GitHistoryRpcHandlerInput {
     | "squashCommits"
   >;
   graphService: Pick<GraphService, "getLayout">;
+  languageService: Pick<LanguageService, "changeLanguagePreference" | "getBundle">;
   proxyService: Pick<ProxyService, "configureProxy" | "refreshProxy">;
   remoteService: Pick<RemoteService, "addRemote" | "deleteRemote" | "listRemotes" | "updateRemote">;
   diffService: Pick<DiffService, "openCommitFileDiff" | "openCompareFileDiff">;
@@ -52,7 +54,7 @@ export interface GitHistoryRpcHandlerInput {
     RepositoryService,
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
   >;
-  settingsService: Pick<SettingsService, "changeLanguagePreference" | "getSettings" | "resetAutoStashPreference" | "updateSettings">;
+  settingsService: Pick<SettingsService, "getSettings" | "resetAutoStashPreference" | "updateSettings">;
 }
 
 export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): RpcHandlerMap {
@@ -126,12 +128,14 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       return input.remoteService.deleteRemote(repository.rootPath, request.name);
     },
     "settings.get": () => ({
+      i18n: input.languageService.getBundle(),
       settings: input.settingsService.getSettings()
     }),
     "settings.update": async (request) => {
       await input.settingsService.updateSettings(request.settings);
 
       return {
+        i18n: input.languageService.getBundle(),
         settings: input.settingsService.getSettings()
       };
     },
@@ -143,7 +147,7 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
         status: "ok"
       };
     },
-    "settings.changeLanguage": () => input.settingsService.changeLanguagePreference(),
+    "settings.changeLanguage": () => input.languageService.changeLanguagePreference(),
     "proxy.configure": () => input.proxyService.configureProxy(),
     "proxy.refresh": () => input.proxyService.refreshProxy(),
     "git.pull": async (request) => {

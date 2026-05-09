@@ -8,6 +8,7 @@ export interface RemoteManagerStatus {
 }
 
 export interface RemoteManagerProps {
+  labels?: RemoteManagerLabels;
   onAddRemote?: (name: string, url: string) => void;
   onClose?: () => void;
   onDeleteRemote?: (name: string) => void;
@@ -17,7 +18,28 @@ export interface RemoteManagerProps {
   status?: RemoteManagerStatus;
 }
 
+export interface RemoteManagerLabels {
+  actions: string;
+  addButton: string;
+  addNamePlaceholder: string;
+  addUrlPlaceholder: string;
+  close: string;
+  description: string;
+  empty: string;
+  name: string;
+  title: string;
+  url: string;
+  buttons: {
+    delete: string;
+    save: string;
+  };
+  messages: {
+    invalidUrl: string;
+  };
+}
+
 export function RemoteManager({
+  labels = defaultRemoteManagerLabels,
   onAddRemote,
   onClose,
   onDeleteRemote,
@@ -42,7 +64,7 @@ export function RemoteManager({
     if (!isValidRemoteUrl(url)) {
       setValidationStatus({
         kind: "error",
-        message: invalidRemoteUrlMessage
+        message: labels.messages.invalidUrl
       });
       return;
     }
@@ -67,14 +89,14 @@ export function RemoteManager({
         <div className="flex justify-between gap-4 border-b border-[var(--vscode-panel-border)] px-5 py-4">
           <div>
             <h3 className="m-0 text-base" id="remote-manager-title">
-              Remote Manager
+              {labels.title}
             </h3>
             <p className="m-0 mt-1 text-xs text-[var(--vscode-descriptionForeground)]">
-              Add, update, or remove Git remotes for the current repository.
+              {labels.description}
             </p>
           </div>
           <button
-            aria-label="Close Remote Manager"
+            aria-label={labels.close}
             className="h-6 w-6 rounded bg-transparent text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             onClick={onClose}
             type="button"
@@ -100,9 +122,9 @@ export function RemoteManager({
               className="grid grid-cols-[160px_1fr_160px] items-center gap-3 border-b border-[var(--vscode-panel-border)] pb-2 text-xs uppercase text-[var(--vscode-descriptionForeground)]"
               role="row"
             >
-              <span role="columnheader">Name</span>
-              <span role="columnheader">URL</span>
-              <span role="columnheader">Actions</span>
+              <span role="columnheader">{labels.name}</span>
+              <span role="columnheader">{labels.url}</span>
+              <span role="columnheader">{labels.actions}</span>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-2">
               {remotes.length > 0 ? (
@@ -111,14 +133,15 @@ export function RemoteManager({
                     key={remote.name}
                     onClearStatus={() => setValidationStatus(undefined)}
                     onDeleteRemote={onDeleteRemote}
-                    onInvalidUrl={(message) => setValidationStatus({ kind: "error", message })}
+                    onInvalidUrl={() => setValidationStatus({ kind: "error", message: labels.messages.invalidUrl })}
                     onUpdateRemote={onUpdateRemote}
+                    labels={labels}
                     remote={remote}
                   />
                 ))
               ) : (
                 <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-[var(--vscode-panel-border)] p-6 text-center text-[var(--vscode-descriptionForeground)]">
-                  No remotes configured
+                  {labels.empty}
                 </div>
               )}
             </div>
@@ -131,19 +154,19 @@ export function RemoteManager({
           <input
             className={inputClassName}
             onChange={(event) => setNewRemoteName(event.target.value)}
-            placeholder="Remote name"
+            placeholder={labels.addNamePlaceholder}
             type="text"
             value={newRemoteName}
           />
           <input
             className={inputClassName}
             onChange={(event) => setNewRemoteUrl(event.target.value)}
-            placeholder="Remote URL (https://... or git@...)"
+            placeholder={labels.addUrlPlaceholder}
             type="text"
             value={newRemoteUrl}
           />
           <button className={primaryButtonClassName} type="submit">
-            Add Remote
+            {labels.addButton}
           </button>
         </form>
       </div>
@@ -156,15 +179,16 @@ interface RemoteManagerRowProps {
   onDeleteRemote?: (name: string) => void;
   onInvalidUrl?: (message: string) => void;
   onUpdateRemote?: (name: string, url: string) => void;
+  labels: RemoteManagerLabels;
   remote: RemoteViewModel;
 }
 
-function RemoteManagerRow({ onClearStatus, onDeleteRemote, onInvalidUrl, onUpdateRemote, remote }: RemoteManagerRowProps): ReactElement {
+function RemoteManagerRow({ labels, onClearStatus, onDeleteRemote, onInvalidUrl, onUpdateRemote, remote }: RemoteManagerRowProps): ReactElement {
   const [url, setUrl] = useState(remote.fetchUrl);
   const saveRemote = () => {
     const trimmedUrl = url.trim();
     if (!isValidRemoteUrl(trimmedUrl)) {
-      onInvalidUrl?.(invalidRemoteUrlMessage);
+      onInvalidUrl?.(labels.messages.invalidUrl);
       return;
     }
 
@@ -192,20 +216,20 @@ function RemoteManagerRow({ onClearStatus, onDeleteRemote, onInvalidUrl, onUpdat
       </div>
       <div className="flex justify-end gap-2" role="cell">
         <button
-          aria-label={`Save ${remote.name}`}
+          aria-label={`${labels.buttons.save} ${remote.name}`}
           className={secondaryButtonClassName}
           onClick={saveRemote}
           type="button"
         >
-          Save
+          {labels.buttons.save}
         </button>
         <button
-          aria-label={`Delete ${remote.name}`}
+          aria-label={`${labels.buttons.delete} ${remote.name}`}
           className={dangerButtonClassName}
           onClick={() => onDeleteRemote?.(remote.name)}
           type="button"
         >
-          Delete
+          {labels.buttons.delete}
         </button>
       </div>
     </div>
@@ -232,7 +256,25 @@ const statusClasses = {
     "border-[var(--vscode-editorWidget-border)] bg-[var(--vscode-editorWidget-background)] text-[var(--vscode-foreground)]"
 } as const;
 
-const invalidRemoteUrlMessage = "Remote URL must start with git@ or https://";
+const defaultRemoteManagerLabels: RemoteManagerLabels = {
+  actions: "Actions",
+  addButton: "Add Remote",
+  addNamePlaceholder: "Remote name",
+  addUrlPlaceholder: "Remote URL (https://... or git@...)",
+  buttons: {
+    delete: "Delete",
+    save: "Save"
+  },
+  close: "Close Remote Manager",
+  description: "Add, update, or remove Git remotes for the current repository.",
+  empty: "No remotes configured",
+  messages: {
+    invalidUrl: "Remote URL must start with git@ or https://"
+  },
+  name: "Name",
+  title: "Remote Manager",
+  url: "URL"
+};
 
 function isValidRemoteUrl(url: string): boolean {
   return url.startsWith("git@") || url.startsWith("https://");

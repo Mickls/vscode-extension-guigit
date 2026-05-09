@@ -415,10 +415,10 @@ gui-git-history/
 - Create: `packages/extension/src/backend/i18n/LanguageService.ts`
 - Create: `packages/extension/src/backend/i18n/locales/*.json`
 
-- [ ] Migrate existing locale files.
-- [ ] Use one translation service for Extension Host and Webview bootstrap data.
-- [ ] Implement language selector and Webview refresh.
-- [ ] Restore current view state after language change.
+- [x] Migrate existing locale files.
+- [x] Use one translation service for Extension Host and Webview bootstrap data.
+- [x] Implement language selector and Webview refresh.
+- [x] Restore current view state after language change.
 - [ ] Commit with `feat: add internationalization`.
 
 ## Phase 7: Packaging And Replacement

@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { CommitListItemViewModel, GraphNodeViewModel } from "./rpcContract.generated";
+import type { CommitListItemViewModel, GraphNodeViewModel, I18nBundleViewModel } from "./rpcContract.generated";
 import type { RpcClient, RpcRequest, RpcResponse } from "./rpcClient";
 
 describe("App", () => {
@@ -81,6 +81,34 @@ describe("App", () => {
     expect(latestRequest(rpcClient, "settings.changeLanguage")).toEqual(expect.objectContaining({
       type: "settings.changeLanguage"
     }));
+  });
+
+  it("refreshes webview labels from settings bootstrap without reloading history", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    const settingsRequest = latestRequest(rpcClient, "settings.get");
+    dispatchSettingsResponse(settingsRequest.id, "tree", "settings.get", {
+      locale: "zh",
+      messages: {
+        remoteManager: {
+          title: "管理远程"
+        },
+        settingsMenu: {
+          changeLanguage: "切换语言",
+          manageRemotes: "管理远程"
+        }
+      }
+    });
+    const historyLoadCount = rpcClient.post.mock.calls.filter(([request]) => request.type === "history.load").length;
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("menuitem", { name: "切换语言" })).toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: "管理远程" }));
+
+    expect(screen.getByRole("dialog", { name: "管理远程" })).toBeInTheDocument();
+    expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "history.load")).toHaveLength(historyLoadCount);
   });
 
   it("loads and updates remotes through the remote manager", async () => {
@@ -1301,7 +1329,15 @@ function dispatchDetailsResponse(
   });
 }
 
-function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", type: "settings.get" | "settings.update" = "settings.get"): void {
+function dispatchSettingsResponse(
+  id: string,
+  fileViewMode: "tree" | "list",
+  type: "settings.get" | "settings.update" = "settings.get",
+  i18n: I18nBundleViewModel = {
+    locale: "en",
+    messages: {}
+  }
+): void {
   act(() => {
     window.dispatchEvent(
       new MessageEvent("message", {
@@ -1310,6 +1346,7 @@ function dispatchSettingsResponse(id: string, fileViewMode: "tree" | "list", typ
           ok: true,
           type,
           payload: {
+            i18n,
             settings: {
               autoStashOnPull: "ask",
               blameEnabled: true,

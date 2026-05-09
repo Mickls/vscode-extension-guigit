@@ -107,6 +107,7 @@ describe("Git history RPC handlers", () => {
       },
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
+      languageService: createLanguageService(),
       settingsService: createSettingsService()
     });
 
@@ -167,8 +168,18 @@ describe("Git history RPC handlers", () => {
         }
       },
       remoteService: createRemoteService(),
-      settingsService: {
+      languageService: {
         changeLanguagePreference: async () => ({ message: "language changed", status: "ok" }),
+        getBundle: () => ({
+          locale: "zh",
+          messages: {
+            settingsMenu: {
+              changeLanguage: "切换语言"
+            }
+          }
+        })
+      },
+      settingsService: {
         getSettings: () => createSettings("tree"),
         resetAutoStashPreference: async () => {
           resetAutoStashPreferenceCalled = true;
@@ -180,6 +191,14 @@ describe("Git history RPC handlers", () => {
     });
 
     expect(handlers["settings.get"]!({ id: "settings-1", type: "settings.get" })).toEqual({
+      i18n: {
+        locale: "zh",
+        messages: {
+          settingsMenu: {
+            changeLanguage: "切换语言"
+          }
+        }
+      },
       settings: createSettings("tree")
     });
     await expect(
@@ -189,6 +208,14 @@ describe("Git history RPC handlers", () => {
         type: "settings.update"
       })
     ).resolves.toEqual({
+      i18n: {
+        locale: "zh",
+        messages: {
+          settingsMenu: {
+            changeLanguage: "切换语言"
+          }
+        }
+      },
       settings: createSettings("tree")
     });
     await expect(handlers["settings.resetAutoStash"]!({ id: "settings-3", type: "settings.resetAutoStash" })).resolves.toEqual({
@@ -249,6 +276,7 @@ describe("Git history RPC handlers", () => {
       },
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
+      languageService: createLanguageService(),
       settingsService: createSettingsService()
     });
 
@@ -302,6 +330,7 @@ describe("Git history RPC handlers", () => {
       },
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
+      languageService: createLanguageService(),
       settingsService: createSettingsService()
     });
 
@@ -364,6 +393,7 @@ describe("Git history RPC handlers", () => {
       },
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
+      languageService: createLanguageService(),
       settingsService: createSettingsService()
     });
 
@@ -437,6 +467,7 @@ describe("Git history RPC handlers", () => {
       },
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
+      languageService: createLanguageService(),
       settingsService: createSettingsService()
     });
 
@@ -495,6 +526,7 @@ describe("Git history RPC handlers", () => {
       },
       gitService: createGitService(),
       proxyService: createProxyService(),
+      languageService: createLanguageService(),
       remoteService: {
         addRemote: async (repositoryRoot, name, url) => {
           remoteCalls.push(["add", repositoryRoot, name, url]);
@@ -674,6 +706,7 @@ describe("Git history RPC handlers", () => {
       },
       proxyService: createProxyService(),
       remoteService: createRemoteService(),
+      languageService: createLanguageService(),
       settingsService: createSettingsService()
     });
 
@@ -740,10 +773,19 @@ function createSettings(mode: "tree" | "list") {
 
 function createSettingsService() {
   return {
-    changeLanguagePreference: async () => ({ message: "language changed", status: "ok" as const }),
     getSettings: () => createSettings("tree"),
     resetAutoStashPreference: async () => undefined,
     updateSettings: async () => undefined
+  };
+}
+
+function createLanguageService() {
+  return {
+    changeLanguagePreference: async () => ({ message: "language changed", status: "ok" as const }),
+    getBundle: () => ({
+      locale: "en" as const,
+      messages: {}
+    })
   };
 }
 

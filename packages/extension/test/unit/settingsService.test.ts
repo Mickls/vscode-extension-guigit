@@ -84,25 +84,6 @@ describe("SettingsService", () => {
     ]);
   });
 
-  it("changes language through the backend picker", async () => {
-    const updates: Array<{ key: string; value: unknown }> = [];
-    const service = new SettingsService({
-      configuration: {
-        get: () => undefined,
-        update: async (key, value) => {
-          updates.push({ key, value });
-        }
-      },
-      showQuickPick: async (items) => items[2]!
-    });
-
-    await expect(service.changeLanguagePreference()).resolves.toEqual({
-      message: "Language changed to Chinese (Simplified)",
-      status: "ok"
-    });
-    expect(updates).toEqual([{ key: "guigit.language", value: "zh" }]);
-  });
-
   it("updates and resets auto stash preference", async () => {
     const updates: Array<{ key: string; value: unknown }> = [];
     const service = new SettingsService({

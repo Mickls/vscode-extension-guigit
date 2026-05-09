@@ -12,6 +12,7 @@ import { RemoteService } from "../backend/git/RemoteService";
 import { RepositoryService } from "../backend/git/RepositoryService";
 import { SafetyService } from "../backend/git/SafetyService";
 import { ProxyService } from "../backend/git/ProxyService";
+import { LanguageService } from "../backend/i18n/LanguageService";
 import { DiffService } from "../backend/vscode/DiffService";
 import { BlameController } from "../backend/vscode/BlameController";
 import { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
@@ -60,8 +61,12 @@ export function activate(context: ExtensionContext): void {
       update: async (key: SettingsConfigurationKey, value) => {
         await workspace.getConfiguration().update(key, value, ConfigurationTarget.Workspace);
       }
-    },
-    showQuickPick: (items, options) => window.showQuickPick([...items], options)
+    }
+  });
+  const languageService = new LanguageService({
+    settingsService,
+    showQuickPick: (items, options) => window.showQuickPick([...items], options),
+    uiLanguage: () => env.language
   });
   const graphService = new GraphService({ logger });
   const proxyService = new ProxyService({
@@ -115,6 +120,7 @@ export function activate(context: ExtensionContext): void {
       fileService,
       gitService,
       graphService,
+      languageService,
       proxyService,
       remoteService,
       repositoryService,
