@@ -67,7 +67,7 @@ export type AutoStashPreference = "ask" | "always" | "never";
 export type LanguagePreference = "auto" | "en" | "zh" | "es" | "fr" | "de" | "ja" | "ru";
 export type GitResetMode = "soft" | "mixed" | "hard";
 export type WorkingTreeFileArea = "staged" | "unstaged" | "untracked" | "stash";
-export type WorkingTreeDiffKind = "staged" | "unstaged" | "stash";
+export type WorkingTreeDiffKind = "staged" | "unstaged";
 export type AiProviderKind = "vscodeLanguageModel" | "openAICompatible";
 
 export interface RpcEnvelope {
@@ -309,7 +309,6 @@ export type RpcRequest =
       repositoryId: string;
       filePath: string;
       kind: WorkingTreeDiffKind;
-      stashRef?: string;
     })
   | (RpcEnvelope & { type: "workingTree.commit"; repositoryId: string; message: string })
   | (RpcEnvelope & { type: "stash.list"; repositoryId: string })

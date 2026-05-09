@@ -20,34 +20,34 @@ const requiredRequestTypes = [
   "git.pull"
 ] as const satisfies readonly RpcRequest["type"][];
 
+const changesWorkflowRequestTypes = [
+  "workingTree.load",
+  "workingTree.stageFile",
+  "workingTree.stageAll",
+  "workingTree.unstageFile",
+  "workingTree.unstageAll",
+  "workingTree.discardFile",
+  "workingTree.openFile",
+  "workingTree.openDiff",
+  "workingTree.commit",
+  "stash.list",
+  "stash.getDetails",
+  "stash.openDiff",
+  "stash.apply",
+  "stash.pop",
+  "stash.drop",
+  "commitMessage.generate",
+  "settings.configureAiProvider",
+  "settings.testAiProvider"
+] as const satisfies readonly RpcRequest["type"][];
+
 describe("RPC contract", () => {
   it("covers the migration request areas", () => {
     expect(allRpcRequestTypes).toEqual(expect.arrayContaining(requiredRequestTypes));
   });
 
   it("covers working tree, stash, and commit message request areas", () => {
-    expect(allRpcRequestTypes).toEqual(
-      expect.arrayContaining([
-        "workingTree.load",
-        "workingTree.stageFile",
-        "workingTree.stageAll",
-        "workingTree.unstageFile",
-        "workingTree.unstageAll",
-        "workingTree.discardFile",
-        "workingTree.openFile",
-        "workingTree.openDiff",
-        "workingTree.commit",
-        "stash.list",
-        "stash.getDetails",
-        "stash.openDiff",
-        "stash.apply",
-        "stash.pop",
-        "stash.drop",
-        "commitMessage.generate",
-        "settings.configureAiProvider",
-        "settings.testAiProvider"
-      ])
-    );
+    expect(allRpcRequestTypes).toEqual(expect.arrayContaining(changesWorkflowRequestTypes));
   });
 
   it("has a backend handler marker for every request type", () => {
