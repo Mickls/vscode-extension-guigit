@@ -54,32 +54,12 @@ type ContextGitOperationType =
 type DistributiveOmit<T, TKey extends PropertyKey> = T extends unknown ? Omit<T, TKey> : never;
 type ContextGitOperationRequest = DistributiveOmit<Extract<RpcRequest, { type: ContextGitOperationType }>, "id">;
 
-const gitOperationLabels = {
-  "git.advancedPull": "Advanced Pull",
-  "git.advancedPush": "Advanced Push",
-  "git.fetch": "Fetch",
-  "git.pull": "Pull",
-  "git.push": "Push"
-} as const satisfies Record<PrimaryGitOperationType, string>;
-
 const settingsMenuRequests = {
   changeLanguage: "settings.changeLanguage",
   configureProxy: "proxy.configure",
   refreshProxy: "proxy.refresh",
   resetStash: "settings.resetAutoStash"
 } as const satisfies Partial<Record<SettingsMenuAction, SettingsOperationType | ProxyOperationType>>;
-
-const contextGitOperationLabels = {
-  "git.cherryPick": "Cherry Pick",
-  "git.compareCommits": "Compare Commits",
-  "git.copyHash": "Copy Hash",
-  "git.createBranchFromCommit": "Create Branch",
-  "git.editCommitMessage": "Edit Commit Message",
-  "git.pushAllCommitsToHere": "Push Commits",
-  "git.reset": "Reset",
-  "git.revert": "Revert",
-  "git.squashCommits": "Squash Commits"
-} as const satisfies Record<ContextGitOperationType, string>;
 
 export interface AppProps {
   rpcClient?: RpcClient;
@@ -141,10 +121,28 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
   const client = useMemo(() => rpcClient, [rpcClient]);
   const t = useMemo(() => createTranslator(i18nMessages), [i18nMessages]);
-  const tx = (key: string, fallback: string): string => {
-    const value = t(key);
-    return value === key ? fallback : value;
+  const tx = (key: string, fallback: string, ...args: readonly unknown[]): string => {
+    const value = t(key, ...args);
+    return value === key ? formatMessage(fallback, args) : value;
   };
+  const primaryGitOperationLabels = {
+    "git.advancedPull": tx("gitOperations.advancedPull", "Advanced Pull"),
+    "git.advancedPush": tx("gitOperations.advancedPush", "Advanced Push"),
+    "git.fetch": tx("gitOperations.fetch", "Fetch"),
+    "git.pull": tx("gitOperations.pull", "Pull"),
+    "git.push": tx("gitOperations.push", "Push")
+  } as const satisfies Record<PrimaryGitOperationType, string>;
+  const contextGitOperationLabels = {
+    "git.cherryPick": tx("contextMenu.cherryPick", "Cherry Pick"),
+    "git.compareCommits": tx("contextMenu.compareSelected", "Compare Commits"),
+    "git.copyHash": tx("contextMenu.copyHash", "Copy Hash"),
+    "git.createBranchFromCommit": tx("contextMenu.createBranch", "Create Branch"),
+    "git.editCommitMessage": tx("contextMenu.editCommitMessage", "Edit Commit Message"),
+    "git.pushAllCommitsToHere": tx("contextMenu.pushToCommit", "Push Commits"),
+    "git.reset": tx("contextMenu.reset", "Reset"),
+    "git.revert": tx("contextMenu.revert", "Revert"),
+    "git.squashCommits": tx("contextMenu.squashCommits", "Squash Commits")
+  } as const satisfies Record<ContextGitOperationType, string>;
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
     setCommitDetails(details);
@@ -615,9 +613,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
       return;
     }
 
-    const label = gitOperationLabels[type];
+    const label = primaryGitOperationLabels[type];
     setActiveGitOperation(type);
-    setOperationNotification({ message: `${label} is running...`, state: "running" });
+    setOperationNotification({ message: tx("status.running", "{0} is running...", label), state: "running" });
     client?.post({
       id: crypto.randomUUID(),
       repositoryId: selectedRepositoryIdRef.current,
@@ -647,7 +645,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
     const label = contextGitOperationLabels[request.type];
     setActiveGitOperation(request.type);
-    setOperationNotification({ message: `${label} is running...`, state: "running" });
+    setOperationNotification({ message: tx("status.running", "{0} is running...", label), state: "running" });
     client?.post({
       ...request,
       id: crypto.randomUUID()
@@ -659,6 +657,22 @@ export function App({ rpcClient }: AppProps): ReactElement {
       <Header
         gitOperationBusy={Boolean(activeGitOperation || conflictOperation)}
         graphVisible={graphVisible}
+        labels={{
+          authorPlaceholder: tx("authorFilterPlaceholder", "Author"),
+          fetch: tx("gitOperations.fetch", "Fetch"),
+          filterAuthor: tx("header.filterAuthor", "Filter author"),
+          graph: tx("graph.toggle", "Graph"),
+          hideGraph: tx("graph.hide", "Hide Git Graph"),
+          pull: tx("gitOperations.pull", "Pull"),
+          pullTitle: tx("pullTooltip", "Pull (Command+click for Advanced Pull)"),
+          push: tx("gitOperations.push", "Push"),
+          pushTitle: tx("pushTooltip", "Push (Command+click for Advanced Push)"),
+          refresh: tx("refreshTooltip", "Refresh"),
+          searchCommits: tx("header.searchCommits", "Search commits"),
+          searchPlaceholder: tx("placeholderCommitMessage", "Search commits"),
+          settings: tx("gitOperations.settings", "Settings"),
+          showGraph: tx("graph.show", "Show Git Graph")
+        }}
         onAdvancedPull={() => startGitOperation("git.advancedPull")}
         onAdvancedPush={() => startGitOperation("git.advancedPush")}
         onGraphToggle={() => setGraphVisible((visible) => !visible)}
@@ -684,16 +698,39 @@ export function App({ rpcClient }: AppProps): ReactElement {
       />
       {conflictOperation ? (
         <ConflictBanner
+          labels={{
+            abort: tx("conflict.abort", "Abort"),
+            continue: tx("conflict.resolvedAndStaged", "Resolved and Staged"),
+            label: tx("conflict.label", "Git Conflict")
+          }}
           message={conflictOperation.message}
           onAbort={() => sendConflictOperation("git.abortOperation")}
           onContinue={() => sendConflictOperation("git.continueOperation")}
         />
       ) : null}
       <SplitPanels
+        labels={{
+          author: tx("headers.author", "Author"),
+          collapseCommitDetails: tx("panels.collapseCommitDetails", "Collapse commit details panel"),
+          collapseCommitList: tx("panels.collapseCommitList", "Collapse commit list panel"),
+          commitDetailsPanel: tx("panels.commitDetails", "Commit details panel"),
+          commitListPanel: tx("panels.commitList", "Commit list panel"),
+          date: tx("headers.date", "Date"),
+          expandCommitDetails: tx("panels.expandCommitDetails", "Expand commit details panel"),
+          expandCommitList: tx("panels.expandCommitList", "Expand commit list panel"),
+          hash: tx("headers.hash", "Hash"),
+          message: tx("headers.message", "Message"),
+          refs: tx("headers.refs", "Refs"),
+          resizePanels: tx("panels.resize", "Resize panels")
+        }}
         left={
           <CommitList
             commits={commits}
             graph={graph}
+            graphLabels={{
+              label: tx("graph.label", "Git graph"),
+              selectCommit: tx("graph.selectCommit", "Select commit {0} in graph")
+            }}
             graphVisible={graphVisible}
             onCommitContextMenu={openCommitContextMenu}
             onCommitSelect={selectCommit}
@@ -707,6 +744,22 @@ export function App({ rpcClient }: AppProps): ReactElement {
           <CommitDetails
             commit={commitDetails}
             fileViewMode={fileViewMode}
+            labels={{
+              files: {
+                binary: tx("files.binary", "binary"),
+                changed: tx("files.changed", "Files Changed"),
+                collapseDirectory: tx("files.collapseDirectory", "Collapse {0}"),
+                expandDirectory: tx("files.expandDirectory", "Expand {0}"),
+                list: tx("files.list", "List"),
+                listView: tx("files.listView", "List view"),
+                openDiff: tx("files.openDiff", "Open diff for {0}"),
+                openFile: tx("files.openFile", "Open file {0}"),
+                openFileHistory: tx("files.openFileHistory", "Open file history for {0}"),
+                tree: tx("files.tree", "Tree"),
+                treeView: tx("files.treeView", "Tree view")
+              },
+              selectCommit: tx("selectCommit", "Select a commit to view details.")
+            }}
             onFileViewModeChange={updateFileViewMode}
             onOpenFile={openWorkingFile}
             onOpenFileDiff={openCommitFileDiff}
@@ -717,6 +770,23 @@ export function App({ rpcClient }: AppProps): ReactElement {
       <ContextMenu
         canEditCommitMessage={commits.find((commit) => commit.hash === contextMenu.hash)?.canEditMessage ?? false}
         canSquashCommits={canSquashSelectedCommits(commits, selectedCommitHashes)}
+        labels={{
+          cherryPick: tx("contextMenu.cherryPick", "Cherry Pick"),
+          compare: tx("contextMenu.compareSelected", "Compare Selected"),
+          compareSelectedCount: tx("contextMenu.compareSelectedCount", "Compare Selected ({0})"),
+          compareSelectedProgress: tx("contextMenu.compareSelectedProgress", "Compare Selected ({0}/2)"),
+          copyHash: tx("contextMenu.copyHash", "Copy Hash"),
+          createBranch: tx("contextMenu.createBranch", "Create Branch"),
+          editCommitMessage: tx("contextMenu.editCommitMessage", "Edit Commit Message"),
+          menuLabel: tx("contextMenu.menuLabel", "Commit actions"),
+          pushToCommit: tx("contextMenu.pushToCommit", "Push All Commits to Here"),
+          resetHard: tx("contextMenu.resetHard", "Reset Hard"),
+          resetMixed: tx("contextMenu.resetMixed", "Reset Mixed"),
+          resetSoft: tx("contextMenu.resetSoft", "Reset Soft"),
+          revert: tx("contextMenu.revert", "Revert"),
+          squash: tx("contextMenu.squashCommits", "Squash Commits"),
+          squashCommitsCount: tx("contextMenu.squashCommitsCount", "Squash {0} Commits")
+        }}
         onAction={handleContextMenuAction}
         selectedCommitCount={selectedCommitHashes.length}
         visible={contextMenu.visible}
@@ -750,7 +820,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           description: tx("remoteManager.description", "Add, update, or remove Git remotes for the current repository."),
           empty: tx("remoteManager.empty", "No remotes configured"),
           messages: {
-            invalidUrl: "Remote URL must start with git@ or https://"
+            invalidUrl: tx("remoteManager.messages.invalidUrlFormat", "Remote URL must start with git@ or https://")
           },
           name: tx("remoteManager.name", "Name"),
           title: tx("remoteManager.title", "Remote Manager"),
@@ -767,6 +837,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
       <CompareOverlay
         files={compareFiles}
         fromHash={compareHashes?.[0] ?? ""}
+        labels={{
+          baseCommit: tx("compare.baseCommit", "Base commit"),
+          changedFiles: tx("compare.changedFiles", "Changed Files"),
+          close: tx("compare.close", "Close compare"),
+          from: tx("compare.from", "From"),
+          noFilesChanged: tx("noFilesChanged", "No files changed"),
+          openDiff: tx("compare.openDiff", "Open diff for {0}"),
+          targetCommit: tx("compare.targetCommit", "Target commit"),
+          title: tx("compare.title", tx("headers.compareCommits", "Compare Commits")),
+          to: tx("compare.to", "to")
+        }}
         onClose={() => setCompareOverlayOpen(false)}
         onOpenFileDiff={openCompareFileDiff}
         open={compareOverlayOpen}
@@ -1074,17 +1155,23 @@ function OperationToast({ message, state }: { message: string; state: OperationN
 }
 
 function ConflictBanner({
+  labels,
   message,
   onAbort,
   onContinue
 }: {
+  labels: {
+    abort: string;
+    continue: string;
+    label: string;
+  };
   message: string;
   onAbort: () => void;
   onContinue: () => void;
 }): ReactElement {
   return (
     <section
-      aria-label="Git Conflict"
+      aria-label={labels.label}
       className="flex shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-notifications-background)] px-3 py-2 text-xs text-[var(--vscode-notifications-foreground)]"
     >
       <span className="min-w-0 flex-1">{message}</span>
@@ -1093,14 +1180,14 @@ function ConflictBanner({
         onClick={onContinue}
         type="button"
       >
-        Resolved and Staged
+        {labels.continue}
       </button>
       <button
         className="h-7 whitespace-nowrap rounded-[3px] border border-[var(--vscode-button-secondaryBorder,transparent)] bg-[var(--vscode-button-secondaryBackground)] px-2 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)]"
         onClick={onAbort}
         type="button"
       >
-        Abort
+        {labels.abort}
       </button>
     </section>
   );
@@ -1133,4 +1220,23 @@ function createPendingCommitDetails(commit: CommitListItemViewModel): CommitDeta
     message: commit.message,
     refs: commit.refs
   };
+}
+
+function formatMessage(message: string, args: readonly unknown[]): string {
+  return message.replace(/\{(\d+)}/g, (match: string, index: string) => {
+    const value = args[Number.parseInt(index, 10)];
+    return value === undefined ? match : formatArgument(value);
+  });
+}
+
+function formatArgument(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value.toString();
+  }
+
+  return JSON.stringify(value);
 }

@@ -111,6 +111,147 @@ describe("App", () => {
     expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "history.load")).toHaveLength(historyLoadCount);
   });
 
+  it("localizes the main webview surfaces from the settings bundle", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    const settingsRequest = latestRequest(rpcClient, "settings.get");
+    dispatchSettingsResponse(settingsRequest.id, "tree", "settings.get", {
+      locale: "zh",
+      messages: {
+        authorFilterPlaceholder: "输入作者",
+        compare: {
+          baseCommit: "基础提交",
+          changedFiles: "变更文件",
+          close: "关闭比较",
+          from: "从",
+          openDiff: "打开 {0} 的比较差异",
+          targetCommit: "目标提交",
+          title: "比较提交",
+          to: "到"
+        },
+        contextMenu: {
+          cherryPick: "拣选",
+          compareSelected: "比较选中",
+          compareSelectedCount: "比较选中 ({0})",
+          copyHash: "复制哈希",
+          createBranch: "创建分支",
+          editCommitMessage: "编辑提交消息",
+          menuLabel: "提交操作",
+          pushToCommit: "推送到此提交",
+          resetHard: "硬重置",
+          resetMixed: "混合重置",
+          resetSoft: "软重置",
+          revert: "回滚",
+          squashCommits: "压缩提交",
+          squashCommitsCount: "压缩 {0} 个提交"
+        },
+        files: {
+          binary: "二进制",
+          changed: "文件变更",
+          collapseDirectory: "折叠 {0}",
+          expandDirectory: "展开 {0}",
+          list: "列表",
+          listView: "列表视图",
+          openDiff: "打开 {0} 的差异",
+          openFile: "打开文件 {0}",
+          openFileHistory: "打开 {0} 的文件历史",
+          tree: "树",
+          treeView: "树视图"
+        },
+        gitOperations: {
+          fetch: "抓取",
+          pull: "拉取",
+          push: "推送",
+          settings: "设置"
+        },
+        graph: {
+          hide: "隐藏 Git 图谱",
+          label: "Git 图谱",
+          selectCommit: "在图谱中选择提交 {0}",
+          show: "显示 Git 图谱",
+          toggle: "图谱"
+        },
+        headers: {
+          author: "作者",
+          date: "日期",
+          hash: "哈希",
+          message: "消息",
+          refs: "引用"
+        },
+        placeholderCommitMessage: "搜索提交",
+        refreshTooltip: "刷新",
+        selectCommit: "选择一个提交以查看详情",
+        status: {
+          running: "{0} 正在执行..."
+        }
+      }
+    });
+
+    expect(screen.getByRole("button", { name: "拉取" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "推送" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "抓取" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "隐藏 Git 图谱" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("搜索提交")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入作者")).toBeInTheDocument();
+    expect(screen.getByText("哈希")).toBeInTheDocument();
+    expect(screen.getByText("消息")).toBeInTheDocument();
+    expect(screen.getByText("引用")).toBeInTheDocument();
+    expect(screen.getByText("作者")).toBeInTheDocument();
+    expect(screen.getByText("日期")).toBeInTheDocument();
+    expect(screen.getByText("选择一个提交以查看详情")).toBeInTheDocument();
+
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    const detailsRequest = latestRequest(rpcClient, "commits.getDetails");
+    dispatchDetailsResponse(detailsRequest.id, {
+      body: "Backend details",
+      files: [
+        {
+          binary: true,
+          deletions: 0,
+          insertions: 0,
+          path: "assets/logo.png",
+          status: "added"
+        }
+      ],
+      hash: "abc1234567890abcdef",
+      message: "Wire real data"
+    });
+
+    expect(await screen.findByText("文件变更 (1)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "树视图" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "列表视图" })).toBeInTheDocument();
+    expect(screen.getByText("二进制")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "折叠 assets" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开 assets/logo.png 的差异" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开文件 assets/logo.png" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开 assets/logo.png 的文件历史" })).toBeInTheDocument();
+
+    const commitRows = screen.getAllByTestId("commit-row");
+    fireEvent.click(commitRows[1]!, { metaKey: true });
+    await openContextMenu(user, commitRows[1]!);
+    expect(screen.getByRole("menu", { name: "提交操作" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "复制哈希" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "比较选中 (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "压缩 2 个提交" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("menuitem", { name: "比较选中 (2)" }));
+    const compareRequest = latestRequest(rpcClient, "git.compareCommits");
+    dispatchCompareResponse(compareRequest.id);
+
+    expect(screen.getByRole("region", { name: "比较提交" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭比较" })).toBeInTheDocument();
+    expect(screen.getByText("从: abc1234")).toBeInTheDocument();
+    expect(screen.getByText("基础提交")).toBeInTheDocument();
+    expect(screen.getByText("到: def4567")).toBeInTheDocument();
+    expect(screen.getByText("目标提交")).toBeInTheDocument();
+    expect(screen.getByText("变更文件 (1)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开 src/shared.ts 的比较差异" })).toBeInTheDocument();
+  });
+
   it("loads and updates remotes through the remote manager", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

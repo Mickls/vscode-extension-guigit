@@ -1,9 +1,34 @@
 import type { ReactElement } from "react";
 import type { FileChangeViewModel } from "../../app/rpcContract.generated";
 
+export interface CompareOverlayLabels {
+  baseCommit: string;
+  changedFiles: string;
+  close: string;
+  from: string;
+  noFilesChanged: string;
+  openDiff: string;
+  targetCommit: string;
+  title: string;
+  to: string;
+}
+
+const defaultLabels: CompareOverlayLabels = {
+  baseCommit: "Base commit",
+  changedFiles: "Changed Files",
+  close: "Close compare",
+  from: "From",
+  noFilesChanged: "No files changed",
+  openDiff: "Open diff for {0}",
+  targetCommit: "Target commit",
+  title: "Compare Commits",
+  to: "To"
+};
+
 export interface CompareOverlayProps {
   files?: readonly FileChangeViewModel[];
   fromHash: string;
+  labels?: Partial<CompareOverlayLabels>;
   onClose?: () => void;
   onOpenFileDiff?: (path: string) => void;
   open: boolean;
@@ -13,6 +38,7 @@ export interface CompareOverlayProps {
 export function CompareOverlay({
   files = [],
   fromHash,
+  labels,
   onClose,
   onOpenFileDiff,
   open,
@@ -22,16 +48,17 @@ export function CompareOverlay({
     return null;
   }
 
+  const text = { ...defaultLabels, ...labels };
   return (
     <section
-      aria-label="Compare Commits"
+      aria-label={text.title}
       className="fixed inset-0 z-[999] flex flex-col bg-[var(--vscode-editor-background)]"
       role="region"
     >
       <header className="flex items-center justify-between border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] px-4 py-3">
-        <h3 className="m-0 text-sm">Compare Commits</h3>
+        <h3 className="m-0 text-sm">{text.title}</h3>
         <button
-          aria-label="Close compare"
+          aria-label={text.close}
           className="flex h-6 w-6 items-center justify-center rounded bg-transparent text-lg text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
           onClick={onClose}
           type="button"
@@ -41,21 +68,21 @@ export function CompareOverlay({
       </header>
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mb-4 flex gap-4 border-b border-[var(--vscode-panel-border)] pb-4">
-          <CompareCommitSummary hash={fromHash} label="From" note="Base commit" />
+          <CompareCommitSummary hash={fromHash} label={text.from} note={text.baseCommit} />
           <div className="flex min-w-[30px] items-center justify-center text-lg text-[var(--vscode-descriptionForeground)]">
-            to
+            {text.to}
           </div>
-          <CompareCommitSummary hash={toHash} label="To" note="Target commit" />
+          <CompareCommitSummary hash={toHash} label={text.to} note={text.targetCommit} />
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="m-0 text-sm">Changed Files ({files.length})</h3>
+            <h3 className="m-0 text-sm">{text.changedFiles} ({files.length})</h3>
           </div>
           <div className="rounded border border-[var(--vscode-panel-border)]">
             {files.length > 0 ? (
               files.map((file) => (
                 <button
-                  aria-label={`Open diff for ${file.path}`}
+                  aria-label={formatLabel(text.openDiff, file.path)}
                   className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--vscode-panel-border)] bg-transparent px-3 py-2 text-left text-xs last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
                   key={file.path}
                   onClick={() => onOpenFileDiff?.(file.path)}
@@ -70,7 +97,7 @@ export function CompareOverlay({
               ))
             ) : (
               <div className="px-3 py-6 text-center text-xs text-[var(--vscode-descriptionForeground)]">
-                No files changed
+                {text.noFilesChanged}
               </div>
             )}
           </div>
@@ -82,7 +109,7 @@ export function CompareOverlay({
 
 interface CompareCommitSummaryProps {
   hash: string;
-  label: "From" | "To";
+  label: string;
   note: string;
 }
 
@@ -95,4 +122,8 @@ function CompareCommitSummary({ hash, label, note }: CompareCommitSummaryProps):
       <p className="m-0 text-[11px] text-[var(--vscode-descriptionForeground)]">{note}</p>
     </div>
   );
+}
+
+function formatLabel(label: string, value: string): string {
+  return label.replace("{0}", value);
 }

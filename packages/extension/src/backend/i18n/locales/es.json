@@ -19,8 +19,8 @@
       "noRemote": "No hay ramas remotas",
       "all": "Todas las ramas"
     },
-    "pullTooltip": "Pull (Ctrl+clic para opciones avanzadas)",
-    "pushTooltip": "Push (Ctrl+clic para opciones avanzadas)",
+    "pullTooltip": "Pull (Command+clic para Pull avanzado)",
+    "pushTooltip": "Push (Command+clic para Push avanzado)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Clonar",
     "checkoutTooltip": "Checkout",
@@ -66,7 +66,8 @@
         "invalidName": "El nombre del remoto es obligatorio",
         "invalidUrl": "La URL del remoto es obligatoria",
         "duplicateName": "El remoto \"{0}\" ya existe",
-        "removeConfirm": "¿Eliminar el remoto \"{0}\"?"
+        "removeConfirm": "¿Eliminar el remoto \"{0}\"?",
+        "invalidUrlFormat": "La URL remota debe empezar con git@ o https://"
       }
     },
     "gitOperations": {
@@ -75,7 +76,9 @@
       "fetch": "Fetch",
       "clone": "Clonar",
       "checkout": "Checkout",
-      "settings": "Configuración"
+      "settings": "Configuración",
+      "advancedPull": "Pull avanzado",
+      "advancedPush": "Push avanzado"
     },
     "clone": {
       "prompt": "Introduce la URL del repositorio a clonar",
@@ -179,7 +182,8 @@
       "tags": "Etiquetas",
       "author": "Autor",
       "date": "Fecha",
-      "compareCommits": "Comparar commits"
+      "compareCommits": "Comparar commits",
+      "refs": "Refs"
     },
     "authorFilterPrefix": "Autor: ",
     "authorFilterCurrent": "Filtro actual: {0}",
@@ -201,12 +205,68 @@
       "pushToCommit": "Push de todos los commits hasta aquí",
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
-      "resetHard": "Reset (Hard)"
+      "resetHard": "Reset (Hard)",
+      "menuLabel": "Acciones de commit",
+      "compareSelectedCount": "Comparar seleccionados ({0})",
+      "compareSelectedProgress": "Comparar seleccionados ({0}/2)",
+      "squashCommitsCount": "Aplastar {0} commits",
+      "reset": "Reset"
     },
     "postPush": {
       "createPullRequestPrompt": "La rama \"{0}\" se ha enviado. ¿Quieres crear un Pull Request? (Se cierra en {1}s)",
       "openPullRequestAction": "Abrir Pull Request",
       "dismissAction": "Omitir"
+    },
+    "header": {
+      "searchCommits": "Buscar commits",
+      "filterAuthor": "Filtrar autor"
+    },
+    "graph": {
+      "toggle": "Grafo",
+      "hide": "Ocultar grafo Git",
+      "show": "Mostrar grafo Git",
+      "label": "Grafo Git",
+      "selectCommit": "Seleccionar commit {0} en el grafo"
+    },
+    "panels": {
+      "commitList": "Panel de lista de commits",
+      "commitDetails": "Panel de detalles del commit",
+      "collapseCommitList": "Contraer panel de lista de commits",
+      "expandCommitList": "Expandir panel de lista de commits",
+      "collapseCommitDetails": "Contraer panel de detalles del commit",
+      "expandCommitDetails": "Expandir panel de detalles del commit",
+      "resize": "Redimensionar paneles"
+    },
+    "files": {
+      "changed": "Archivos cambiados",
+      "tree": "Arbol",
+      "list": "Lista",
+      "treeView": "Vista de arbol",
+      "listView": "Vista de lista",
+      "expandDirectory": "Expandir {0}",
+      "collapseDirectory": "Contraer {0}",
+      "openDiff": "Abrir diff de {0}",
+      "openFile": "Abrir archivo {0}",
+      "openFileHistory": "Abrir historial de {0}",
+      "binary": "binario"
+    },
+    "compare": {
+      "title": "Comparar commits",
+      "close": "Cerrar comparacion",
+      "from": "Desde",
+      "to": "a",
+      "baseCommit": "Commit base",
+      "targetCommit": "Commit destino",
+      "changedFiles": "Archivos cambiados",
+      "openDiff": "Abrir diff de {0}"
+    },
+    "conflict": {
+      "label": "Conflicto Git",
+      "resolvedAndStaged": "Resuelto y preparado",
+      "abort": "Abortar"
+    },
+    "status": {
+      "running": "{0} en ejecucion..."
     }
   }
 }

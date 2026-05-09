@@ -1,10 +1,20 @@
 import type { ReactElement } from "react";
 import type { CommitDetailsViewModel, FileViewMode } from "../../app/rpcContract.generated";
-import { FileChanges } from "../FileChanges/FileChanges";
+import { FileChanges, type FileChangesLabels } from "../FileChanges/FileChanges";
+
+export interface CommitDetailsLabels {
+  files?: Partial<FileChangesLabels>;
+  selectCommit: string;
+}
+
+const defaultLabels: CommitDetailsLabels = {
+  selectCommit: "Select a commit to view details."
+};
 
 export interface CommitDetailsProps {
   commit?: CommitDetailsViewModel;
   fileViewMode: FileViewMode;
+  labels?: Partial<CommitDetailsLabels>;
   onFileViewModeChange?: (mode: FileViewMode) => void;
   onOpenFile?: (path: string) => void;
   onOpenFileDiff?: (path: string) => void;
@@ -14,15 +24,17 @@ export interface CommitDetailsProps {
 export function CommitDetails({
   commit,
   fileViewMode,
+  labels,
   onFileViewModeChange,
   onOpenFile,
   onOpenFileDiff,
   onOpenFileHistory
 }: CommitDetailsProps): ReactElement {
+  const text = { ...defaultLabels, ...labels };
   if (!commit) {
     return (
       <div className="p-4 text-xs text-[var(--vscode-descriptionForeground)]">
-        Select a commit to view details.
+        {text.selectCommit}
       </div>
     );
   }
@@ -43,6 +55,7 @@ export function CommitDetails({
       </section>
       <FileChanges
         files={commit.files}
+        labels={text.files}
         mode={fileViewMode}
         onModeChange={onFileViewModeChange}
         onOpenFile={onOpenFile}

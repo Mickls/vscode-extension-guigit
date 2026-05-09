@@ -19,8 +19,8 @@
       "noRemote": "Keine Remote-Branches",
       "all": "Alle Branches"
     },
-    "pullTooltip": "Pull (Strg+Klick für erweiterte Optionen)",
-    "pushTooltip": "Push (Strg+Klick für erweiterte Optionen)",
+    "pullTooltip": "Pull (Command+Klick fuer erweiterten Pull)",
+    "pushTooltip": "Push (Command+Klick fuer erweiterten Push)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Klonen",
     "checkoutTooltip": "Checkout",
@@ -66,7 +66,8 @@
         "invalidName": "Ein Remotename ist erforderlich",
         "invalidUrl": "Eine Remote-URL ist erforderlich",
         "duplicateName": "Remote \"{0}\" ist bereits vorhanden",
-        "removeConfirm": "Remote \"{0}\" entfernen?"
+        "removeConfirm": "Remote \"{0}\" entfernen?",
+        "invalidUrlFormat": "Remote-URL muss mit git@ oder https:// beginnen"
       }
     },
     "gitOperations": {
@@ -75,7 +76,9 @@
       "fetch": "Fetch",
       "clone": "Klonen",
       "checkout": "Checkout",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "advancedPull": "Erweiterter Pull",
+      "advancedPush": "Erweiterter Push"
     },
     "clone": {
       "prompt": "Repository-URL zum Klonen eingeben",
@@ -179,7 +182,8 @@
       "tags": "Tags",
       "author": "Autor",
       "date": "Datum",
-      "compareCommits": "Commits vergleichen"
+      "compareCommits": "Commits vergleichen",
+      "refs": "Refs"
     },
     "authorFilterPrefix": "Autor: ",
     "authorFilterCurrent": "Aktueller Filter: {0}",
@@ -201,12 +205,68 @@
       "pushToCommit": "Alle Commits bis hierher pushen",
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
-      "resetHard": "Reset (Hard)"
+      "resetHard": "Reset (Hard)",
+      "menuLabel": "Commit-Aktionen",
+      "compareSelectedCount": "Auswahl vergleichen ({0})",
+      "compareSelectedProgress": "Auswahl vergleichen ({0}/2)",
+      "squashCommitsCount": "{0} Commits squashen",
+      "reset": "Reset"
     },
     "postPush": {
       "createPullRequestPrompt": "Branch \"{0}\" wurde gepusht. Einen Pull Request erstellen? (Schließt in {1}s)",
       "openPullRequestAction": "Pull Request öffnen",
       "dismissAction": "Später"
+    },
+    "header": {
+      "searchCommits": "Commits suchen",
+      "filterAuthor": "Autor filtern"
+    },
+    "graph": {
+      "toggle": "Graph",
+      "hide": "Git-Graph ausblenden",
+      "show": "Git-Graph anzeigen",
+      "label": "Git-Graph",
+      "selectCommit": "Commit {0} im Graph waehlen"
+    },
+    "panels": {
+      "commitList": "Commitlistenbereich",
+      "commitDetails": "Commitdetailbereich",
+      "collapseCommitList": "Commitlistenbereich einklappen",
+      "expandCommitList": "Commitlistenbereich ausklappen",
+      "collapseCommitDetails": "Commitdetailbereich einklappen",
+      "expandCommitDetails": "Commitdetailbereich ausklappen",
+      "resize": "Bereiche groesse aendern"
+    },
+    "files": {
+      "changed": "Geaenderte Dateien",
+      "tree": "Baum",
+      "list": "Liste",
+      "treeView": "Baumansicht",
+      "listView": "Listenansicht",
+      "expandDirectory": "{0} ausklappen",
+      "collapseDirectory": "{0} einklappen",
+      "openDiff": "Diff fuer {0} oeffnen",
+      "openFile": "Datei {0} oeffnen",
+      "openFileHistory": "Dateihistorie fuer {0} oeffnen",
+      "binary": "binaer"
+    },
+    "compare": {
+      "title": "Commits vergleichen",
+      "close": "Vergleich schliessen",
+      "from": "Von",
+      "to": "bis",
+      "baseCommit": "Basis-Commit",
+      "targetCommit": "Ziel-Commit",
+      "changedFiles": "Geaenderte Dateien",
+      "openDiff": "Diff fuer {0} oeffnen"
+    },
+    "conflict": {
+      "label": "Git-Konflikt",
+      "resolvedAndStaged": "Geloest und gestaged",
+      "abort": "Abbrechen"
+    },
+    "status": {
+      "running": "{0} laeuft..."
     }
   }
 }

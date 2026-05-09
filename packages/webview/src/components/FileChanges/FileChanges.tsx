@@ -1,8 +1,37 @@
 import { useMemo, useState, type ReactElement } from "react";
 import type { FileChangeViewModel, FileViewMode } from "../../app/rpcContract.generated";
 
+export interface FileChangesLabels {
+  binary: string;
+  changed: string;
+  collapseDirectory: string;
+  expandDirectory: string;
+  list: string;
+  listView: string;
+  openDiff: string;
+  openFile: string;
+  openFileHistory: string;
+  tree: string;
+  treeView: string;
+}
+
+const defaultLabels: FileChangesLabels = {
+  binary: "binary",
+  changed: "Files Changed",
+  collapseDirectory: "Collapse {0}",
+  expandDirectory: "Expand {0}",
+  list: "List",
+  listView: "List view",
+  openDiff: "Open diff for {0}",
+  openFile: "Open file {0}",
+  openFileHistory: "Open file history for {0}",
+  tree: "Tree",
+  treeView: "Tree view"
+};
+
 export interface FileChangesProps {
   files: readonly FileChangeViewModel[];
+  labels?: Partial<FileChangesLabels>;
   mode: FileViewMode;
   onModeChange?: (mode: FileViewMode) => void;
   onOpenFile?: (path: string) => void;
@@ -17,25 +46,28 @@ interface TreeNode {
 
 export function FileChanges({
   files,
+  labels,
   mode,
   onModeChange,
   onOpenFile,
   onOpenFileDiff,
   onOpenFileHistory
 }: FileChangesProps): ReactElement {
+  const text = { ...defaultLabels, ...labels };
   return (
-    <section aria-label="Files Changed" className="space-y-2">
+    <section aria-label={text.changed} className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold">Files Changed ({files.length})</h3>
+        <h3 className="text-xs font-semibold">{text.changed} ({files.length})</h3>
         <div className="flex overflow-hidden rounded-[3px] border border-[var(--vscode-button-border)]">
-          <FileViewModeButton active={mode === "tree"} label="Tree" mode="tree" onModeChange={onModeChange} />
-          <FileViewModeButton active={mode === "list"} label="List" mode="list" onModeChange={onModeChange} />
+          <FileViewModeButton active={mode === "tree"} ariaLabel={text.treeView} label={text.tree} mode="tree" onModeChange={onModeChange} />
+          <FileViewModeButton active={mode === "list"} ariaLabel={text.listView} label={text.list} mode="list" onModeChange={onModeChange} />
         </div>
       </div>
       <div className="rounded-[3px] border border-[var(--vscode-panel-border)]">
         {mode === "tree" ? (
           <TreeFileChanges
             files={files}
+            labels={text}
             onOpenFile={onOpenFile}
             onOpenFileDiff={onOpenFileDiff}
             onOpenFileHistory={onOpenFileHistory}
@@ -43,6 +75,7 @@ export function FileChanges({
         ) : (
           <ListFileChanges
             files={files}
+            labels={text}
             onOpenFile={onOpenFile}
             onOpenFileDiff={onOpenFileDiff}
             onOpenFileHistory={onOpenFileHistory}
@@ -55,18 +88,20 @@ export function FileChanges({
 
 function FileViewModeButton({
   active,
+  ariaLabel,
   label,
   mode,
   onModeChange
 }: {
   active: boolean;
+  ariaLabel: string;
   label: string;
   mode: FileViewMode;
   onModeChange?: (mode: FileViewMode) => void;
 }): ReactElement {
   return (
     <button
-      aria-label={`${label} view`}
+      aria-label={ariaLabel}
       aria-pressed={active}
       className={`px-2 py-1 text-[11px] ${active ? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]" : "bg-transparent text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"}`}
       onClick={() => onModeChange?.(mode)}
@@ -79,16 +114,24 @@ function FileViewModeButton({
 
 function ListFileChanges({
   files,
+  labels,
   onOpenFile,
   onOpenFileDiff,
   onOpenFileHistory
-}: Omit<FileChangesProps, "mode">): ReactElement {
+}: {
+  files: readonly FileChangeViewModel[];
+  labels: FileChangesLabels;
+  onOpenFile?: (path: string) => void;
+  onOpenFileDiff?: (path: string) => void;
+  onOpenFileHistory?: (path: string) => void;
+}): ReactElement {
   return (
     <>
       {files.map((file) => (
         <FileRow
           file={file}
           key={file.path}
+          labels={labels}
           label={file.path}
           onOpenFile={onOpenFile}
           onOpenFileDiff={onOpenFileDiff}
@@ -101,10 +144,17 @@ function ListFileChanges({
 
 function TreeFileChanges({
   files,
+  labels,
   onOpenFile,
   onOpenFileDiff,
   onOpenFileHistory
-}: Omit<FileChangesProps, "mode">): ReactElement {
+}: {
+  files: readonly FileChangeViewModel[];
+  labels: FileChangesLabels;
+  onOpenFile?: (path: string) => void;
+  onOpenFileDiff?: (path: string) => void;
+  onOpenFileHistory?: (path: string) => void;
+}): ReactElement {
   const root = useMemo(() => buildTree(files), [files]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<ReadonlySet<string>>(new Set());
   const toggleDirectory = (path: string) => {
@@ -125,6 +175,7 @@ function TreeFileChanges({
       {renderTree({
         collapsedDirectories,
         depth: 0,
+        labels,
         node: root,
         onOpenFile,
         onOpenFileDiff,
@@ -139,6 +190,7 @@ function TreeFileChanges({
 function renderTree(input: {
   collapsedDirectories: ReadonlySet<string>;
   depth: number;
+  labels: FileChangesLabels;
   node: TreeNode;
   onOpenFile?: (path: string) => void;
   onOpenFileDiff?: (path: string) => void;
@@ -153,6 +205,7 @@ function renderTree(input: {
           depth={input.depth}
           file={child.file}
           key={child.file.path}
+          labels={input.labels}
           label={name}
           onOpenFile={input.onOpenFile}
           onOpenFileDiff={input.onOpenFileDiff}
@@ -166,7 +219,7 @@ function renderTree(input: {
     return [
       <button
         aria-expanded={!collapsed}
-        aria-label={`${collapsed ? "Expand" : "Collapse"} ${directoryPath}`}
+        aria-label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directoryPath)}
         className="flex w-full items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-[11px] text-[var(--vscode-descriptionForeground)] last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
         key={`directory-${input.depth}-${directoryPath}`}
         onClick={() => input.toggleDirectory(directoryPath)}
@@ -192,6 +245,7 @@ function renderTree(input: {
 function FileRow({
   depth = 0,
   file,
+  labels,
   label,
   onOpenFile,
   onOpenFileDiff,
@@ -199,6 +253,7 @@ function FileRow({
 }: {
   depth?: number;
   file: FileChangeViewModel;
+  labels: FileChangesLabels;
   label: string;
   onOpenFile?: (path: string) => void;
   onOpenFileDiff?: (path: string) => void;
@@ -210,10 +265,10 @@ function FileRow({
       style={{ paddingLeft: `${8 + depth * 14}px` }}
     >
       <span className="rounded-[2px] bg-[var(--vscode-badge-background)] px-1 py-0.5 text-[10px] text-[var(--vscode-badge-foreground)]">
-        {file.binary ? "binary" : file.status}
+        {file.binary ? labels.binary : file.status}
       </span>
       <button
-        aria-label={`Open diff for ${file.path}`}
+        aria-label={formatLabel(labels.openDiff, file.path)}
         className="min-w-0 truncate bg-transparent text-left hover:underline"
         onClick={() => onOpenFileDiff?.(file.path)}
         type="button"
@@ -224,8 +279,8 @@ function FileRow({
         <span className="text-[#28a745]">+{file.insertions}</span>{" "}
         <span className="text-[#dc3545]">-{file.deletions}</span>
       </span>
-      <FileActionButton icon="openFile" label={`Open file ${file.path}`} onClick={() => onOpenFile?.(file.path)} />
-      <FileActionButton icon="history" label={`Open file history for ${file.path}`} onClick={() => onOpenFileHistory?.(file.path)} />
+      <FileActionButton icon="history" label={formatLabel(labels.openFileHistory, file.path)} onClick={() => onOpenFileHistory?.(file.path)} />
+      <FileActionButton icon="openFile" label={formatLabel(labels.openFile, file.path)} onClick={() => onOpenFile?.(file.path)} />
     </div>
   );
 }
@@ -304,4 +359,8 @@ function countFiles(node: TreeNode): number {
   }
 
   return count;
+}
+
+function formatLabel(label: string, value: string): string {
+  return label.replace("{0}", value);
 }

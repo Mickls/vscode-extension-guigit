@@ -10,40 +10,42 @@ interface ToolbarActionItem {
   title?: string;
 }
 
-const toolbarActions: readonly ToolbarActionItem[] = [
-  {
-    action: "refresh",
-    icon: <RefreshIcon />,
-    label: "Refresh"
-  },
-  {
-    action: "pull",
-    gitOperation: true,
-    icon: <PullIcon />,
-    label: "Pull",
-    title: "Pull (Command+click for Advanced Pull)"
-  },
-  {
-    action: "push",
-    gitOperation: true,
-    icon: <PushIcon />,
-    label: "Push",
-    title: "Push (Command+click for Advanced Push)"
-  },
-  {
-    action: "fetch",
-    gitOperation: true,
-    icon: <FetchIcon />,
-    label: "Fetch"
-  },
-  {
-    action: "settings",
-    icon: <SettingsIcon />,
-    label: "Settings"
-  }
-];
+export interface HeaderLabels {
+  authorPlaceholder: string;
+  fetch: string;
+  filterAuthor: string;
+  graph: string;
+  hideGraph: string;
+  pull: string;
+  pullTitle: string;
+  push: string;
+  pushTitle: string;
+  refresh: string;
+  searchCommits: string;
+  searchPlaceholder: string;
+  settings: string;
+  showGraph: string;
+}
+
+const defaultLabels: HeaderLabels = {
+  authorPlaceholder: "Author",
+  fetch: "Fetch",
+  filterAuthor: "Filter author",
+  graph: "Graph",
+  hideGraph: "Hide Git Graph",
+  pull: "Pull",
+  pullTitle: "Pull (Command+click for Advanced Pull)",
+  push: "Push",
+  pushTitle: "Push (Command+click for Advanced Push)",
+  refresh: "Refresh",
+  searchCommits: "Search commits",
+  searchPlaceholder: "Search commits",
+  settings: "Settings",
+  showGraph: "Show Git Graph"
+};
 
 export interface HeaderProps {
+  labels?: Partial<HeaderLabels>;
   graphVisible?: boolean;
   onGraphToggle?: () => void;
   onAdvancedPull?: () => void;
@@ -58,6 +60,7 @@ export interface HeaderProps {
 }
 
 export function Header({
+  labels,
   graphVisible = true,
   onAdvancedPull,
   onAdvancedPush,
@@ -70,7 +73,40 @@ export function Header({
   gitOperationBusy = false,
   settingsOpen = false
 }: HeaderProps): ReactElement {
-  const graphLabel = graphVisible ? "Hide Git Graph" : "Show Git Graph";
+  const text = { ...defaultLabels, ...labels };
+  const graphLabel = graphVisible ? text.hideGraph : text.showGraph;
+  const toolbarActions: readonly ToolbarActionItem[] = [
+    {
+      action: "refresh",
+      icon: <RefreshIcon />,
+      label: text.refresh
+    },
+    {
+      action: "pull",
+      gitOperation: true,
+      icon: <PullIcon />,
+      label: text.pull,
+      title: text.pullTitle
+    },
+    {
+      action: "push",
+      gitOperation: true,
+      icon: <PushIcon />,
+      label: text.push,
+      title: text.pushTitle
+    },
+    {
+      action: "fetch",
+      gitOperation: true,
+      icon: <FetchIcon />,
+      label: text.fetch
+    },
+    {
+      action: "settings",
+      icon: <SettingsIcon />,
+      label: text.settings
+    }
+  ];
   const skippedClickActionRef = useRef<ToolbarAction | undefined>(undefined);
   const advancedHandlers: Partial<Record<ToolbarAction, () => void>> = {
     pull: onAdvancedPull,
@@ -132,15 +168,15 @@ export function Header({
         main
       </button>
       <input
-        aria-label="Search commits"
+        aria-label={text.searchCommits}
         className="h-7 min-w-[180px] flex-1 rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
-        placeholder="Search commits"
+        placeholder={text.searchPlaceholder}
         type="search"
       />
       <input
-        aria-label="Filter author"
+        aria-label={text.filterAuthor}
         className="h-7 w-[150px] rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
-        placeholder="Author"
+        placeholder={text.authorPlaceholder}
         type="search"
       />
       <div className="flex items-center gap-1">
@@ -153,7 +189,7 @@ export function Header({
           type="button"
         >
           <GraphIcon />
-          <span>Graph</span>
+          <span>{text.graph}</span>
         </button>
         {toolbarActions.map((item) => (
           <button

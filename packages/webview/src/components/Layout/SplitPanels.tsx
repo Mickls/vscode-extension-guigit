@@ -4,16 +4,49 @@ import { useEffect, useRef, useState } from "react";
 export interface SplitPanelsProps {
   initialLeftCollapsed?: boolean;
   initialRightCollapsed?: boolean;
+  labels?: Partial<SplitPanelsLabels>;
   left: ReactNode;
   right: ReactNode;
 }
 
+export interface SplitPanelsLabels {
+  author: string;
+  collapseCommitDetails: string;
+  collapseCommitList: string;
+  commitDetailsPanel: string;
+  commitListPanel: string;
+  date: string;
+  expandCommitDetails: string;
+  expandCommitList: string;
+  hash: string;
+  message: string;
+  refs: string;
+  resizePanels: string;
+}
+
+const defaultLabels: SplitPanelsLabels = {
+  author: "Author",
+  collapseCommitDetails: "Collapse commit details panel",
+  collapseCommitList: "Collapse commit list panel",
+  commitDetailsPanel: "Commit details panel",
+  commitListPanel: "Commit list panel",
+  date: "Date",
+  expandCommitDetails: "Expand commit details panel",
+  expandCommitList: "Expand commit list panel",
+  hash: "Hash",
+  message: "Message",
+  refs: "Refs",
+  resizePanels: "Resize panels"
+};
+
 export function SplitPanels({
   initialLeftCollapsed = false,
   initialRightCollapsed = false,
+  labels,
   left,
   right
 }: SplitPanelsProps): ReactElement {
+  const text = { ...defaultLabels, ...labels };
   const splitPanelsRef = useRef<HTMLDivElement>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(initialLeftCollapsed && !initialRightCollapsed);
   const [rightCollapsed, setRightCollapsed] = useState(initialRightCollapsed);
@@ -100,7 +133,7 @@ export function SplitPanels({
       ref={splitPanelsRef}
     >
       <section
-        aria-label="Commit list panel"
+        aria-label={text.commitListPanel}
         className="relative flex min-w-[650px] flex-col overflow-hidden transition-[width] duration-300 data-[collapsed=true]:min-w-10 data-[collapsed=true]:max-w-10 data-[resizing=true]:transition-none"
         data-collapsed={leftCollapsed}
         data-resizing={isResizing}
@@ -109,15 +142,15 @@ export function SplitPanels({
         <div className="sticky top-0 z-10 flex h-10 shrink-0 items-center justify-between border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)] px-3 py-0.5 data-[collapsed=true]:justify-center data-[collapsed=true]:border-b-0">
           {!leftCollapsed ? (
             <div className="grid flex-1 grid-cols-[80px_minmax(180px,1fr)_minmax(96px,180px)_120px_100px] gap-3 text-[11px] text-[var(--vscode-descriptionForeground)]">
-              <span>Hash</span>
-              <span>Message</span>
-              <span>Refs</span>
-              <span>Author</span>
-              <span>Date</span>
+              <span>{text.hash}</span>
+              <span>{text.message}</span>
+              <span>{text.refs}</span>
+              <span>{text.author}</span>
+              <span>{text.date}</span>
             </div>
           ) : null}
           <button
-            aria-label={leftCollapsed ? "Expand commit list panel" : "Collapse commit list panel"}
+            aria-label={leftCollapsed ? text.expandCommitList : text.collapseCommitList}
             className="flex h-6 min-w-6 items-center justify-center rounded-[3px] border border-[var(--vscode-button-border)] bg-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             onClick={toggleLeftPanel}
             type="button"
@@ -129,7 +162,7 @@ export function SplitPanels({
       </section>
 
       <div
-        aria-label="Resize panels"
+        aria-label={text.resizePanels}
         aria-orientation="vertical"
         aria-valuemax={80}
         aria-valuemin={20}
@@ -142,7 +175,7 @@ export function SplitPanels({
       />
 
       <section
-        aria-label="Commit details panel"
+        aria-label={text.commitDetailsPanel}
         className="relative flex min-w-0 flex-col overflow-y-auto transition-[width] duration-300 data-[collapsed=true]:min-w-10 data-[collapsed=true]:max-w-10 data-[collapsed=true]:overflow-hidden data-[resizing=true]:transition-none"
         data-collapsed={rightCollapsed}
         data-resizing={isResizing}
@@ -150,7 +183,7 @@ export function SplitPanels({
       >
         <div className="sticky top-0 z-10 flex h-10 shrink-0 items-center border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)] p-0.5 data-[collapsed=true]:justify-center data-[collapsed=true]:border-b-0">
           <button
-            aria-label={rightCollapsed ? "Expand commit details panel" : "Collapse commit details panel"}
+            aria-label={rightCollapsed ? text.expandCommitDetails : text.collapseCommitDetails}
             className="flex h-6 min-w-6 items-center justify-center rounded-[3px] border border-[var(--vscode-button-border)] bg-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             onClick={toggleRightPanel}
             type="button"

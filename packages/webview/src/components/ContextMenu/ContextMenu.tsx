@@ -15,28 +15,27 @@ export type ContextMenuAction =
 
 interface ContextMenuActionItem {
   action: ContextMenuAction;
-  label: string;
 }
 
 const actionGroups: readonly (readonly ContextMenuActionItem[])[] = [
   [
-    { action: "copyHash", label: "Copy Hash" },
-    { action: "cherryPick", label: "Cherry Pick" },
-    { action: "revert", label: "Revert" }
+    { action: "copyHash" },
+    { action: "cherryPick" },
+    { action: "revert" }
   ],
-  [{ action: "editCommitMessage", label: "Edit Commit Message" }],
+  [{ action: "editCommitMessage" }],
   [
-    { action: "compare", label: "Compare Selected" },
-    { action: "squash", label: "Squash Commits" }
-  ],
-  [
-    { action: "createBranch", label: "Create Branch" },
-    { action: "pushToCommit", label: "Push All Commits to Here" }
+    { action: "compare" },
+    { action: "squash" }
   ],
   [
-    { action: "resetSoft", label: "Reset Soft" },
-    { action: "resetMixed", label: "Reset Mixed" },
-    { action: "resetHard", label: "Reset Hard" }
+    { action: "createBranch" },
+    { action: "pushToCommit" }
+  ],
+  [
+    { action: "resetSoft" },
+    { action: "resetMixed" },
+    { action: "resetHard" }
   ]
 ];
 
@@ -44,9 +43,35 @@ const viewportPadding = 8;
 const menuWidth = 150;
 const estimatedMenuHeight = 360;
 
+export interface ContextMenuLabels extends Record<ContextMenuAction, string> {
+  compareSelectedCount: string;
+  compareSelectedProgress: string;
+  menuLabel: string;
+  squashCommitsCount: string;
+}
+
+const defaultLabels: ContextMenuLabels = {
+  cherryPick: "Cherry Pick",
+  compare: "Compare Selected",
+  compareSelectedCount: "Compare Selected ({0})",
+  compareSelectedProgress: "Compare Selected ({0}/2)",
+  copyHash: "Copy Hash",
+  createBranch: "Create Branch",
+  editCommitMessage: "Edit Commit Message",
+  menuLabel: "Commit actions",
+  pushToCommit: "Push All Commits to Here",
+  resetHard: "Reset Hard",
+  resetMixed: "Reset Mixed",
+  resetSoft: "Reset Soft",
+  revert: "Revert",
+  squash: "Squash Commits",
+  squashCommitsCount: "Squash {0} Commits"
+};
+
 export interface ContextMenuProps {
   canEditCommitMessage: boolean;
   canSquashCommits?: boolean;
+  labels?: Partial<ContextMenuLabels>;
   onAction?: (action: ContextMenuAction) => void;
   selectedCommitCount: number;
   visible: boolean;
@@ -57,6 +82,7 @@ export interface ContextMenuProps {
 export function ContextMenu({
   canEditCommitMessage,
   canSquashCommits,
+  labels,
   onAction,
   selectedCommitCount,
   visible,
@@ -70,10 +96,11 @@ export function ContextMenu({
   const squashEnabled = canSquashCommits ?? selectedCommitCount > 1;
   const left = clampToViewport(x, window.innerWidth, menuWidth);
   const top = clampToViewport(y, window.innerHeight, estimatedMenuHeight);
+  const text = { ...defaultLabels, ...labels };
 
   return (
     <div
-      aria-label="Commit actions"
+      aria-label={text.menuLabel}
       className="fixed z-[1000] min-w-[150px] max-w-[calc(100vw-20px)] rounded border border-[var(--vscode-menu-border)] bg-[var(--vscode-menu-background)] py-1 text-xs shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
       onPointerDown={(event) => event.stopPropagation()}
       role="menu"
@@ -100,7 +127,7 @@ export function ContextMenu({
               role="menuitem"
               type="button"
             >
-              {labelFor(item, selectedCommitCount)}
+              {labelFor(item.action, selectedCommitCount, text)}
             </button>
           ))}
           {groupIndex < actionGroups.length - 1 ? (
@@ -140,14 +167,20 @@ function clampToViewport(value: number, viewportSize: number, elementSize: numbe
   return Math.min(Math.max(value, viewportPadding), Math.max(viewportPadding, viewportSize - elementSize - viewportPadding));
 }
 
-function labelFor(item: ContextMenuActionItem, selectedCommitCount: number): string {
-  if (item.action === "compare") {
-    return selectedCommitCount === 2 ? "Compare Selected (2)" : `Compare Selected (${selectedCommitCount}/2)`;
+function labelFor(action: ContextMenuAction, selectedCommitCount: number, labels: ContextMenuLabels): string {
+  if (action === "compare") {
+    return selectedCommitCount === 2
+      ? formatLabel(labels.compareSelectedCount, selectedCommitCount)
+      : formatLabel(labels.compareSelectedProgress, selectedCommitCount);
   }
 
-  if (item.action === "squash" && selectedCommitCount > 1) {
-    return `Squash ${selectedCommitCount} Commits`;
+  if (action === "squash" && selectedCommitCount > 1) {
+    return formatLabel(labels.squashCommitsCount, selectedCommitCount);
   }
 
-  return item.label;
+  return labels[action];
+}
+
+function formatLabel(label: string, value: number): string {
+  return label.replace("{0}", value.toString());
 }

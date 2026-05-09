@@ -1,6 +1,6 @@
 import { useEffect, useRef, type UIEvent, type MouseEvent, type ReactElement } from "react";
 import type { CommitListItemViewModel, GraphLayoutViewModel } from "../../app/rpcContract.generated";
-import { GitGraph } from "../GitGraph/GitGraph";
+import { GitGraph, type GitGraphLabels } from "../GitGraph/GitGraph";
 
 const emptyGraph: GraphLayoutViewModel = {
   edges: [],
@@ -14,6 +14,7 @@ const maximumGraphViewportWidth = 240;
 export interface CommitListProps {
   commits?: readonly CommitListItemViewModel[];
   graph?: GraphLayoutViewModel;
+  graphLabels?: Partial<GitGraphLabels>;
   graphVisible?: boolean;
   onGraphNodeSelect?: (hash: string) => void;
   onLoadMore?: () => void;
@@ -30,6 +31,7 @@ export interface CommitSelectionIntent {
 export function CommitList({
   commits = [],
   graph = emptyGraph,
+  graphLabels,
   graphVisible = true,
   onGraphNodeSelect,
   onLoadMore,
@@ -65,7 +67,7 @@ export function CommitList({
             width: `${Math.min(Math.max(graph.width, minimumGraphViewportWidth), maximumGraphViewportWidth)}px`
           }}
         >
-          <GitGraph graph={graph} onNodeSelect={onGraphNodeSelect} rowCount={commits.length} />
+          <GitGraph graph={graph} labels={graphLabels} onNodeSelect={onGraphNodeSelect} rowCount={commits.length} />
         </div>
       ) : null}
       <div className="min-w-0 flex-1">

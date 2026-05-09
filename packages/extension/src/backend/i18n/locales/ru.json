@@ -19,8 +19,8 @@
       "noRemote": "Удалённых веток нет",
       "all": "Все ветки"
     },
-    "pullTooltip": "Pull (Ctrl+клик для дополнительных опций)",
-    "pushTooltip": "Push (Ctrl+клик для дополнительных опций)",
+    "pullTooltip": "Pull (Command+click для расширенного Pull)",
+    "pushTooltip": "Push (Command+click для расширенного Push)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Clone",
     "checkoutTooltip": "Checkout",
@@ -66,7 +66,8 @@
         "invalidName": "Требуется имя удалённого репозитория",
         "invalidUrl": "Требуется URL удалённого репозитория",
         "duplicateName": "Удалённый «{0}» уже существует",
-        "removeConfirm": "Удалить удалённый «{0}»?"
+        "removeConfirm": "Удалить удалённый «{0}»?",
+        "invalidUrlFormat": "URL remote должен начинаться с git@ или https://"
       }
     },
     "gitOperations": {
@@ -75,7 +76,9 @@
       "fetch": "Fetch",
       "clone": "Clone",
       "checkout": "Checkout",
-      "settings": "Настройки"
+      "settings": "Настройки",
+      "advancedPull": "Расширенный Pull",
+      "advancedPush": "Расширенный Push"
     },
     "clone": {
       "prompt": "Введите URL репозитория для клонирования",
@@ -179,7 +182,8 @@
       "tags": "Теги",
       "author": "Автор",
       "date": "Дата",
-      "compareCommits": "Сравнение коммитов"
+      "compareCommits": "Сравнение коммитов",
+      "refs": "Refs"
     },
     "authorFilterPrefix": "Автор: ",
     "authorFilterCurrent": "Текущий фильтр: {0}",
@@ -201,12 +205,68 @@
       "pushToCommit": "Отправить все коммиты до этого",
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
-      "resetHard": "Reset (Hard)"
+      "resetHard": "Reset (Hard)",
+      "menuLabel": "Действия с коммитом",
+      "compareSelectedCount": "Сравнить выбранные ({0})",
+      "compareSelectedProgress": "Сравнить выбранные ({0}/2)",
+      "squashCommitsCount": "Squash {0} коммитов",
+      "reset": "Reset"
     },
     "postPush": {
       "createPullRequestPrompt": "Ветка \"{0}\" отправлена. Создать Pull Request? (Закроется через {1} с)",
       "openPullRequestAction": "Открыть Pull Request",
       "dismissAction": "Не сейчас"
+    },
+    "header": {
+      "searchCommits": "Поиск коммитов",
+      "filterAuthor": "Фильтр автора"
+    },
+    "graph": {
+      "toggle": "Граф",
+      "hide": "Скрыть Git-граф",
+      "show": "Показать Git-граф",
+      "label": "Git-граф",
+      "selectCommit": "Выбрать коммит {0} на графе"
+    },
+    "panels": {
+      "commitList": "Панель списка коммитов",
+      "commitDetails": "Панель деталей коммита",
+      "collapseCommitList": "Свернуть панель списка коммитов",
+      "expandCommitList": "Развернуть панель списка коммитов",
+      "collapseCommitDetails": "Свернуть панель деталей коммита",
+      "expandCommitDetails": "Развернуть панель деталей коммита",
+      "resize": "Изменить размер панелей"
+    },
+    "files": {
+      "changed": "Измененные файлы",
+      "tree": "Дерево",
+      "list": "Список",
+      "treeView": "Вид дерева",
+      "listView": "Вид списка",
+      "expandDirectory": "Развернуть {0}",
+      "collapseDirectory": "Свернуть {0}",
+      "openDiff": "Открыть diff для {0}",
+      "openFile": "Открыть файл {0}",
+      "openFileHistory": "Открыть историю файла {0}",
+      "binary": "бинарный"
+    },
+    "compare": {
+      "title": "Сравнить коммиты",
+      "close": "Закрыть сравнение",
+      "from": "От",
+      "to": "до",
+      "baseCommit": "Базовый коммит",
+      "targetCommit": "Целевой коммит",
+      "changedFiles": "Измененные файлы",
+      "openDiff": "Открыть diff для {0}"
+    },
+    "conflict": {
+      "label": "Git-конфликт",
+      "resolvedAndStaged": "Решено и staged",
+      "abort": "Прервать"
+    },
+    "status": {
+      "running": "{0} выполняется..."
     }
   }
 }

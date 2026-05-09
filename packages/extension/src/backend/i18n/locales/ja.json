@@ -19,8 +19,8 @@
       "noRemote": "リモートブランチがありません",
       "all": "すべてのブランチ"
     },
-    "pullTooltip": "Pull (Ctrl+クリックで詳細オプション)",
-    "pushTooltip": "Push (Ctrl+クリックで詳細オプション)",
+    "pullTooltip": "Pull (Command+クリックで高度な Pull)",
+    "pushTooltip": "Push (Command+クリックで高度な Push)",
     "fetchTooltip": "Fetch",
     "cloneTooltip": "Clone",
     "checkoutTooltip": "Checkout",
@@ -66,7 +66,8 @@
         "invalidName": "リモート名は必須です",
         "invalidUrl": "リモートURLは必須です",
         "duplicateName": "リモート「{0}」は既に存在します",
-        "removeConfirm": "リモート「{0}」を削除しますか？"
+        "removeConfirm": "リモート「{0}」を削除しますか？",
+        "invalidUrlFormat": "リモート URL は git@ または https:// で始める必要があります"
       }
     },
     "gitOperations": {
@@ -75,7 +76,9 @@
       "fetch": "Fetch",
       "clone": "Clone",
       "checkout": "Checkout",
-      "settings": "Settings"
+      "settings": "Settings",
+      "advancedPull": "高度な Pull",
+      "advancedPush": "高度な Push"
     },
     "clone": {
       "prompt": "クローンするリポジトリの URL を入力してください",
@@ -179,7 +182,8 @@
       "tags": "タグ",
       "author": "作者",
       "date": "日付",
-      "compareCommits": "コミットを比較"
+      "compareCommits": "コミットを比較",
+      "refs": "Refs"
     },
     "authorFilterPrefix": "作者: ",
     "authorFilterCurrent": "現在のフィルター: {0}",
@@ -201,12 +205,68 @@
       "pushToCommit": "ここまでのコミットを push",
       "resetSoft": "Reset (Soft)",
       "resetMixed": "Reset (Mixed)",
-      "resetHard": "Reset (Hard)"
+      "resetHard": "Reset (Hard)",
+      "menuLabel": "コミット操作",
+      "compareSelectedCount": "選択を比較 ({0})",
+      "compareSelectedProgress": "選択を比較 ({0}/2)",
+      "squashCommitsCount": "{0} 件のコミットを squash",
+      "reset": "Reset"
     },
     "postPush": {
       "createPullRequestPrompt": "ブランチ「{0}」をプッシュしました。Pull Request を作成しますか？（{1} 秒後に自動的に閉じます）",
       "openPullRequestAction": "Pull Request を開く",
       "dismissAction": "今はしない"
+    },
+    "header": {
+      "searchCommits": "コミットを検索",
+      "filterAuthor": "作者をフィルター"
+    },
+    "graph": {
+      "toggle": "グラフ",
+      "hide": "Git グラフを隠す",
+      "show": "Git グラフを表示",
+      "label": "Git グラフ",
+      "selectCommit": "グラフ内のコミット {0} を選択"
+    },
+    "panels": {
+      "commitList": "コミット一覧パネル",
+      "commitDetails": "コミット詳細パネル",
+      "collapseCommitList": "コミット一覧パネルを折りたたむ",
+      "expandCommitList": "コミット一覧パネルを展開",
+      "collapseCommitDetails": "コミット詳細パネルを折りたたむ",
+      "expandCommitDetails": "コミット詳細パネルを展開",
+      "resize": "パネルサイズを変更"
+    },
+    "files": {
+      "changed": "変更ファイル",
+      "tree": "ツリー",
+      "list": "リスト",
+      "treeView": "ツリー表示",
+      "listView": "リスト表示",
+      "expandDirectory": "{0} を展開",
+      "collapseDirectory": "{0} を折りたたむ",
+      "openDiff": "{0} の差分を開く",
+      "openFile": "ファイル {0} を開く",
+      "openFileHistory": "{0} のファイル履歴を開く",
+      "binary": "バイナリ"
+    },
+    "compare": {
+      "title": "コミットを比較",
+      "close": "比較を閉じる",
+      "from": "From",
+      "to": "to",
+      "baseCommit": "ベースコミット",
+      "targetCommit": "ターゲットコミット",
+      "changedFiles": "変更ファイル",
+      "openDiff": "{0} の比較差分を開く"
+    },
+    "conflict": {
+      "label": "Git 競合",
+      "resolvedAndStaged": "解決してステージ済み",
+      "abort": "中止"
+    },
+    "status": {
+      "running": "{0} を実行中..."
     }
   }
 }

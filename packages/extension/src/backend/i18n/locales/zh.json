@@ -19,8 +19,8 @@
       "noRemote": "暂无远程分支",
       "all": "所有分支"
     },
-    "pullTooltip": "拉取 (Ctrl+点击获取高级选项)",
-    "pushTooltip": "推送 (Ctrl+点击获取高级选项)",
+    "pullTooltip": "拉取（Command+点击打开高级拉取）",
+    "pushTooltip": "推送（Command+点击打开高级推送）",
     "fetchTooltip": "抓取",
     "cloneTooltip": "克隆",
     "checkoutTooltip": "签出",
@@ -66,16 +66,19 @@
         "invalidName": "远程名称不能为空",
         "invalidUrl": "远程地址不能为空",
         "duplicateName": "远程 \"{0}\" 已存在",
-        "removeConfirm": "确定要删除远程 \"{0}\" 吗？"
+        "removeConfirm": "确定要删除远程 \"{0}\" 吗？",
+        "invalidUrlFormat": "远程地址必须以 git@ 或 https:// 开头"
       }
     },
     "gitOperations": {
-      "pull": "拉取",
-      "push": "推送",
-      "fetch": "抓取",
-      "clone": "克隆",
-      "checkout": "签出",
-      "settings": "设置"
+      "pull": "pull",
+      "push": "push",
+      "fetch": "fetch",
+      "clone": "clone",
+      "checkout": "checkout",
+      "settings": "设置",
+      "advancedPull": "advanced pull",
+      "advancedPush": "advanced push"
     },
     "clone": {
       "prompt": "输入要克隆的仓库地址",
@@ -179,7 +182,8 @@
       "tags": "标签",
       "author": "作者",
       "date": "日期",
-      "compareCommits": "比较提交"
+      "compareCommits": "比较提交",
+      "refs": "引用"
     },
     "authorFilterPrefix": "作者：",
     "authorFilterCurrent": "当前筛选：{0}",
@@ -201,12 +205,68 @@
       "pushToCommit": "推送所有提交至此",
       "resetSoft": "重置 (Soft)",
       "resetMixed": "重置 (Mixed)",
-      "resetHard": "重置 (Hard)"
+      "resetHard": "重置 (Hard)",
+      "menuLabel": "提交操作",
+      "compareSelectedCount": "比较选中 ({0})",
+      "compareSelectedProgress": "比较选中 ({0}/2)",
+      "squashCommitsCount": "压缩 {0} 个提交",
+      "reset": "重置"
     },
     "postPush": {
       "createPullRequestPrompt": "分支 \"{0}\" 已推送。是否前往创建 Pull Request？（{1} 秒后自动关闭）",
       "openPullRequestAction": "打开 Pull Request 页面",
       "dismissAction": "暂不提醒"
+    },
+    "header": {
+      "searchCommits": "搜索提交",
+      "filterAuthor": "筛选作者"
+    },
+    "graph": {
+      "toggle": "图谱",
+      "hide": "隐藏 Git 图谱",
+      "show": "显示 Git 图谱",
+      "label": "Git 图谱",
+      "selectCommit": "在图谱中选择提交 {0}"
+    },
+    "panels": {
+      "commitList": "提交列表面板",
+      "commitDetails": "提交详情面板",
+      "collapseCommitList": "折叠提交列表面板",
+      "expandCommitList": "展开提交列表面板",
+      "collapseCommitDetails": "折叠提交详情面板",
+      "expandCommitDetails": "展开提交详情面板",
+      "resize": "调整面板大小"
+    },
+    "files": {
+      "changed": "文件变更",
+      "tree": "树",
+      "list": "列表",
+      "treeView": "树视图",
+      "listView": "列表视图",
+      "expandDirectory": "展开 {0}",
+      "collapseDirectory": "折叠 {0}",
+      "openDiff": "打开 {0} 的差异",
+      "openFile": "打开文件 {0}",
+      "openFileHistory": "打开 {0} 的文件历史",
+      "binary": "二进制"
+    },
+    "compare": {
+      "title": "比较提交",
+      "close": "关闭比较",
+      "from": "从",
+      "to": "到",
+      "baseCommit": "基础提交",
+      "targetCommit": "目标提交",
+      "changedFiles": "变更文件",
+      "openDiff": "打开 {0} 的比较差异"
+    },
+    "conflict": {
+      "label": "Git 冲突",
+      "resolvedAndStaged": "已解决并暂存",
+      "abort": "中止"
+    },
+    "status": {
+      "running": "{0} 正在执行..."
     }
   }
 }

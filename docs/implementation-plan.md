@@ -472,5 +472,5 @@ gui-git-history/
 - [ ] Remote manager works.
 - [ ] Proxy settings work.
 - [ ] Blame works.
-- [ ] Language switching works.
+- [x] Language switching works.
 - [ ] VSIX installs over the old extension identity.
