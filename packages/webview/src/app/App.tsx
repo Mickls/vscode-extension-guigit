@@ -8,6 +8,7 @@ import type {
   FileViewMode,
   GitResetMode,
   GraphLayoutViewModel,
+  OperationResultViewModel,
   RpcRequest,
   RemoteViewModel,
   RpcResponse
@@ -15,7 +16,7 @@ import type {
 import type { RpcClient } from "./rpcClient";
 import { CompareOverlay } from "../components/CompareOverlay/CompareOverlay";
 import { CommitDetails } from "../components/CommitDetails/CommitDetails";
-import { CommitList } from "../components/CommitList/CommitList";
+import { CommitList, type CommitSelectionIntent } from "../components/CommitList/CommitList";
 import { ContextMenu, type ContextMenuAction } from "../components/ContextMenu/ContextMenu";
 import { Header } from "../components/Header/Header";
 import { SplitPanels } from "../components/Layout/SplitPanels";
@@ -93,8 +94,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [graphVisible, setGraphVisible] = useState(true);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | undefined>();
+  const [selectedCommitHashes, setSelectedCommitHashes] = useState<readonly string[]>([]);
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
+  const [compareFiles, setCompareFiles] = useState<readonly FileChangeViewModel[]>(emptyCompareFiles);
+  const [compareHashes, setCompareHashes] = useState<readonly [string, string] | undefined>();
   const [operationNotification, setOperationNotification] = useState<OperationNotification | undefined>();
   const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | undefined>();
   const [conflictOperation, setConflictOperation] = useState<OperationNotification | undefined>();
@@ -105,6 +109,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const selectedRepositoryIdRef = useRef<string | undefined>(undefined);
   const loadingMoreRef = useRef(false);
   const selectedCommitHashRef = useRef<string | undefined>(undefined);
+  const selectedCommitHashesRef = useRef<readonly string[]>([]);
   const commitDetailsRef = useRef<CommitDetailsViewModel | undefined>(undefined);
   const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState({
@@ -118,6 +123,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
     setCommitDetails(details);
+  };
+  const updateSelectedCommitHashes = (hashes: readonly string[]) => {
+    selectedCommitHashesRef.current = hashes;
+    setSelectedCommitHashes(hashes);
   };
 
   useEffect(() => {
@@ -133,6 +142,18 @@ export function App({ rpcClient }: AppProps): ReactElement {
     const timeout = window.setTimeout(() => setOperationNotification(undefined), 3500);
     return () => window.clearTimeout(timeout);
   }, [operationNotification]);
+
+  useEffect(() => {
+    if (!contextMenu.visible) {
+      return;
+    }
+
+    const closeContextMenu = () => {
+      setContextMenu((current) => ({ ...current, visible: false }));
+    };
+    window.addEventListener("pointerdown", closeContextMenu);
+    return () => window.removeEventListener("pointerdown", closeContextMenu);
+  }, [contextMenu.visible]);
 
   useEffect(() => {
     if (!conflictOperation) {
@@ -225,6 +246,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if ((historyRequest?.revealHash && commit) || (!historyRequest?.append && !shouldProbeSelectedHash)) {
           setSelectedCommitHash(commit?.hash);
           selectedCommitHashRef.current = commit?.hash;
+          updateSelectedCommitHashes(commit ? [commit.hash] : []);
           if (!commit) {
             showCommitDetails(undefined);
           } else if (commitDetailsRef.current?.hash !== commit.hash) {
@@ -301,11 +323,15 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (isContextGitOperationResponse(response)) {
         setActiveGitOperation(undefined);
+        const result = getContextOperationResult(response);
+        if (response.type === "git.compareCommits") {
+          setCompareFiles(response.payload.files);
+        }
         setOperationNotification({
-          message: response.payload.message,
-          state: response.payload.status === "ok" ? "success" : "warning"
+          message: result.message,
+          state: result.status === "ok" ? "success" : "warning"
         });
-        if (response.payload.status === "ok" && response.type !== "git.copyHash" && response.type !== "git.compareCommits") {
+        if (result.status === "ok" && response.type !== "git.copyHash" && response.type !== "git.compareCommits") {
           requestHistory(client, pendingHistoryRequestsRef.current, {
             preserveSelection: true,
             repositoryId: selectedRepositoryIdRef.current
@@ -319,13 +345,43 @@ export function App({ rpcClient }: AppProps): ReactElement {
     return () => window.removeEventListener("message", handleMessage);
   }, [client]);
 
-  const selectCommit = (commit: CommitListItemViewModel) => {
+  const focusCommit = (commit: CommitListItemViewModel) => {
     setSelectedCommitHash(commit.hash);
     selectedCommitHashRef.current = commit.hash;
     showCommitDetails(createPendingCommitDetails(commit));
 
     if (selectedRepositoryId) {
       requestCommitDetails(client, selectedRepositoryId, commit.hash);
+    }
+  };
+
+  const selectCommit = (commit: CommitListItemViewModel, intent: CommitSelectionIntent = { additive: false }) => {
+    if (!intent.additive) {
+      updateSelectedCommitHashes([commit.hash]);
+      focusCommit(commit);
+      return;
+    }
+
+    const currentHashes = selectedCommitHashesRef.current;
+    const nextHashes = currentHashes.includes(commit.hash)
+      ? currentHashes.filter((hash) => hash !== commit.hash)
+      : [...currentHashes, commit.hash];
+    updateSelectedCommitHashes(nextHashes);
+
+    if (!currentHashes.includes(commit.hash)) {
+      focusCommit(commit);
+      return;
+    }
+
+    if (selectedCommitHashRef.current === commit.hash) {
+      const nextFocusedCommit = commitsRef.current.find((candidate) => candidate.hash === nextHashes[0]);
+      if (nextFocusedCommit) {
+        focusCommit(nextFocusedCommit);
+      } else {
+        setSelectedCommitHash(undefined);
+        selectedCommitHashRef.current = undefined;
+        showCommitDetails(undefined);
+      }
     }
   };
 
@@ -352,6 +408,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const openCommitContextMenu = (event: MouseEvent<HTMLElement>, commit: CommitListItemViewModel) => {
     event.preventDefault();
     setSettingsMenuOpen(false);
+    if (!selectedCommitHashesRef.current.includes(commit.hash)) {
+      updateSelectedCommitHashes([commit.hash]);
+      focusCommit(commit);
+    }
     setContextMenu({
       hash: commit.hash,
       visible: true,
@@ -362,7 +422,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
   const handleContextMenuAction = (action: ContextMenuAction) => {
     const contextHash = contextMenu.hash;
-    const selectedPair = getSelectedPair(selectedCommitHashRef.current, contextHash);
+    const selectedHashesInHistoryOrder = getSelectedHashesInHistoryOrder(commitsRef.current, selectedCommitHashesRef.current);
+    const selectedPair = selectedHashesInHistoryOrder.length === 2 ? selectedHashesInHistoryOrder : [];
     setContextMenu((current) => ({ ...current, visible: false }));
 
     if (!selectedRepositoryIdRef.current || !contextHash || activeGitOperation || conflictOperation) {
@@ -370,6 +431,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
     }
 
     if (action === "compare") {
+      setCompareHashes(selectedPair.length === 2 ? [selectedPair[0]!, selectedPair[1]!] : undefined);
+      setCompareFiles(emptyCompareFiles);
       startContextOperation({
         hashes: selectedPair,
         repositoryId: selectedRepositoryIdRef.current,
@@ -434,7 +497,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   };
 
   const openCompareFileDiff = (filePath: string) => {
-    const [fromHash, toHash] = getSelectedPair(selectedCommitHashRef.current, contextMenu.hash);
+    const [fromHash, toHash] = compareHashes ?? [];
     if (!selectedRepositoryIdRef.current || !fromHash || !toHash) {
       return;
     }
@@ -545,6 +608,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
             onGraphNodeSelect={selectGraphNode}
             onLoadMore={loadMoreCommits}
             selectedHash={selectedCommitHash}
+            selectedHashes={selectedCommitHashes}
           />
         }
         right={
@@ -560,8 +624,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
       />
       <ContextMenu
         canEditCommitMessage={commits.find((commit) => commit.hash === contextMenu.hash)?.canEditMessage ?? false}
+        canSquashCommits={canSquashSelectedCommits(commits, selectedCommitHashes)}
         onAction={handleContextMenuAction}
-        selectedCommitCount={getSelectedPair(selectedCommitHash, contextMenu.hash).length}
+        selectedCommitCount={selectedCommitHashes.length}
         visible={contextMenu.visible}
         x={contextMenu.x}
         y={contextMenu.y}
@@ -573,12 +638,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
         remotes={emptyRemotes}
       />
       <CompareOverlay
-        files={emptyCompareFiles}
-        fromHash={getSelectedPair(selectedCommitHash, contextMenu.hash)[0] ?? ""}
+        files={compareFiles}
+        fromHash={compareHashes?.[0] ?? ""}
         onClose={() => setCompareOverlayOpen(false)}
         onOpenFileDiff={openCompareFileDiff}
         open={compareOverlayOpen}
-        toHash={getSelectedPair(selectedCommitHash, contextMenu.hash)[1] ?? ""}
+        toHash={compareHashes?.[1] ?? ""}
       />
       {operationNotification ? (
         <OperationToast message={operationNotification.message} state={operationNotification.state} />
@@ -705,18 +770,6 @@ function isPrimaryGitOperationType(type: string): type is PrimaryGitOperationTyp
   );
 }
 
-function getSelectedPair(selectedHash: string | undefined, contextHash: string | undefined): readonly string[] {
-  if (!selectedHash || !contextHash) {
-    return [];
-  }
-
-  if (selectedHash === contextHash) {
-    return [contextHash];
-  }
-
-  return [selectedHash, contextHash];
-}
-
 function contextActionRequest(
   action: ContextMenuAction,
   repositoryId: string,
@@ -757,6 +810,40 @@ function contextActionRequest(
   }
 
   return undefined;
+}
+
+function getContextOperationResult(
+  response: Extract<RpcResponse, { type: ContextGitOperationType }>
+): OperationResultViewModel {
+  if (response.type === "git.compareCommits") {
+    return response.payload.result;
+  }
+
+  return response.payload;
+}
+
+function getSelectedHashesInHistoryOrder(
+  commits: readonly CommitListItemViewModel[],
+  hashes: readonly string[]
+): readonly string[] {
+  return commits
+    .filter((commit) => hashes.includes(commit.hash))
+    .map((commit) => commit.hash);
+}
+
+function canSquashSelectedCommits(
+  commits: readonly CommitListItemViewModel[],
+  selectedHashes: readonly string[]
+): boolean {
+  const selectedCommits = commits.filter((commit) => selectedHashes.includes(commit.hash));
+  if (selectedCommits.length < 2 || selectedCommits[0]?.hash !== commits[0]?.hash) {
+    return false;
+  }
+
+  return selectedCommits.every((commit, index) => {
+    const nextCommit = selectedCommits[index + 1];
+    return !nextCommit || commit.parents[0] === nextCommit.hash;
+  });
 }
 
 function resetModeFromContextAction(action: ContextMenuAction): GitResetMode | undefined {

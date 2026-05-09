@@ -1,9 +1,10 @@
 import { simpleGit } from "simple-git";
 import { env, window } from "vscode";
-import type { GitResetMode, OperationResultViewModel } from "../rpc/contract";
+import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
 import type { SettingsService } from "../../state/SettingsService";
 import type { Logger } from "../../logging/LoggerService";
+import { parseGitFileChanges } from "./FileChangeParser";
 
 interface QuickPickItem {
   label: string;
@@ -237,16 +238,25 @@ export class GitService {
     };
   }
 
-  public async compareCommits(repositoryRoot: string, hashes: readonly string[]): Promise<OperationResultViewModel> {
+  public async compareCommits(repositoryRoot: string, hashes: readonly string[]): Promise<RpcPayloadByType["git.compareCommits"]> {
     if (hashes.length !== 2) {
-      return { message: "Select exactly 2 commits to compare", status: "cancelled" };
+      return {
+        files: [],
+        result: { message: "Select exactly 2 commits to compare", status: "cancelled" }
+      };
     }
 
-    await this.runGitRaw(repositoryRoot, ["diff", "--name-status", hashes[0]!, hashes[1]!]);
+    const [numstatOutput, nameStatusOutput] = await Promise.all([
+      this.runGitRaw(repositoryRoot, ["diff", "--numstat", hashes[0]!, hashes[1]!]),
+      this.runGitRaw(repositoryRoot, ["diff", "--name-status", hashes[0]!, hashes[1]!])
+    ]);
 
     return {
-      message: `Compared ${hashes[0]!.slice(0, 8)} and ${hashes[1]!.slice(0, 8)}`,
-      status: "ok"
+      files: parseGitFileChanges(numstatOutput, nameStatusOutput),
+      result: {
+        message: `Compared ${hashes[0]!.slice(0, 8)} and ${hashes[1]!.slice(0, 8)}`,
+        status: "ok"
+      }
     };
   }
 
@@ -259,9 +269,23 @@ export class GitService {
       return { message: "Create branch cancelled", status: "cancelled" };
     }
 
-    await this.runGitRaw(repositoryRoot, ["branch", branchName.trim(), hash]);
+    const trimmedBranchName = branchName.trim();
+    await this.runGitRaw(repositoryRoot, ["branch", trimmedBranchName, hash]);
+    const checkoutChoice = await this.showInformationMessage(
+      `Created branch ${trimmedBranchName}`,
+      "Checkout branch",
+      "Stay on current branch"
+    );
+    if (checkoutChoice === "Checkout branch") {
+      await this.runGitRaw(repositoryRoot, ["checkout", trimmedBranchName]);
+      return {
+        message: `Created and checked out branch ${trimmedBranchName}`,
+        status: "ok"
+      };
+    }
+
     return {
-      message: `Created branch ${branchName.trim()}`,
+      message: `Created branch ${trimmedBranchName}`,
       status: "ok"
     };
   }
@@ -312,6 +336,13 @@ export class GitService {
       return { message: "Select at least 2 commits to squash", status: "cancelled" };
     }
 
+    if (!(await this.isSquashableHeadRange(repositoryRoot, hashes))) {
+      return {
+        message: "Selected commits are not a consecutive range ending at HEAD",
+        status: "cancelled"
+      };
+    }
+
     if (!(await this.confirmCommitOperation(`Squash ${hashes.length} commits into one?`))) {
       return { message: "Squash cancelled", status: "cancelled" };
     }
@@ -322,11 +353,6 @@ export class GitService {
     });
     if (!message) {
       return { message: "Squash cancelled", status: "cancelled" };
-    }
-
-    const head = (await this.runGitRaw(repositoryRoot, ["rev-parse", "HEAD"])).trim();
-    if (head !== hashes[0]) {
-      throw new Error("Only a range ending at HEAD can be squashed");
     }
 
     const oldestHash = hashes.at(-1)!;
@@ -367,6 +393,22 @@ export class GitService {
         status: "ok"
       };
     }, conflict);
+  }
+
+  private async isSquashableHeadRange(repositoryRoot: string, hashes: readonly string[]): Promise<boolean> {
+    const head = (await this.runGitRaw(repositoryRoot, ["rev-parse", "HEAD"])).trim();
+    if (head !== hashes[0]) {
+      return false;
+    }
+
+    for (let index = 0; index < hashes.length - 1; index += 1) {
+      const parent = (await this.runGitRaw(repositoryRoot, ["rev-parse", `${hashes[index]!}^`])).trim();
+      if (parent !== hashes[index + 1]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private async pickRemoteBranch(repositoryRoot: string, placeHolder: string): Promise<QuickPickItem | undefined> {

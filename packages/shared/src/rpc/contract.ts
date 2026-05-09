@@ -253,7 +253,7 @@ export interface RpcPayloadByType {
   "git.cherryPick": OperationResultViewModel;
   "git.revert": OperationResultViewModel;
   "git.reset": OperationResultViewModel;
-  "git.compareCommits": OperationResultViewModel;
+  "git.compareCommits": { files: readonly FileChangeViewModel[]; result: OperationResultViewModel };
   "git.squashCommits": OperationResultViewModel;
   "git.createBranchFromCommit": OperationResultViewModel;
   "git.pushAllCommitsToHere": OperationResultViewModel;

@@ -490,6 +490,7 @@ describe("GitService", () => {
       .mockResolvedValueOnce("Updated subject")
       .mockResolvedValueOnce("Squashed subject");
     const showQuickPick = vi.fn().mockResolvedValue({ label: "+ Create new remote branch", value: "__create__" });
+    const showInformationMessage = vi.fn().mockResolvedValue(undefined);
     const showWarningMessage = vi.fn().mockResolvedValue("Continue");
     const service = createService({
       clipboardWrite: async (text) => {
@@ -509,12 +510,25 @@ describe("GitService", () => {
           return "abc123\n";
         }
 
+        if (args.join(" ") === "rev-parse abc123^") {
+          return "old456\n";
+        }
+
         if (args.join(" ") === "rev-parse old456^") {
           return "parent000\n";
         }
 
+        if (args.join(" ") === "diff --numstat abc123 def456") {
+          return "2\t1\tsrc/shared.ts\n";
+        }
+
+        if (args.join(" ") === "diff --name-status abc123 def456") {
+          return "M\tsrc/shared.ts\n";
+        }
+
         return "";
       },
+      showInformationMessage,
       showInputBox,
       showQuickPick,
       showWarningMessage
@@ -525,8 +539,19 @@ describe("GitService", () => {
     await expect(service.revert("/repo", "abc123")).resolves.toEqual({ message: "Revert completed", status: "ok" });
     await expect(service.reset("/repo", "abc123", "hard")).resolves.toEqual({ message: "Reset hard completed", status: "ok" });
     await expect(service.compareCommits("/repo", ["abc123", "def456"])).resolves.toEqual({
-      message: "Compared abc123 and def456",
-      status: "ok"
+      files: [
+        {
+          binary: false,
+          deletions: 1,
+          insertions: 2,
+          path: "src/shared.ts",
+          status: "modified"
+        }
+      ],
+      result: {
+        message: "Compared abc123 and def456",
+        status: "ok"
+      }
     });
     await expect(service.createBranchFromCommit("/repo", "abc123")).resolves.toEqual({
       message: "Created branch feature/from-context",
@@ -550,6 +575,7 @@ describe("GitService", () => {
       "cherry-pick abc123",
       "revert --no-edit abc123",
       "reset --hard abc123",
+      "diff --numstat abc123 def456",
       "diff --name-status abc123 def456",
       "branch feature/from-context abc123",
       "branch -r",
@@ -558,11 +584,54 @@ describe("GitService", () => {
       "rev-parse HEAD",
       "commit --amend -m Updated subject",
       "rev-parse HEAD",
+      "rev-parse abc123^",
       "rev-parse old456^",
       "reset --soft parent000",
       "commit -m Squashed subject"
     ]);
     expect(showWarningMessage).toHaveBeenCalledTimes(5);
+  });
+
+  it("offers to checkout a branch after creating it", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        return "";
+      },
+      showInformationMessage: vi.fn().mockResolvedValue("Checkout branch"),
+      showInputBox: vi.fn().mockResolvedValue("feature/from-context")
+    });
+
+    await expect(service.createBranchFromCommit("/repo", "abc123")).resolves.toEqual({
+      message: "Created and checked out branch feature/from-context",
+      status: "ok"
+    });
+    expect(calls).toEqual(["branch feature/from-context abc123", "checkout feature/from-context"]);
+  });
+
+  it("cancels squash when selected commits are not a first-parent range ending at HEAD", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse HEAD") {
+          return "abc123\n";
+        }
+
+        if (args.join(" ") === "rev-parse abc123^") {
+          return "not-old456\n";
+        }
+
+        return "";
+      }
+    });
+
+    await expect(service.squashCommits("/repo", ["abc123", "old456"])).resolves.toEqual({
+      message: "Selected commits are not a consecutive range ending at HEAD",
+      status: "cancelled"
+    });
+    expect(calls).toEqual(["rev-parse HEAD", "rev-parse abc123^"]);
   });
 
   it("cancels commit context operations when required input is dismissed", async () => {

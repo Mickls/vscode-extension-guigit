@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommitList } from "./CommitList";
@@ -50,6 +50,27 @@ describe("CommitList", () => {
         Reflect.deleteProperty(Element.prototype, "scrollIntoView");
       }
     }
+  });
+
+  it("reports modifier selection and highlights multiple selected commits", () => {
+    const onCommitSelect = vi.fn();
+
+    render(
+      <CommitList
+        commits={[createCommit("first"), createCommit("second")]}
+        onCommitSelect={onCommitSelect}
+        selectedHashes={["first", "second"]}
+      />
+    );
+
+    const rows = screen.getAllByTestId("commit-row");
+    fireEvent.click(rows[1]!, { metaKey: true });
+
+    expect(onCommitSelect).toHaveBeenCalledWith(expect.objectContaining({ hash: "second" }), {
+      additive: true
+    });
+    expect(rows[0]!.firstElementChild).toHaveClass("bg-[var(--vscode-list-activeSelectionBackground)]");
+    expect(rows[1]!.firstElementChild).toHaveClass("bg-[var(--vscode-list-activeSelectionBackground)]");
   });
 });
 

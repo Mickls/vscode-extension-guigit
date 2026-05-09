@@ -898,13 +898,34 @@ describe("App", () => {
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
     await waitForCommitRows();
+    const rows = screen.getAllByTestId("commit-row");
+    fireEvent.click(rows[1]!, { metaKey: true });
     await user.pointer({
       keys: "[MouseRight]",
-      target: screen.getAllByTestId("commit-row")[1]!
+      target: rows[1]!
     });
     await user.click(screen.getByRole("menuitem", { name: "Compare Selected (2)" }));
+    const compareRequest = latestRequest(rpcClient, "git.compareCommits");
+    dispatchCompareResponse(compareRequest.id);
 
     expect(screen.getByRole("region", { name: "Compare Commits" })).toBeInTheDocument();
+    expect(screen.getByText("src/shared.ts")).toBeInTheDocument();
+  });
+
+  it("closes the commit context menu when clicking outside it", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+
+    await openContextMenu(user, screen.getAllByTestId("commit-row")[1]!);
+    expect(screen.getByRole("menu", { name: "Commit actions" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("main"));
+
+    expect(screen.queryByRole("menu", { name: "Commit actions" })).not.toBeInTheDocument();
   });
 
   it("posts commit context menu operations for the right-clicked commit and selected pair", async () => {
@@ -947,6 +968,8 @@ describe("App", () => {
     }));
     dispatchOperationResponse(revertRequest.id, "git.revert");
 
+    await user.click(commitRows[0]!);
+    fireEvent.click(commitRows[1]!, { metaKey: true });
     await openContextMenu(user, commitRows[1]!);
     await user.click(screen.getByRole("menuitem", { name: "Compare Selected (2)" }));
     const compareRequest = latestRequest(rpcClient, "git.compareCommits");
@@ -956,7 +979,8 @@ describe("App", () => {
       type: "git.compareCommits"
     }));
     expect(screen.getByRole("region", { name: "Compare Commits" })).toBeInTheDocument();
-    dispatchOperationResponse(compareRequest.id, "git.compareCommits");
+    dispatchCompareResponse(compareRequest.id);
+    expect(screen.getByText("src/shared.ts")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close compare" }));
 
     await openContextMenu(user, commitRows[1]!);
@@ -1085,7 +1109,7 @@ function dispatchHistoryResponse(
                 date: "2026-05-07 10:00:00 +0800",
                 hash: "abc1234567890abcdef",
                 message: "Wire real data",
-                parents: [],
+                parents: ["def4567890abcdefabc"],
                 refs: [{ name: "main", type: "local" }],
                 shortHash: "abc1234"
               },
@@ -1095,7 +1119,7 @@ function dispatchHistoryResponse(
                 date: "2026-05-07 09:00:00 +0800",
                 hash: "def4567890abcdefabc",
                 message: "Second real commit",
-                parents: ["abc1234567890abcdef"],
+                parents: [],
                 refs: [],
                 shortHash: "def4567"
               }
@@ -1205,7 +1229,6 @@ function dispatchOperationResponse(
     | "git.advancedPull"
     | "git.advancedPush"
     | "git.cherryPick"
-    | "git.compareCommits"
     | "git.copyHash"
     | "git.createBranchFromCommit"
     | "git.editCommitMessage"
@@ -1231,6 +1254,35 @@ function dispatchOperationResponse(
           ok: true,
           type,
           payload: result
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchCompareResponse(id: string): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type: "git.compareCommits",
+          payload: {
+            files: [
+              {
+                binary: false,
+                deletions: 1,
+                insertions: 2,
+                path: "src/shared.ts",
+                status: "modified"
+              }
+            ],
+            result: {
+              message: "Compared commits",
+              status: "ok"
+            }
+          }
         } satisfies RpcResponse
       })
     );

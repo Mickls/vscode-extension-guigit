@@ -40,8 +40,13 @@ const actionGroups: readonly (readonly ContextMenuActionItem[])[] = [
   ]
 ];
 
+const viewportPadding = 8;
+const menuWidth = 150;
+const estimatedMenuHeight = 360;
+
 export interface ContextMenuProps {
   canEditCommitMessage: boolean;
+  canSquashCommits?: boolean;
   onAction?: (action: ContextMenuAction) => void;
   selectedCommitCount: number;
   visible: boolean;
@@ -51,6 +56,7 @@ export interface ContextMenuProps {
 
 export function ContextMenu({
   canEditCommitMessage,
+  canSquashCommits,
   onAction,
   selectedCommitCount,
   visible,
@@ -61,23 +67,33 @@ export function ContextMenu({
     return null;
   }
 
+  const squashEnabled = canSquashCommits ?? selectedCommitCount > 1;
+  const left = clampToViewport(x, window.innerWidth, menuWidth);
+  const top = clampToViewport(y, window.innerHeight, estimatedMenuHeight);
+
   return (
     <div
       aria-label="Commit actions"
       className="fixed z-[1000] min-w-[150px] max-w-[calc(100vw-20px)] rounded border border-[var(--vscode-menu-border)] bg-[var(--vscode-menu-background)] py-1 text-xs shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+      onPointerDown={(event) => event.stopPropagation()}
       role="menu"
-      style={{ left: x, top: y }}
+      style={{
+        left,
+        maxHeight: `calc(100vh - ${viewportPadding * 2}px)`,
+        overflowY: "auto",
+        top
+      }}
     >
       {actionGroups.map((group, groupIndex) => (
         <div key={group[0]!.action}>
           {group.map((item) => (
             <button
-              aria-disabled={isDisabled(item.action, canEditCommitMessage, selectedCommitCount)}
+              aria-disabled={isDisabled(item.action, canEditCommitMessage, selectedCommitCount, squashEnabled)}
               className="block w-full cursor-pointer bg-transparent px-3 py-2 text-left text-[var(--vscode-menu-foreground,var(--vscode-foreground))] hover:bg-[var(--vscode-menu-selectionBackground)] hover:text-[var(--vscode-menu-selectionForeground)] aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-[var(--vscode-menu-foreground,var(--vscode-foreground))]"
               data-action={item.action}
               key={item.action}
               onClick={() => {
-                if (!isDisabled(item.action, canEditCommitMessage, selectedCommitCount)) {
+                if (!isDisabled(item.action, canEditCommitMessage, selectedCommitCount, squashEnabled)) {
                   onAction?.(item.action);
                 }
               }}
@@ -99,7 +115,12 @@ export function ContextMenu({
   );
 }
 
-function isDisabled(action: ContextMenuAction, canEditCommitMessage: boolean, selectedCommitCount: number): boolean {
+function isDisabled(
+  action: ContextMenuAction,
+  canEditCommitMessage: boolean,
+  selectedCommitCount: number,
+  canSquashCommits = selectedCommitCount > 1
+): boolean {
   if (action === "editCommitMessage") {
     return !canEditCommitMessage;
   }
@@ -109,10 +130,14 @@ function isDisabled(action: ContextMenuAction, canEditCommitMessage: boolean, se
   }
 
   if (action === "squash") {
-    return selectedCommitCount < 2;
+    return !canSquashCommits;
   }
 
   return false;
+}
+
+function clampToViewport(value: number, viewportSize: number, elementSize: number): number {
+  return Math.min(Math.max(value, viewportPadding), Math.max(viewportPadding, viewportSize - elementSize - viewportPadding));
 }
 
 function labelFor(item: ContextMenuActionItem, selectedCommitCount: number): string {

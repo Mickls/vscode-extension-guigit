@@ -36,7 +36,7 @@ describe("ContextMenu", () => {
   });
 
   it("disables compare until exactly two commits are selected", () => {
-    render(<ContextMenu canEditCommitMessage selectedCommitCount={1} visible x={0} y={0} />);
+    render(<ContextMenu canEditCommitMessage canSquashCommits={false} selectedCommitCount={1} visible x={0} y={0} />);
 
     expect(screen.getByRole("menuitem", { name: "Compare Selected (1/2)" })).toHaveAttribute(
       "aria-disabled",
@@ -46,6 +46,24 @@ describe("ContextMenu", () => {
       "aria-disabled",
       "true"
     );
+  });
+
+  it("keeps squash disabled when the selected commits are not squashable", () => {
+    render(<ContextMenu canEditCommitMessage canSquashCommits={false} selectedCommitCount={2} visible x={0} y={0} />);
+
+    expect(screen.getByRole("menuitem", { name: "Squash 2 Commits" })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps the menu inside the viewport", () => {
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 240 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 260 });
+
+    render(<ContextMenu canEditCommitMessage canSquashCommits selectedCommitCount={2} visible x={250} y={230} />);
+
+    expect(screen.getByRole("menu", { name: "Commit actions" })).toHaveStyle({
+      left: "102px",
+      top: "8px"
+    });
   });
 
   it("sends the selected menu action", async () => {
