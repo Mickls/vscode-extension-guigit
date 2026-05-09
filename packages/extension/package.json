@@ -223,7 +223,7 @@
     "eslint": "eslint src --ext .ts",
     "lint": "pnpm run eslint",
     "test": "vitest run --passWithNoTests",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/bundle-extension-host.mjs",
     "package": "vsce package --no-dependencies"
   },
   "dependencies": {
@@ -234,6 +234,7 @@
   "devDependencies": {
     "@types/node": "^24.10.2",
     "@types/vscode": "^1.75.0",
+    "esbuild": "^0.27.7",
     "@vscode/vsce": "^3.6.3",
     "vitest": "^4.0.15"
   }

@@ -2,6 +2,18 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("package manifest", () => {
+  it("bundles the extension host before dependency-free packaging", async () => {
+    const manifest = JSON.parse(await readFile("package.json", "utf8")) as {
+      scripts: {
+        build: string;
+        package: string;
+      };
+    };
+
+    expect(manifest.scripts.build).toContain("scripts/bundle-extension-host.mjs");
+    expect(manifest.scripts.package).toContain("--no-dependencies");
+  });
+
   it("contributes the GUI Git History log grammar", async () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8")) as {
       contributes: {
