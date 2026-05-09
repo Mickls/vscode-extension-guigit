@@ -46,6 +46,14 @@ export class SettingsService {
         http: (this.configuration.get("proxy.http") ?? "") as string,
         https: (this.configuration.get("proxy.https") ?? "") as string,
         noProxy: (this.configuration.get("proxy.noProxy") ?? "") as string
+      },
+      ai: {
+        provider: "vscodeLanguageModel",
+        openAICompatible: {
+          baseUrl: "",
+          model: "",
+          configured: false
+        }
       }
     };
   }

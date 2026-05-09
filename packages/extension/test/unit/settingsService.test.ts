@@ -34,6 +34,14 @@ describe("SettingsService", () => {
         http: "http://127.0.0.1:7890",
         https: "http://127.0.0.1:7891",
         noProxy: "localhost"
+      },
+      ai: {
+        provider: "vscodeLanguageModel",
+        openAICompatible: {
+          baseUrl: "",
+          model: "",
+          configured: false
+        }
       }
     });
   });

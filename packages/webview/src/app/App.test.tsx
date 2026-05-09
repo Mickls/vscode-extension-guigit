@@ -1886,6 +1886,14 @@ function dispatchSettingsResponse(
                 http: "",
                 https: "",
                 noProxy: ""
+              },
+              ai: {
+                provider: "vscodeLanguageModel",
+                openAICompatible: {
+                  baseUrl: "",
+                  model: "",
+                  configured: false
+                }
               }
             }
           }
