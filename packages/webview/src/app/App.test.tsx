@@ -671,7 +671,6 @@ describe("App", () => {
     expect(pullRequest).toEqual(expect.objectContaining({ repositoryId: "/repo", type: "git.pull" }));
     expect(screen.getByRole("status")).toHaveTextContent("Pull is running...");
     expect(screen.getByRole("button", { name: "Pull" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Advanced Pull" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Push" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Pull" }));
     expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "git.pull")).toHaveLength(1);
@@ -775,8 +774,7 @@ describe("App", () => {
     setIntervalSpy.mockRestore();
   });
 
-  it("exposes advanced pull and push toolbar actions for branch-specific rebase and force push flows", async () => {
-    const user = userEvent.setup();
+  it("runs advanced pull and push when pull or push is ctrl-clicked", async () => {
     const rpcClient = createTestRpcClient();
 
     render(<App rpcClient={rpcClient} />);
@@ -784,7 +782,10 @@ describe("App", () => {
     await waitForCommitRows();
     rpcClient.post.mockClear();
 
-    await user.click(screen.getByRole("button", { name: "Advanced Pull" }));
+    expect(screen.queryByRole("button", { name: "Advanced Pull" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Advanced Push" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }), { ctrlKey: true });
     const advancedPullRequest = rpcClient.post.mock.calls.find(([request]) => request.type === "git.advancedPull")![0];
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -794,7 +795,7 @@ describe("App", () => {
     );
     dispatchOperationResponse(advancedPullRequest.id, "git.advancedPull");
 
-    await user.click(screen.getByRole("button", { name: "Advanced Push" }));
+    fireEvent.click(screen.getByRole("button", { name: "Push" }), { ctrlKey: true });
     expect(rpcClient.post).toHaveBeenCalledWith(
       expect.objectContaining({
         repositoryId: "/repo",

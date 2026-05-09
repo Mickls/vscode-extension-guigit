@@ -1,12 +1,13 @@
-import type { ReactElement } from "react";
+import type { MouseEvent, ReactElement } from "react";
 
-type ToolbarAction = "advancedPull" | "advancedPush" | "fetch" | "pull" | "push" | "refresh" | "settings";
+type ToolbarAction = "fetch" | "pull" | "push" | "refresh" | "settings";
 
 interface ToolbarActionItem {
   action: ToolbarAction;
   gitOperation?: boolean;
   icon: ReactElement;
   label: string;
+  title?: string;
 }
 
 const toolbarActions: readonly ToolbarActionItem[] = [
@@ -19,25 +20,15 @@ const toolbarActions: readonly ToolbarActionItem[] = [
     action: "pull",
     gitOperation: true,
     icon: <PullIcon />,
-    label: "Pull"
-  },
-  {
-    action: "advancedPull",
-    gitOperation: true,
-    icon: <PullIcon />,
-    label: "Advanced Pull"
+    label: "Pull",
+    title: "Pull (Ctrl+click for Advanced Pull)"
   },
   {
     action: "push",
     gitOperation: true,
     icon: <PushIcon />,
-    label: "Push"
-  },
-  {
-    action: "advancedPush",
-    gitOperation: true,
-    icon: <PushIcon />,
-    label: "Advanced Push"
+    label: "Push",
+    title: "Push (Ctrl+click for Advanced Push)"
   },
   {
     action: "fetch",
@@ -80,12 +71,24 @@ export function Header({
   settingsOpen = false
 }: HeaderProps): ReactElement {
   const graphLabel = graphVisible ? "Hide Git Graph" : "Show Git Graph";
-  const actionHandlers: Record<ToolbarAction, (() => void) | undefined> = {
-    advancedPull: onAdvancedPull,
-    advancedPush: onAdvancedPush,
+  const actionHandlers: Record<ToolbarAction, ((event: MouseEvent<HTMLButtonElement>) => void) | undefined> = {
     fetch: onFetch,
-    pull: onPull,
-    push: onPush,
+    pull: (event) => {
+      if (event.ctrlKey) {
+        onAdvancedPull?.();
+        return;
+      }
+
+      onPull?.();
+    },
+    push: (event) => {
+      if (event.ctrlKey) {
+        onAdvancedPush?.();
+        return;
+      }
+
+      onPush?.();
+    },
     refresh: onRefresh,
     settings: onSettingsClick
   };
@@ -131,7 +134,7 @@ export function Header({
             disabled={item.gitOperation && gitOperationBusy}
             key={item.action}
             onClick={actionHandlers[item.action]}
-            title={item.label}
+            title={item.title ?? item.label}
             type="button"
           >
             {item.icon}
