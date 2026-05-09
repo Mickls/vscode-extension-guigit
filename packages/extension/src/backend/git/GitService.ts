@@ -33,7 +33,7 @@ export class GitService {
     this.gitClone = input.gitClone ?? (async (targetDirectory, url) => {
       await simpleGit(targetDirectory).clone(url, ".");
     });
-    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).env("GIT_EDITOR", "true").raw([...args]));
+    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
     this.safetyService = input.safetyService;
     this.settingsService = input.settingsService;

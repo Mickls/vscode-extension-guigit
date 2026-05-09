@@ -32,7 +32,7 @@ export class SafetyService {
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 
   public constructor(input: SafetyServiceInput = {}) {
-    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).env("GIT_EDITOR", "true").raw([...args]));
+    this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
     this.showWarningMessage =
       input.showWarningMessage ??
