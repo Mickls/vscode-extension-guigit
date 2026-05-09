@@ -96,6 +96,10 @@ describe("GitService", () => {
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          return "origin/feature/demo\n";
+        }
+
         return args.join(" ") === "rev-parse --abbrev-ref HEAD" ? "feature/demo\n" : "";
       },
       showInformationMessage
@@ -104,7 +108,7 @@ describe("GitService", () => {
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
-      "push",
+      "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD"
     ]);
     await Promise.resolve();
@@ -112,7 +116,7 @@ describe("GitService", () => {
 
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
-      "push",
+      "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD",
       "fetch --all --prune"
     ]);
@@ -129,6 +133,10 @@ describe("GitService", () => {
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          return "origin/feature/demo\n";
+        }
+
         return args.join(" ") === "rev-parse --abbrev-ref HEAD" ? "feature/demo\n" : "";
       },
       showInformationMessage
@@ -137,7 +145,7 @@ describe("GitService", () => {
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
-      "push",
+      "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD"
     ]);
     expect(showInformationMessage).toHaveBeenCalledWith(
@@ -176,13 +184,37 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref HEAD",
       "remote",
       "push -u origin feature",
-      "push",
       "rev-parse --abbrev-ref HEAD"
     ]);
     expect(showQuickPick).toHaveBeenCalledWith(
       [{ label: "origin", value: "origin" }],
       { placeHolder: "Select remote to publish feature" }
     );
+  });
+
+  it("pushes explicitly to a differently named upstream branch", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          return "origin/chore/all-my-stuffs\n";
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        return "";
+      }
+    });
+
+    await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "push origin HEAD:chore/all-my-stuffs",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
   });
 
 

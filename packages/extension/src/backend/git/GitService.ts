@@ -80,8 +80,7 @@ export class GitService {
 
   public async push(repositoryRoot: string): Promise<OperationResultViewModel> {
     this.logger?.debug("git.push", { repositoryRoot });
-    await this.ensurePushTarget(repositoryRoot);
-    await this.runGitRaw(repositoryRoot, ["push"]);
+    await this.runGitRaw(repositoryRoot, await this.getPushArgs(repositoryRoot));
     void this.promptPullRequestForCurrentBranch(repositoryRoot).catch((error: unknown) => {
       this.logger?.debug("git.pullRequestPrompt.failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -234,10 +233,11 @@ export class GitService {
     return true;
   }
 
-  private async ensurePushTarget(repositoryRoot: string): Promise<void> {
+  private async getPushArgs(repositoryRoot: string): Promise<readonly string[]> {
     try {
-      await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
-      return;
+      const upstream = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])).trim();
+      const remoteTarget = splitRemoteBranch(upstream);
+      return ["push", remoteTarget.remote, `HEAD:${remoteTarget.branch}`];
     } catch (error) {
       this.logger?.debug("git.push.missingUpstream", {
         error: error instanceof Error ? error.message : String(error),
@@ -251,7 +251,7 @@ export class GitService {
       throw new Error("Push cancelled");
     }
 
-    await this.runGitRaw(repositoryRoot, ["push", "-u", remote.value, currentBranch]);
+    return ["push", "-u", remote.value, currentBranch];
   }
 
   private async pickRemote(repositoryRoot: string, placeHolder: string): Promise<QuickPickItem | undefined> {
