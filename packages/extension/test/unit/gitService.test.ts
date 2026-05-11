@@ -106,7 +106,8 @@ describe("GitService", () => {
 
   it("runs push, prompts pull request creation for non-main branches, and fetches", async () => {
     const calls: string[] = [];
-    const showInformationMessage = vi.fn();
+    const openedUrls: string[] = [];
+    const showInformationMessage = vi.fn().mockResolvedValue("Create Pull Request");
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -114,7 +115,14 @@ describe("GitService", () => {
           return "origin/feature/demo\n";
         }
 
+        if (args.join(" ") === "remote get-url origin") {
+          return "git@github.com:owner/repo.git\n";
+        }
+
         return args.join(" ") === "rev-parse --abbrev-ref HEAD" ? "feature/demo\n" : "";
+      },
+      openExternal: async (url) => {
+        openedUrls.push(url);
       },
       showInformationMessage
     });
@@ -124,7 +132,8 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "rev-parse --abbrev-ref HEAD",
       "push origin HEAD:feature/demo",
-      "rev-parse --abbrev-ref HEAD"
+      "rev-parse --abbrev-ref HEAD",
+      "remote get-url origin"
     ]);
     await Promise.resolve();
     await expect(service.fetch("/repo")).resolves.toEqual({ message: "Fetch completed", status: "ok" });
@@ -134,6 +143,7 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref HEAD",
       "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD",
+      "remote get-url origin",
       "fetch --all --prune"
     ]);
     expect(showInformationMessage).toHaveBeenCalledWith(
@@ -141,6 +151,7 @@ describe("GitService", () => {
       "Create Pull Request",
       "Dismiss"
     );
+    expect(openedUrls).toEqual(["https://github.com/owner/repo/pull/new/feature/demo"]);
   });
 
   it("checks out a picked branch", async () => {
@@ -848,6 +859,8 @@ describe("GitService", () => {
       "commit --amend -m Updated subject",
       "rev-parse HEAD",
       "rev-parse abc123^",
+      "show --no-patch --format=%s abc123",
+      "show --no-patch --format=%s old456",
       "rev-parse old456^",
       "reset --soft parent000",
       "commit -m Squashed subject"
@@ -871,6 +884,59 @@ describe("GitService", () => {
       status: "ok"
     });
     expect(calls).toEqual(["branch feature/from-context abc123", "checkout feature/from-context"]);
+  });
+
+  it("prefills squash commit message with selected commit subjects on separate lines", async () => {
+    const calls: string[] = [];
+    const showInputBox = vi.fn().mockResolvedValue("Keep subject\nDrop subject");
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse HEAD") {
+          return "abc123\n";
+        }
+
+        if (args.join(" ") === "rev-parse abc123^") {
+          return "old456\n";
+        }
+
+        if (args.join(" ") === "rev-parse old456^") {
+          return "parent000\n";
+        }
+
+        if (args.join(" ") === "show --no-patch --format=%s abc123") {
+          return "Keep subject\n";
+        }
+
+        if (args.join(" ") === "show --no-patch --format=%s old456") {
+          return "Drop subject\n";
+        }
+
+        return "";
+      },
+      showInputBox,
+      showWarningMessage: vi.fn().mockResolvedValue("Continue")
+    });
+
+    await expect(service.squashCommits("/repo", ["abc123", "old456"])).resolves.toEqual({
+      message: "Squashed 2 commits",
+      status: "ok"
+    });
+
+    expect(showInputBox).toHaveBeenCalledWith({
+      placeHolder: "Enter squashed commit message",
+      prompt: "Squash commit message",
+      value: "Keep subject\nDrop subject"
+    });
+    expect(calls).toEqual([
+      "rev-parse HEAD",
+      "rev-parse abc123^",
+      "show --no-patch --format=%s abc123",
+      "show --no-patch --format=%s old456",
+      "rev-parse old456^",
+      "reset --soft parent000",
+      "commit -m Keep subject\nDrop subject"
+    ]);
   });
 
   it("cancels squash when selected commits are not a first-parent range ending at HEAD", async () => {
@@ -920,6 +986,7 @@ function createService(input: {
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   clipboardWrite?: (text: string) => Thenable<void> | Promise<void>;
+  openExternal?: (url: string) => Thenable<void> | Promise<void>;
   safetyService?: {
     abortOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
     continueOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
@@ -960,6 +1027,7 @@ function createService(input: {
     gitClone: input.gitClone,
     gitRaw: input.gitRaw ?? (async () => ""),
     clipboardWrite: input.clipboardWrite,
+    openExternal: input.openExternal,
     safetyService:
       input.safetyService ??
       ({

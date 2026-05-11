@@ -1,6 +1,5 @@
 import { simpleGit } from "simple-git";
-import type { Uri } from "vscode";
-import { env, window } from "vscode";
+import { env, Uri, window } from "vscode";
 import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
 import type { ProxyService } from "./ProxyService";
@@ -24,13 +23,14 @@ export interface GitServiceInput {
   gitClone?: (targetDirectory: string, url: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
+  openExternal?: (url: string) => Thenable<void>;
   proxyService?: Pick<ProxyService, "runRaw">;
   safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
   stateService?: Pick<WorkspaceStateService, "getAdvancedGitSelection" | "setAdvancedGitSelection">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
-  showOpenDialog?: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly Pick<Uri, "fsPath">[] | undefined>;
+  showOpenDialog?: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly { fsPath: string }[] | undefined>;
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   showQuickPickWithInput?: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
@@ -41,12 +41,13 @@ export class GitService {
   private readonly gitClone: (targetDirectory: string, url: string) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
+  private readonly openExternal: (url: string) => Thenable<void>;
   private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly stateService: Pick<WorkspaceStateService, "getAdvancedGitSelection" | "setAdvancedGitSelection">;
   private readonly showInformationMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   private readonly showInputBox: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
-  private readonly showOpenDialog: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly Pick<Uri, "fsPath">[] | undefined>;
+  private readonly showOpenDialog: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly { fsPath: string }[] | undefined>;
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   private readonly showQuickPickWithInput: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
@@ -58,6 +59,9 @@ export class GitService {
     });
     this.gitRaw = input.gitRaw ?? input.proxyService?.runRaw.bind(input.proxyService) ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
+    this.openExternal = input.openExternal ?? (async (url) => {
+      await env.openExternal(Uri.parse(url));
+    });
     this.safetyService = input.safetyService;
     this.settingsService = input.settingsService;
     this.stateService = input.stateService ?? new WorkspaceStateService();
@@ -132,7 +136,7 @@ export class GitService {
     }
 
     await this.runGitRaw(repositoryRoot, args);
-    void this.promptPullRequestForCurrentBranch(repositoryRoot).catch((error: unknown) => {
+    void this.promptPullRequestForCurrentBranch(repositoryRoot, args).catch((error: unknown) => {
       this.logger?.debug("git.pullRequestPrompt.failed", {
         error: error instanceof Error ? error.message : String(error),
         repositoryRoot
@@ -187,7 +191,7 @@ export class GitService {
 
     this.logger?.debug("git.advancedPush", { args, repositoryRoot });
     await this.runGitRaw(repositoryRoot, args);
-    void this.promptPullRequestForCurrentBranch(repositoryRoot).catch((error: unknown) => {
+    void this.promptPullRequestForCurrentBranch(repositoryRoot, args).catch((error: unknown) => {
       this.logger?.debug("git.pullRequestPrompt.failed", {
         error: error instanceof Error ? error.message : String(error),
         repositoryRoot
@@ -409,9 +413,11 @@ export class GitService {
       return { message: "Squash cancelled", status: "cancelled" };
     }
 
+    const defaultMessage = await this.squashCommitMessage(repositoryRoot, hashes);
     const message = await this.showInputBox({
       placeHolder: "Enter squashed commit message",
-      prompt: "Squash commit message"
+      prompt: "Squash commit message",
+      value: defaultMessage
     });
     if (!message) {
       return { message: "Squash cancelled", status: "cancelled" };
@@ -425,6 +431,13 @@ export class GitService {
       message: `Squashed ${hashes.length} commits`,
       status: "ok"
     };
+  }
+
+  private async squashCommitMessage(repositoryRoot: string, hashes: readonly string[]): Promise<string> {
+    const messages = await Promise.all(
+      hashes.map(async (hash) => (await this.runGitRaw(repositoryRoot, ["show", "--no-patch", "--format=%s", hash])).trim())
+    );
+    return messages.join("\n");
   }
 
   public async continueOperation(repositoryRoot: string): Promise<OperationResultViewModel> {
@@ -660,10 +673,15 @@ export class GitService {
     });
   }
 
-  private async promptPullRequestForCurrentBranch(repositoryRoot: string): Promise<void> {
+  private async promptPullRequestForCurrentBranch(repositoryRoot: string, pushArgs: readonly string[]): Promise<void> {
     const branch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
     if (branch !== "main" && branch !== "master") {
-      await this.showInformationMessage(`Pushed ${branch}. Create a pull request?`, "Create Pull Request", "Dismiss");
+      const choice = await this.showInformationMessage(`Pushed ${branch}. Create a pull request?`, "Create Pull Request", "Dismiss");
+      if (choice === "Create Pull Request") {
+        const remote = remoteFromPushArgs(pushArgs);
+        const remoteUrl = (await this.runGitRaw(repositoryRoot, ["remote", "get-url", remote])).trim();
+        await this.openExternal(pullRequestUrl(remoteUrl, branch));
+      }
     }
   }
 
@@ -783,6 +801,43 @@ function createRemoteBranchItem(remote: string, input: string): QuickPickItem {
     label: branch,
     value: branch
   };
+}
+
+function remoteFromPushArgs(args: readonly string[]): string {
+  const refspecIndex = args.findIndex((arg) => arg.startsWith("HEAD:"));
+  return args[refspecIndex - 1]!;
+}
+
+function pullRequestUrl(remoteUrl: string, branch: string): string {
+  const repositoryUrl = repositoryWebUrl(remoteUrl);
+  if (repositoryUrl.includes("github.com/")) {
+    return `${repositoryUrl}/pull/new/${branch}`;
+  }
+
+  if (repositoryUrl.includes("gitlab.com/")) {
+    return `${repositoryUrl}/-/merge_requests/new?merge_request[source_branch]=${encodeURIComponent(branch)}`;
+  }
+
+  if (repositoryUrl.includes("bitbucket.org/")) {
+    return `${repositoryUrl}/pull-requests/new?source=${encodeURIComponent(branch)}`;
+  }
+
+  return repositoryUrl;
+}
+
+function repositoryWebUrl(remoteUrl: string): string {
+  const trimmedUrl = remoteUrl.trim().replace(/\.git$/, "");
+  const sshMatch = /^git@([^:]+):(.+)$/.exec(trimmedUrl);
+  if (sshMatch) {
+    return `https://${sshMatch[1]}/${sshMatch[2]}`;
+  }
+
+  const sshUrlMatch = /^ssh:\/\/git@([^/]+)\/(.+)$/.exec(trimmedUrl);
+  if (sshUrlMatch) {
+    return `https://${sshUrlMatch[1]}/${sshUrlMatch[2]}`;
+  }
+
+  return trimmedUrl;
 }
 
 function getPullConflictResolution(args: readonly string[]): ConflictResolutionInput {
