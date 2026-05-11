@@ -265,7 +265,7 @@ function FileRow({
       className="grid w-full grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-xs last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
       style={{ paddingLeft: `${8 + depth * 14}px` }}
     >
-      <span className="rounded-[2px] bg-[var(--vscode-badge-background)] px-1 py-0.5 text-[10px] text-[var(--vscode-badge-foreground)]">
+      <span className={`rounded-[2px] border px-1 py-0.5 text-[10px] ${statusBadgeClass(file.status)}`}>
         {file.binary ? labels.binary : file.status}
       </span>
       <button
@@ -348,6 +348,19 @@ function countFiles(node: TreeNode): number {
   }
 
   return count;
+}
+
+function statusBadgeClass(status: FileChangeViewModel["status"]): string {
+  const classes = {
+    added: "file-status--added border-[#2ea043]/60 bg-[#2ea043]/15 text-[#2ea043]",
+    copied: "file-status--copied border-[#39c5cf]/60 bg-[#39c5cf]/15 text-[#39c5cf]",
+    deleted: "file-status--deleted border-[#f85149]/60 bg-[#f85149]/15 text-[#f85149]",
+    modified: "file-status--modified border-[#d29922]/60 bg-[#d29922]/15 text-[#d29922]",
+    renamed: "file-status--renamed border-[#a371f7]/60 bg-[#a371f7]/15 text-[#a371f7]",
+    unchanged: "file-status--unchanged border-[var(--vscode-descriptionForeground)]/50 bg-[var(--vscode-descriptionForeground)]/10 text-[var(--vscode-descriptionForeground)]"
+  } satisfies Record<FileChangeViewModel["status"], string>;
+
+  return classes[status];
 }
 
 function formatLabel(label: string, value: string): string {

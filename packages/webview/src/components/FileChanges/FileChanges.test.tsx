@@ -41,6 +41,29 @@ describe("FileChanges", () => {
     expect(within(region).getByText("binary")).toBeInTheDocument();
   });
 
+  it("uses distinct badge colors for file statuses", () => {
+    render(
+      <FileChanges
+        files={[
+          createFile("added.ts", "added"),
+          createFile("deleted.ts", "deleted"),
+          createFile("modified.ts", "modified"),
+          createFile("renamed.ts", "renamed"),
+          createFile("copied.ts", "copied"),
+          createFile("unchanged.ts", "unchanged")
+        ]}
+        mode="list"
+      />
+    );
+
+    expect(screen.getByText("added")).toHaveClass("file-status--added");
+    expect(screen.getByText("deleted")).toHaveClass("file-status--deleted");
+    expect(screen.getByText("modified")).toHaveClass("file-status--modified");
+    expect(screen.getByText("renamed")).toHaveClass("file-status--renamed");
+    expect(screen.getByText("copied")).toHaveClass("file-status--copied");
+    expect(screen.getByText("unchanged")).toHaveClass("file-status--unchanged");
+  });
+
   it("renders tree mode grouped by directory", () => {
     render(<FileChanges files={files} mode="tree" />);
 
@@ -131,3 +154,13 @@ describe("FileChanges", () => {
     expect(onOpenFileDiff).not.toHaveBeenCalled();
   });
 });
+
+function createFile(path: string, status: FileChangeViewModel["status"]): FileChangeViewModel {
+  return {
+    binary: false,
+    deletions: 0,
+    insertions: 0,
+    path,
+    status
+  };
+}
