@@ -5,12 +5,18 @@ import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from ".
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
 import type { ProxyService } from "./ProxyService";
 import type { SettingsService } from "../../state/SettingsService";
+import { WorkspaceStateService } from "../../state/WorkspaceStateService";
 import type { Logger } from "../../logging/LoggerService";
 import { parseGitFileChanges } from "./FileChangeParser";
 
 interface QuickPickItem {
   label: string;
   value: string;
+}
+
+interface QuickPickWithInputOptions {
+  createRemote: string;
+  placeHolder: string;
 }
 
 export interface GitServiceInput {
@@ -21,10 +27,12 @@ export interface GitServiceInput {
   proxyService?: Pick<ProxyService, "runRaw">;
   safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
+  stateService?: Pick<WorkspaceStateService, "getAdvancedGitSelection" | "setAdvancedGitSelection">;
   showInformationMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   showInputBox?: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
   showOpenDialog?: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly Pick<Uri, "fsPath">[] | undefined>;
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
+  showQuickPickWithInput?: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 }
 
@@ -35,10 +43,12 @@ export class GitService {
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
+  private readonly stateService: Pick<WorkspaceStateService, "getAdvancedGitSelection" | "setAdvancedGitSelection">;
   private readonly showInformationMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
   private readonly showInputBox: (options: { placeHolder?: string; prompt: string; value?: string }) => Thenable<string | undefined>;
   private readonly showOpenDialog: (options: { canSelectFiles: boolean; canSelectFolders: boolean; canSelectMany: boolean; openLabel: string }) => Thenable<readonly Pick<Uri, "fsPath">[] | undefined>;
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
+  private readonly showQuickPickWithInput: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
 
   public constructor(input: GitServiceInput) {
@@ -50,6 +60,7 @@ export class GitService {
     this.logger = input.logger;
     this.safetyService = input.safetyService;
     this.settingsService = input.settingsService;
+    this.stateService = input.stateService ?? new WorkspaceStateService();
     this.showInformationMessage =
       input.showInformationMessage ??
       ((message, ...items) => window.showInformationMessage(message, ...items));
@@ -62,6 +73,9 @@ export class GitService {
     this.showQuickPick =
       input.showQuickPick ??
       ((items, options) => window.showQuickPick([...items], options));
+    this.showQuickPickWithInput =
+      input.showQuickPickWithInput ??
+      ((items, options) => showQuickPickWithInput(items, options));
     this.showWarningMessage =
       input.showWarningMessage ??
       ((message, ...items) => window.showWarningMessage(message, ...items));
@@ -76,21 +90,31 @@ export class GitService {
   }
 
   public async advancedPull(repositoryRoot: string): Promise<OperationResultViewModel> {
-    const mode = await this.showQuickPick(
+    const modeItems = preferLastSelection(
       [
         { label: "Merge", value: "merge" },
         { label: "Rebase", value: "rebase" }
       ],
+      this.stateService.getAdvancedGitSelection(repositoryRoot, "advancedPullMode")
+    );
+    const mode = await this.showQuickPick(
+      modeItems,
       { placeHolder: "Select pull mode" }
     );
     if (!mode) {
       return { message: "Advanced pull cancelled", status: "cancelled" };
     }
+    await this.stateService.setAdvancedGitSelection(repositoryRoot, "advancedPullMode", mode.value);
 
-    const branch = await this.pickRemoteBranch(repositoryRoot, "Select remote branch to pull");
+    const branch = await this.pickRemoteBranch(
+      repositoryRoot,
+      "Select remote branch to pull",
+      this.stateService.getAdvancedGitSelection(repositoryRoot, "advancedPullBranch")
+    );
     if (!branch) {
       return { message: "Advanced pull cancelled", status: "cancelled" };
     }
+    await this.stateService.setAdvancedGitSelection(repositoryRoot, "advancedPullBranch", branch.value);
 
     const remoteTarget = splitRemoteBranch(branch.value);
     const args = mode.value === "rebase"
@@ -122,21 +146,27 @@ export class GitService {
   }
 
   public async advancedPush(repositoryRoot: string): Promise<OperationResultViewModel> {
-    const branch = await this.pickRemoteBranch(repositoryRoot, "Select remote branch to push");
+    const branch = await this.pickAdvancedPushTarget(repositoryRoot);
     if (!branch) {
       return { message: "Advanced push cancelled", status: "cancelled" };
     }
+    await this.stateService.setAdvancedGitSelection(repositoryRoot, "advancedPushBranch", branch.value);
 
-    const forceMode = await this.showQuickPick(
+    const forceModeItems = preferLastSelection(
       [
         { label: "Normal", value: "normal" },
         { label: "Force with lease", value: "force-with-lease" }
       ],
+      this.stateService.getAdvancedGitSelection(repositoryRoot, "advancedPushMode")
+    );
+    const forceMode = await this.showQuickPick(
+      forceModeItems,
       { placeHolder: "Select push mode" }
     );
     if (!forceMode) {
       return { message: "Advanced push cancelled", status: "cancelled" };
     }
+    await this.stateService.setAdvancedGitSelection(repositoryRoot, "advancedPushMode", forceMode.value);
 
     const remoteTarget = splitRemoteBranch(branch.value);
     if (forceMode.value === "force-with-lease") {
@@ -443,12 +473,64 @@ export class GitService {
     return true;
   }
 
-  private async pickRemoteBranch(repositoryRoot: string, placeHolder: string): Promise<QuickPickItem | undefined> {
+  private async pickRemoteBranch(
+    repositoryRoot: string,
+    placeHolder: string,
+    lastSelection: string | undefined = undefined
+  ): Promise<QuickPickItem | undefined> {
     const branches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
     return this.showQuickPick(
-      branches.map((branch) => ({ label: branch, value: branch })),
+      preferLastSelection(
+        preferMainBranches(branches).map((branch) => ({ label: branch, value: branch })),
+        lastSelection
+      ),
       { placeHolder }
     );
+  }
+
+  private async pickAdvancedPushTarget(repositoryRoot: string): Promise<QuickPickItem | undefined> {
+    const remoteBranches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
+    const createRemote = await this.getDefaultCreateRemote(repositoryRoot, remoteBranches);
+    const lastSelection = this.stateService.getAdvancedGitSelection(repositoryRoot, "advancedPushBranch");
+    const target = await this.showQuickPickWithInput(
+      [
+        ...advancedPushTargets(remoteBranches, lastSelection),
+        { label: "+ Create new remote branch", value: "__create__" }
+      ],
+      { createRemote, placeHolder: "Select remote branch to push" }
+    );
+    if (!target || target.value !== "__create__") {
+      return target;
+    }
+
+    const currentBranch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+    const branch = await this.showInputBox({
+      placeHolder: currentBranch,
+      prompt: `Enter new branch name for ${createRemote}`
+    });
+    if (!branch) {
+      return undefined;
+    }
+
+    const trimmedBranch = branch.trim();
+    const remotePrefix = `${createRemote}/`;
+    const remoteBranch = trimmedBranch.startsWith(remotePrefix)
+      ? trimmedBranch
+      : `${createRemote}/${trimmedBranch}`;
+    return {
+      label: remoteBranch,
+      value: remoteBranch
+    };
+  }
+
+  private async getDefaultCreateRemote(repositoryRoot: string, remoteBranches: readonly string[]): Promise<string> {
+    const firstRemoteBranch = remoteBranches[0];
+    if (firstRemoteBranch) {
+      return splitRemoteBranch(firstRemoteBranch).remote;
+    }
+
+    const remotes = await this.getRemotes(repositoryRoot);
+    return remotes[0]!;
   }
 
   private async pickCheckoutBranch(repositoryRoot: string): Promise<QuickPickItem | undefined> {
@@ -457,7 +539,7 @@ export class GitService {
       .map((branch) => branch.trim())
       .filter((branch) => branch.length > 0);
     return this.showQuickPick(
-      branches.map((branch) => ({ label: branch, value: branch })),
+      preferMainBranches(branches).map((branch) => ({ label: branch, value: branch })),
       { placeHolder: "Select branch to checkout" }
     );
   }
@@ -511,7 +593,7 @@ export class GitService {
     upstream: string | undefined
   ): Promise<readonly string[] | undefined> {
     const remotes = await this.getRemotes(repositoryRoot);
-    const remoteBranches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
+    const remoteBranches = preferMainBranches(parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"])));
     const items: QuickPickItem[] = [
       ...(upstream ? [{ label: `Push to upstream ${upstream}`, value: `upstream:${upstream}` }] : []),
       ...remotes.map((remote) => ({
@@ -556,7 +638,7 @@ export class GitService {
   }
 
   private async pickPushAllCommitsTarget(repositoryRoot: string): Promise<string | undefined> {
-    const remoteBranches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
+    const remoteBranches = preferMainBranches(parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"])));
     const target = await this.showQuickPick(
       [
         ...remoteBranches.map((branch) => ({ label: branch, value: branch })),
@@ -604,11 +686,102 @@ function parseRemoteBranches(output: string): readonly string[] {
     .filter((line) => line.length > 0 && !line.includes("HEAD ->"));
 }
 
+function showQuickPickWithInput(
+  items: readonly QuickPickItem[],
+  options: QuickPickWithInputOptions
+): Thenable<QuickPickItem | undefined> {
+  return new Promise((resolve) => {
+    const quickPick = window.createQuickPick<QuickPickItem>();
+    quickPick.items = [...items];
+    quickPick.placeholder = options.placeHolder;
+
+    let settled = false;
+    const settle = (selection: QuickPickItem | undefined) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      disposables.forEach((disposable) => {
+        disposable.dispose();
+      });
+      quickPick.dispose();
+      resolve(selection);
+    };
+    const disposables = [
+      quickPick.onDidAccept(() => {
+        const input = quickPick.value.trim();
+        const existingItem = items.find((item) => itemMatchesInput(item.value, input));
+        const typedBranch = input
+          ? existingItem ?? createRemoteBranchItem(options.createRemote, input)
+          : quickPick.selectedItems[0] ?? quickPick.activeItems[0];
+        settle(typedBranch);
+      }),
+      quickPick.onDidHide(() => settle(undefined))
+    ];
+
+    quickPick.show();
+  });
+}
+
 function splitRemoteBranch(branch: string): { branch: string; remote: string } {
   const separatorIndex = branch.indexOf("/");
   return {
     branch: branch.slice(separatorIndex + 1),
     remote: branch.slice(0, separatorIndex)
+  };
+}
+
+function preferLastSelection<T extends QuickPickItem>(items: readonly T[], lastSelection: string | undefined): readonly T[] {
+  const selectionIndex = items.findIndex((item) => item.value === lastSelection);
+  if (selectionIndex <= 0) {
+    return items;
+  }
+
+  return [
+    items[selectionIndex]!,
+    ...items.slice(0, selectionIndex),
+    ...items.slice(selectionIndex + 1)
+  ];
+}
+
+function advancedPushTargets(remoteBranches: readonly string[], lastSelection: string | undefined): readonly QuickPickItem[] {
+  const orderedRemoteBranches = preferMainBranches(remoteBranches);
+  const items = orderedRemoteBranches.map((branch) => ({ label: branch, value: branch }));
+  if (!lastSelection || remoteBranches.includes(lastSelection)) {
+    return preferLastSelection(items, lastSelection);
+  }
+
+  return [
+    { label: lastSelection, value: lastSelection },
+    ...items
+  ];
+}
+
+function preferMainBranches(branches: readonly string[]): readonly string[] {
+  return [...branches].sort((left, right) => primaryBranchRank(left) - primaryBranchRank(right));
+}
+
+function primaryBranchRank(branch: string): number {
+  const shortBranch = branch.slice(branch.indexOf("/") + 1);
+  if (shortBranch === "main") {
+    return 0;
+  }
+
+  return shortBranch === "master" ? 1 : 2;
+}
+
+function itemMatchesInput(value: string, input: string): boolean {
+  const remoteTarget = splitRemoteBranch(value);
+  return value === input || remoteTarget.branch === input;
+}
+
+function createRemoteBranchItem(remote: string, input: string): QuickPickItem {
+  const remotePrefix = `${remote}/`;
+  const branch = input.startsWith(remotePrefix) ? input : `${remote}/${input}`;
+  return {
+    label: branch,
+    value: branch
   };
 }
 

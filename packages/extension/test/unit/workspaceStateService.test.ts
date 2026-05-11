@@ -9,4 +9,20 @@ describe("WorkspaceStateService", () => {
 
     expect(service.getCurrentRepositoryId()).toBe("/workspace/repo");
   });
+
+  it("persists advanced git selections in workspace storage", async () => {
+    const values = new Map<string, string>();
+    const service = new WorkspaceStateService({
+      storage: {
+        get: (key) => values.get(key),
+        update: async (key, value) => {
+          values.set(key, value);
+        }
+      }
+    });
+
+    await service.setAdvancedGitSelection("/workspace/repo", "advancedPullMode", "rebase");
+
+    expect(service.getAdvancedGitSelection("/workspace/repo", "advancedPullMode")).toBe("rebase");
+  });
 });

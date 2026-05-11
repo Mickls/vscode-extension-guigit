@@ -482,6 +482,217 @@ describe("GitService", () => {
     );
   });
 
+  it("moves the last advanced pull selections to the top", async () => {
+    const selectedModes: string[] = [];
+    const selectedBranches: string[] = [];
+    const showQuickPick = vi.fn((items: readonly { label: string; value: string }[], options: { placeHolder: string }) => {
+      if (options.placeHolder === "Select pull mode") {
+        selectedModes.push(items[0]!.label);
+        return Promise.resolve({ label: "Rebase", value: "rebase" });
+      }
+
+      selectedBranches.push(items[0]!.label);
+      return Promise.resolve({ label: "origin/feature", value: "origin/feature" });
+    });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n  origin/feature\n";
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.advancedPull("/repo")).resolves.toEqual({ message: "Advanced pull completed", status: "ok" });
+    await expect(service.advancedPull("/repo")).resolves.toEqual({ message: "Advanced pull completed", status: "ok" });
+
+    expect(selectedModes).toEqual(["Merge", "Rebase"]);
+    expect(selectedBranches).toEqual(["origin/main", "origin/feature"]);
+  });
+
+  it("orders main and master remote branches before other branches by default", async () => {
+    const selectedBranches: string[] = [];
+    const showQuickPick = vi.fn((items: readonly { label: string; value: string }[], options: { placeHolder: string }) => {
+      if (options.placeHolder === "Select pull mode") {
+        return Promise.resolve({ label: "Merge", value: "merge" });
+      }
+
+      selectedBranches.push(items[0]!.label, items[1]!.label);
+      return Promise.resolve({ label: "origin/main", value: "origin/main" });
+    });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args.join(" ") === "branch -r") {
+          return "  origin/feature\n  upstream/master\n  origin/main\n";
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.advancedPull("/repo")).resolves.toEqual({ message: "Advanced pull completed", status: "ok" });
+
+    expect(selectedBranches).toEqual(["origin/main", "upstream/master"]);
+  });
+
+  it("creates a new remote branch from advanced push input", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "+ Create new remote branch", value: "__create__" })
+      .mockResolvedValueOnce({ label: "Normal", value: "normal" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "remote") {
+          return "origin\n";
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        return "";
+      },
+      showInputBox: vi.fn().mockResolvedValue("feature/new-branch"),
+      showQuickPickWithInput: vi.fn().mockResolvedValue({ label: "+ Create new remote branch", value: "__create__" }),
+      showQuickPick
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+
+    expect(calls).toEqual([
+      "branch -r",
+      "rev-parse --abbrev-ref HEAD",
+      "push origin HEAD:feature/new-branch",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
+  });
+
+  it("creates a new remote branch when advanced push input has no branch match", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "origin/feature/new-branch",
+      value: "origin/feature/new-branch"
+    });
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "Normal", value: "normal" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "remote") {
+          return "origin\n";
+        }
+
+        return "";
+      },
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+
+    expect(showQuickPickWithInput).toHaveBeenCalledWith(
+      [
+        { label: "origin/main", value: "origin/main" },
+        { label: "+ Create new remote branch", value: "__create__" }
+      ],
+      { createRemote: "origin", placeHolder: "Select remote branch to push" }
+    );
+    expect(calls).toEqual([
+      "branch -r",
+      "push origin HEAD:feature/new-branch",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
+  });
+
+  it("moves the last advanced push selections to the top", async () => {
+    const selectedBranches: string[] = [];
+    const selectedModes: string[] = [];
+    const showQuickPick = vi.fn((items: readonly { label: string; value: string }[], options: { placeHolder: string }) => {
+      if (options.placeHolder === "Select remote branch to push") {
+        selectedBranches.push(items[0]!.label);
+        return Promise.resolve({ label: "origin/feature", value: "origin/feature" });
+      }
+
+      selectedModes.push(items[0]!.label);
+      return Promise.resolve({ label: "Force with lease", value: "force-with-lease" });
+    });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n  origin/feature\n";
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        return "";
+      },
+      showInformationMessage: vi.fn().mockResolvedValue("Force Push"),
+      showQuickPickWithInput: (items) => showQuickPick(items, { placeHolder: "Select remote branch to push" }),
+      showQuickPick
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+
+    expect(selectedBranches).toEqual(["origin/main", "origin/feature"]);
+    expect(selectedModes).toEqual(["Normal", "Force with lease"]);
+  });
+
+  it("keeps a newly created advanced push target at the top before it appears in remote branches", async () => {
+    const secondTargetLabels: string[] = [];
+    const showQuickPick = vi.fn((items: readonly { label: string; value: string }[], options: { placeHolder: string }) => {
+      if (options.placeHolder === "Select remote branch to push") {
+        if (showQuickPick.mock.calls.length === 1) {
+          return Promise.resolve({ label: "+ Create new remote branch", value: "__create__" });
+        }
+
+        secondTargetLabels.push(items[0]!.label);
+        return Promise.resolve({ label: "origin/feature/new-branch", value: "origin/feature/new-branch" });
+      }
+
+      return Promise.resolve({ label: "Normal", value: "normal" });
+    });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "remote") {
+          return "origin\n";
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        return "";
+      },
+      showInputBox: vi.fn().mockResolvedValue("feature/new-branch"),
+      showQuickPickWithInput: (items) => showQuickPick(items, { placeHolder: "Select remote branch to push" }),
+      showQuickPick
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+
+    expect(secondTargetLabels).toEqual(["origin/feature/new-branch"]);
+  });
+
   it("cancels advanced force push when confirmation is dismissed", async () => {
     const calls: string[] = [];
     const showInformationMessage = vi.fn().mockResolvedValue(undefined);
@@ -735,6 +946,10 @@ function createService(input: {
     items: readonly { label: string; value: string }[],
     options: { placeHolder: string }
   ) => Thenable<{ label: string; value: string } | undefined> | Promise<{ label: string; value: string } | undefined>;
+  showQuickPickWithInput?: (
+    items: readonly { label: string; value: string }[],
+    options: { createRemote: string; placeHolder: string }
+  ) => Thenable<{ label: string; value: string } | undefined> | Promise<{ label: string; value: string } | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined> | Promise<string | undefined>;
   logger?: {
     debug(message: string, context?: unknown): void;
@@ -763,6 +978,11 @@ function createService(input: {
     showInputBox: input.showInputBox,
     showOpenDialog: input.showOpenDialog,
     showQuickPick: input.showQuickPick,
+    showQuickPickWithInput: input.showQuickPickWithInput ?? (
+      input.showQuickPick
+        ? (items) => input.showQuickPick!(items, { placeHolder: "Select remote branch to push" })
+        : undefined
+    ),
     showWarningMessage: input.showWarningMessage
   });
 }

@@ -38,7 +38,9 @@ export function activate(context: ExtensionContext): void {
   logger.info("extension.activate");
 
   const cache = new CacheService();
-  const repositoryState = new WorkspaceStateService();
+  const repositoryState = new WorkspaceStateService({
+    storage: context.workspaceState
+  });
   const repositoryService = new RepositoryService({
     activeEditorPath: () => window.activeTextEditor?.document.uri.fsPath,
     state: repositoryState,
@@ -83,7 +85,8 @@ export function activate(context: ExtensionContext): void {
     logger,
     proxyService,
     safetyService,
-    settingsService
+    settingsService,
+    stateService: repositoryState
   });
   const fileHistoryPanel = new FileHistoryPanel({
     activeEditorUri: () => window.activeTextEditor?.document.uri,
