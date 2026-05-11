@@ -29,9 +29,10 @@ interface GitExtensionExports {
 }
 
 export function activate(context: ExtensionContext): void {
+  const guigitConfiguration = () => workspace.getConfiguration("guigit");
   const outputChannel = window.createOutputChannel("GUI Git History", "guigit-log");
   const logger = new LoggerService({
-    level: () => workspace.getConfiguration().get<LogLevel>("guigit.logLevel") ?? "info",
+    level: () => guigitConfiguration().get<LogLevel>("logLevel") ?? "info",
     sink: outputChannel
   });
   logger.info("extension.activate");
@@ -48,18 +49,18 @@ export function activate(context: ExtensionContext): void {
   const fileService = new FileService({
     cache,
     configuration: {
-      get: (key) => workspace.getConfiguration().get<FileViewMode>(key) ?? "tree",
+      get: (key) => guigitConfiguration().get<FileViewMode>(key) ?? "tree",
       update: async (key, value) => {
-        await workspace.getConfiguration().update(key, value, ConfigurationTarget.Workspace);
+        await guigitConfiguration().update(key, value, ConfigurationTarget.Workspace);
       }
     },
     logger
   });
   const settingsService = new SettingsService({
     configuration: {
-      get: (key) => workspace.getConfiguration().get(key),
+      get: (key) => guigitConfiguration().get(key),
       update: async (key: SettingsConfigurationKey, value) => {
-        await workspace.getConfiguration().update(key, value, ConfigurationTarget.Workspace);
+        await guigitConfiguration().update(key, value, ConfigurationTarget.Workspace);
       }
     }
   });

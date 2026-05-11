@@ -140,7 +140,7 @@ function createController(input: {
     }),
     createMarkdownString: input.createMarkdownString ?? ((value) => ({ isTrusted: true, value })),
     gitRaw: async () => blameOutput,
-    now: input.now,
+    now: input.now ?? (() => new Date("2026-05-09T10:00:00+08:00")),
     repositoryService: {
       discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }]
     },

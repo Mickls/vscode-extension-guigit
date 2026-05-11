@@ -137,7 +137,7 @@ describe("FileService", () => {
     });
   });
 
-  it("stores file view mode through guigit.fileViewMode", async () => {
+  it("stores file view mode through the guigit configuration section", async () => {
     const updates: Array<{ key: string; value: FileViewMode }> = [];
     const service = new FileService({
       cache: new CacheService(),
@@ -153,7 +153,7 @@ describe("FileService", () => {
     await service.setFileViewMode("tree");
 
     expect(service.getFileViewMode()).toBe("list");
-    expect(updates).toEqual([{ key: "guigit.fileViewMode", value: "tree" }]);
+    expect(updates).toEqual([{ key: "fileViewMode", value: "tree" }]);
   });
 
   it("logs commit details loading and result metadata", async () => {

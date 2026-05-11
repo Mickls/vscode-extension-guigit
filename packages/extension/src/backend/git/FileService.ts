@@ -14,8 +14,8 @@ const fieldSeparator = "\x1f";
 const commitFormat = `%H${fieldSeparator}%ai${fieldSeparator}%s${fieldSeparator}%an${fieldSeparator}%ae${fieldSeparator}%D${fieldSeparator}%b`;
 
 export interface FileServiceConfiguration {
-  get: (key: "guigit.fileViewMode") => FileViewMode;
-  update: (key: "guigit.fileViewMode", value: FileViewMode) => Promise<void>;
+  get: (key: "fileViewMode") => FileViewMode;
+  update: (key: "fileViewMode", value: FileViewMode) => Promise<void>;
 }
 
 export interface FileServiceInput {
@@ -106,11 +106,11 @@ export class FileService {
   }
 
   public getFileViewMode(): FileViewMode {
-    return this.configuration.get("guigit.fileViewMode");
+    return this.configuration.get("fileViewMode");
   }
 
   public async setFileViewMode(mode: FileViewMode): Promise<void> {
-    await this.configuration.update("guigit.fileViewMode", mode);
+    await this.configuration.update("fileViewMode", mode);
   }
 
   private async getCommitInfo(repositoryRoot: string, hash: string): Promise<CommitInfo> {

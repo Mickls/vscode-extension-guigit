@@ -7,16 +7,16 @@ describe("SettingsService", () => {
       configuration: {
         get: (key) =>
           ({
-            "guigit.autoStashOnPull": "always",
-            "guigit.blame.enabled": false,
-            "guigit.blame.format": "${author}: ${summary}",
-            "guigit.blame.showOnlyCurrentLine": true,
-            "guigit.fileViewMode": "list",
-            "guigit.language": "zh",
-            "guigit.proxy.enabled": true,
-            "guigit.proxy.http": "http://127.0.0.1:7890",
-            "guigit.proxy.https": "http://127.0.0.1:7891",
-            "guigit.proxy.noProxy": "localhost"
+            autoStashOnPull: "always",
+            "blame.enabled": false,
+            "blame.format": "${author}: ${summary}",
+            "blame.showOnlyCurrentLine": true,
+            fileViewMode: "list",
+            language: "zh",
+            "proxy.enabled": true,
+            "proxy.http": "http://127.0.0.1:7890",
+            "proxy.https": "http://127.0.0.1:7891",
+            "proxy.noProxy": "localhost"
           })[key],
         update: async () => undefined
       }
@@ -38,11 +38,11 @@ describe("SettingsService", () => {
     });
   });
 
-  it("updates file view mode through guigit.fileViewMode", async () => {
+  it("updates file view mode through the guigit configuration section", async () => {
     const updates: Array<{ key: string; value: unknown }> = [];
     const service = new SettingsService({
       configuration: {
-        get: (key) => (key === "guigit.fileViewMode" ? "tree" : undefined),
+        get: (key) => (key === "fileViewMode" ? "tree" : undefined),
         update: async (key, value) => {
           updates.push({ key, value });
         }
@@ -51,7 +51,7 @@ describe("SettingsService", () => {
 
     await service.updateSettings({ fileViewMode: "list" });
 
-    expect(updates).toEqual([{ key: "guigit.fileViewMode", value: "list" }]);
+    expect(updates).toEqual([{ key: "fileViewMode", value: "list" }]);
   });
 
   it("updates language and proxy settings", async () => {
@@ -76,11 +76,11 @@ describe("SettingsService", () => {
     });
 
     expect(updates).toEqual([
-      { key: "guigit.language", value: "zh" },
-      { key: "guigit.proxy.enabled", value: true },
-      { key: "guigit.proxy.http", value: "http://127.0.0.1:7890" },
-      { key: "guigit.proxy.https", value: "http://127.0.0.1:7891" },
-      { key: "guigit.proxy.noProxy", value: "localhost" }
+      { key: "language", value: "zh" },
+      { key: "proxy.enabled", value: true },
+      { key: "proxy.http", value: "http://127.0.0.1:7890" },
+      { key: "proxy.https", value: "http://127.0.0.1:7891" },
+      { key: "proxy.noProxy", value: "localhost" }
     ]);
   });
 
@@ -99,8 +99,8 @@ describe("SettingsService", () => {
     await service.resetAutoStashPreference();
 
     expect(updates).toEqual([
-      { key: "guigit.autoStashOnPull", value: "always" },
-      { key: "guigit.autoStashOnPull", value: "ask" }
+      { key: "autoStashOnPull", value: "always" },
+      { key: "autoStashOnPull", value: "ask" }
     ]);
   });
 });
