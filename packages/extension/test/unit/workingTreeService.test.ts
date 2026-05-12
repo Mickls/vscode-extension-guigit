@@ -105,6 +105,9 @@ describe("WorkingTreeService", () => {
 
   it("runs git restore when discard confirmation returns Discard", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "status --porcelain=v1 -- src/a.ts") {
+        return " M src/a.ts\n";
+      }
       if (args.join(" ") === "status --porcelain=v1") {
         return "";
       }
@@ -120,7 +123,31 @@ describe("WorkingTreeService", () => {
 
     const result = await service.discardFile("/repo", "/repo", "src/a.ts");
 
-    expect(gitRaw).toHaveBeenNthCalledWith(1, "/repo", ["restore", "--worktree", "--", "src/a.ts"]);
+    expect(gitRaw).toHaveBeenNthCalledWith(2, "/repo", ["restore", "--worktree", "--", "src/a.ts"]);
+    expect(result.result).toEqual({ message: "Discarded file", status: "ok" });
+  });
+
+  it("runs git clean when discarding an untracked file", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "status --porcelain=v1 -- src/new.ts") {
+        return "?? src/new.ts\n";
+      }
+      if (args.join(" ") === "status --porcelain=v1") {
+        return "";
+      }
+      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+        return "main\n";
+      }
+      return "";
+    });
+    const service = new WorkingTreeService({
+      gitRaw,
+      showWarningMessage: async () => "Discard"
+    });
+
+    const result = await service.discardFile("/repo", "/repo", "src/new.ts");
+
+    expect(gitRaw).toHaveBeenNthCalledWith(2, "/repo", ["clean", "-f", "--", "src/new.ts"]);
     expect(result.result).toEqual({ message: "Discarded file", status: "ok" });
   });
 
@@ -230,10 +257,10 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "stash list") {
         return "stash@{0}: WIP on main: abc1234 message\n";
       }
-      if (args.join(" ") === "stash show --name-status stash@{0}") {
+      if (args.join(" ") === "stash show --include-untracked --name-status stash@{0}") {
         return "M\tsrc/a.ts\nA\tsrc/image.png\nR100\tsrc/old.txt\tsrc/new.txt\n";
       }
-      if (args.join(" ") === "stash show --numstat stash@{0}") {
+      if (args.join(" ") === "stash show --include-untracked --numstat stash@{0}") {
         return "10\t2\tsrc/a.ts\n-\t-\tsrc/image.png\n3\t1\tsrc/{old.txt => new.txt}\n";
       }
       return "";
@@ -261,7 +288,7 @@ describe("WorkingTreeService", () => {
       message: "WIP on main: abc1234 message",
       ref: "stash@{0}"
     });
-    expect(gitRaw).toHaveBeenCalledWith("/repo", ["stash", "show", "--name-status", "stash@{0}"]);
-    expect(gitRaw).toHaveBeenCalledWith("/repo", ["stash", "show", "--numstat", "stash@{0}"]);
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["stash", "show", "--include-untracked", "--name-status", "stash@{0}"]);
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["stash", "show", "--include-untracked", "--numstat", "stash@{0}"]);
   });
 });

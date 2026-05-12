@@ -143,4 +143,19 @@ describe("WorkingTreeParser", () => {
       }
     ]);
   });
+
+  it("does not treat arrow text in modified stash paths as renames", () => {
+    const result = parseStashFiles("M\tsrc/a => b.txt\n", "4\t2\tsrc/a => b.txt\n");
+
+    expect(result).toEqual([
+      {
+        area: "stash",
+        binary: false,
+        deletions: 2,
+        insertions: 4,
+        path: "src/a => b.txt",
+        status: "modified"
+      }
+    ]);
+  });
 });

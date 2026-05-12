@@ -72,7 +72,8 @@ export function parseStashFiles(
 
   for (const line of numstatOutput.split("\n").filter(Boolean)) {
     const columns = line.split("\t");
-    const parsedPath = parseNumstatPath(columns[2]!);
+    const numstatPath = columns[2]!;
+    const parsedPath = files.has(numstatPath) ? { path: numstatPath } : parseNumstatPath(numstatPath);
     const existing = files.get(parsedPath.path);
     files.set(parsedPath.path, {
       area: "stash",

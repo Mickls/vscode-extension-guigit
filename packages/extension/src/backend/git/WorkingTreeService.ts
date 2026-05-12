@@ -58,7 +58,11 @@ export class WorkingTreeService {
       return this.cancelledResult(repositoryId, repositoryRoot, "Discard cancelled");
     }
 
-    return this.withResult(repositoryId, repositoryRoot, ["restore", "--worktree", "--", filePath], "Discarded file");
+    const status = parsePorcelainStatus(await this.gitRaw(repositoryRoot, ["status", "--porcelain=v1", "--", filePath]));
+    const isUntracked = status.unstaged.some((file) => file.area === "untracked" && file.path === filePath);
+    const args = isUntracked ? ["clean", "-f", "--", filePath] : ["restore", "--worktree", "--", filePath];
+
+    return this.withResult(repositoryId, repositoryRoot, args, "Discarded file");
   }
 
   public async applyStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
@@ -86,8 +90,8 @@ export class WorkingTreeService {
   public async getStashDetails(repositoryRoot: string, stashRef: string): Promise<StashEntryViewModel> {
     const [stashListOutput, nameStatusOutput, numstatOutput] = await Promise.all([
       this.gitRaw(repositoryRoot, ["stash", "list"]),
-      this.gitRaw(repositoryRoot, ["stash", "show", "--name-status", stashRef]),
-      this.gitRaw(repositoryRoot, ["stash", "show", "--numstat", stashRef])
+      this.gitRaw(repositoryRoot, ["stash", "show", "--include-untracked", "--name-status", stashRef]),
+      this.gitRaw(repositoryRoot, ["stash", "show", "--include-untracked", "--numstat", stashRef])
     ]);
     const stash = parseStashList(stashListOutput).find((entry) => entry.ref === stashRef)!;
 
