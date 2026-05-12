@@ -64,4 +64,29 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
       model: "gpt-test"
     });
   });
+
+  it("rejects whitespace-only provider responses with a clear error", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: " \n\t "
+            }
+          }
+        ]
+      })
+    }));
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.example.com/v1",
+        model: "gpt-test",
+        prompt: "Write one line"
+      })
+    ).rejects.toThrow("OpenAI-compatible provider returned no commit message");
+  });
 });
