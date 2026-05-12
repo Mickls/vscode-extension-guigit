@@ -147,6 +147,27 @@ describe("App", () => {
     expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "history.load")).toHaveLength(historyLoadCount);
   });
 
+  it("does not rerun bootstrap requests after settings i18n is applied", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    const settingsRequest = latestRequest(rpcClient, "settings.get");
+    dispatchSettingsResponse(settingsRequest.id, "tree", "settings.get", {
+      locale: "zh",
+      messages: {
+        gitOperations: {
+          settings: "设置"
+        }
+      }
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "history.load")).toHaveLength(1);
+    expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "settings.get")).toHaveLength(1);
+  });
+
   it("localizes the main webview surfaces from the settings bundle", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

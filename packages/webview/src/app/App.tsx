@@ -248,7 +248,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   useEffect(() => {
     reloadHistory();
     requestSettings(client);
-  }, [client, i18nMessages]);
+  }, [client]);
 
   useEffect(() => {
     if (!operationNotification || operationNotification.state === "running") {
