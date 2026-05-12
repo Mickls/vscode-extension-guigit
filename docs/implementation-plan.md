@@ -419,7 +419,7 @@ gui-git-history/
 - [x] Use one translation service for Extension Host and Webview bootstrap data.
 - [x] Implement language selector and Webview refresh.
 - [x] Restore current view state after language change.
-- [ ] Commit with `feat: add internationalization`.
+- [x] Commit with `feat: add internationalization`.
 
 ## Phase 7: Packaging And Replacement
 
@@ -430,13 +430,13 @@ gui-git-history/
 - Modify: `packages/extension/package.json`
 - Modify: root `package.json`
 
-- [ ] Add `pnpm package` command.
-- [ ] Ensure bundled Webview assets are copied into extension package output.
-- [ ] Ensure extension icon is included.
-- [ ] Run `pnpm build`.
-- [ ] Run `pnpm package`.
-- [ ] Confirm VSIX extension id is `Mickls.vscode-extension-guigit`.
-- [ ] Commit with `chore: package replacement extension`.
+- [x] Add `pnpm package` command.
+- [x] Ensure bundled Webview assets are copied into extension package output.
+- [x] Ensure extension icon is included.
+- [x] Run `pnpm build`.
+- [x] Run `pnpm package`.
+- [x] Confirm VSIX extension id is `Mickls.vscode-extension-guigit`.
+- [x] Commit with `chore: package replacement extension`.
 
 ### Task 7.2: Old repository replacement
 
@@ -444,14 +444,14 @@ gui-git-history/
 
 - Target old repo: `/Users/jiangcheng/code/owner/vscode-extension-guigit`
 
-- [ ] Create branch `codex/rewrite-gui-git-history` in the old repo.
-- [ ] Preserve `.git`.
-- [ ] Replace old source tree with new project source.
-- [ ] Keep `package.json.name` as `vscode-extension-guigit`.
-- [ ] Remove `package-lock.json`.
-- [ ] Add `pnpm-lock.yaml`.
-- [ ] Run `pnpm install`, `pnpm typecheck`, `pnpm eslint`, `pnpm test`, `pnpm package`.
-- [ ] Commit with `feat: rewrite gui git history extension`.
+- [x] Create branch `codex/rewrite-gui-git-history` in the old repo.
+- [x] Preserve `.git`.
+- [x] Replace old source tree with new project source.
+- [x] Keep `package.json.name` as `vscode-extension-guigit`.
+- [x] Remove `package-lock.json`.
+- [x] Add `pnpm-lock.yaml`.
+- [x] Run `pnpm install`, `pnpm typecheck`, `pnpm eslint`, `pnpm test`, `pnpm package`.
+- [x] Commit with `feat: rewrite gui git history extension`.
 
 ## Verification Checklist
 

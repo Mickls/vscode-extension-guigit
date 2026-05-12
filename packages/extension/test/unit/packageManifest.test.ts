@@ -2,6 +2,16 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("package manifest", () => {
+  it("keeps runtime assets in the VSIX without local build artifacts", async () => {
+    const ignore = await readFile(".vscodeignore", "utf8");
+
+    expect(ignore).toContain("scripts/**");
+    expect(ignore).toContain("*.vsix");
+    expect(ignore).toContain("node_modules/**");
+    expect(ignore).not.toContain("assets/**");
+    expect(ignore).not.toContain("webview-dist/**");
+  });
+
   it("bundles the extension host before dependency-free packaging", async () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8")) as {
       scripts: {

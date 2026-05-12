@@ -1,4 +1,7 @@
 src/**
 test/**
+scripts/**
+node_modules/**
+*.vsix
 *.tsbuildinfo
 tsconfig.json
