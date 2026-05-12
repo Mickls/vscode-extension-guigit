@@ -497,10 +497,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
             message: response.payload.result.message,
             state: response.payload.result.status === "ok" ? "success" : "warning"
           });
-          if (response.type === "workingTree.commit" && response.payload.result.status === "ok") {
-            setCommitMessageResetKey((key) => key + 1);
-            reloadHistory({ preserveSelection: true });
-          }
+        }
+        if (response.type === "workingTree.commit" && response.payload.result.status === "ok") {
+          setCommitMessageResetKey((key) => key + 1);
+          reloadHistory({ preserveSelection: true });
         }
       }
 
