@@ -59,6 +59,7 @@ export interface GitHistoryRpcHandlerInput {
   workingTreeService: Pick<
     WorkingTreeService,
     | "applyStash"
+    | "commit"
     | "discardFile"
     | "dropStash"
     | "getStashDetails"
@@ -282,6 +283,11 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.workingTreeService.discardFile(repository.id, repository.rootPath, request.filePath);
+    },
+    "workingTree.commit": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.workingTreeService.commit(repository.id, repository.rootPath, request.message);
     },
     "workingTree.openFile": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);

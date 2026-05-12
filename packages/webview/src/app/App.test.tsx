@@ -202,6 +202,57 @@ describe("App", () => {
     }));
   });
 
+  it("posts commit messages, clears the draft, updates changes, and reloads history after commit responses", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByText("Second real commit"));
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id);
+    rpcClient.post.mockClear();
+
+    await user.type(await screen.findByRole("textbox", { name: "Commit message" }), "feat: test");
+    await user.click(screen.getByRole("button", { name: "Commit" }));
+    const commitRequest = latestRequest(rpcClient, "workingTree.commit");
+    expect(commitRequest).toEqual(expect.objectContaining({
+      message: "feat: test",
+      repositoryId: "/repo",
+      type: "workingTree.commit"
+    }));
+
+    dispatchWorkingTreeActionResponse(commitRequest.id, "workingTree.commit", {
+      ...defaultWorkingTree,
+      staged: []
+    }, "Commit completed");
+
+    expect(await screen.findByRole("heading", { name: "Staged Changes (0)" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Commit message" })).toHaveValue("");
+    expect(screen.getByRole("status")).toHaveTextContent("Commit completed");
+
+    const historyRequest = latestRequest(rpcClient, "history.load");
+    expect(historyRequest).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      type: "history.load"
+    }));
+    dispatchHistoryResponse(rpcClient, {
+      commits: [
+        createCommit({ hash: "new1234567890abcdef", message: "New top commit" }),
+        createCommit({ hash: "def4567890abcdefabc", message: "Second real commit" })
+      ],
+      requestId: historyRequest.id
+    });
+
+    expect(latestRequest(rpcClient, "commits.getDetails")).toEqual(expect.objectContaining({
+      hash: "def4567890abcdefabc",
+      repositoryId: "/repo",
+      type: "commits.getDetails"
+    }));
+  });
+
   it("keeps stale working tree action responses from replacing selected repository changes", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -2427,6 +2478,7 @@ function dispatchWorkingTreeActionResponse(
     | "stash.apply"
     | "stash.drop"
     | "stash.pop"
+    | "workingTree.commit"
     | "workingTree.discardFile"
     | "workingTree.stageAll"
     | "workingTree.stageFile"

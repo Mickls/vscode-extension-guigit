@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { ArchiveRestore, Check, ChevronDown, ChevronRight, FileText, RotateCcw, Trash2, X } from "lucide-react";
 import type {
   FileViewMode,
@@ -56,8 +56,10 @@ const defaultLabels: ChangesPanelLabels = {
 };
 
 export interface ChangesPanelProps {
+  commitMessageResetKey?: number;
   fileViewMode: FileViewMode;
   labels?: Partial<ChangesPanelLabels>;
+  onCommit?: (message: string) => void;
   onFileViewModeChange?: (mode: FileViewMode) => void;
   onApplyStash?: (stashRef: string) => void;
   onDiscardFile?: (path: string) => void;
@@ -73,8 +75,10 @@ export interface ChangesPanelProps {
 }
 
 export function ChangesPanel({
+  commitMessageResetKey = 0,
   fileViewMode,
   labels,
+  onCommit,
   onApplyStash,
   onDiscardFile,
   onDropStash,
@@ -94,6 +98,10 @@ export function ChangesPanel({
   const unstaged = workingTree?.unstaged ?? [];
   const stashes = workingTree?.stashes ?? [];
   const canCommit = staged.length > 0 && commitMessage.trim().length > 0;
+
+  useEffect(() => {
+    setCommitMessage("");
+  }, [commitMessageResetKey]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
@@ -165,6 +173,7 @@ export function ChangesPanel({
           <button
             className="rounded-[3px] bg-[var(--vscode-button-background)] px-3 py-1 text-xs text-[var(--vscode-button-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!canCommit}
+            onClick={() => onCommit?.(commitMessage)}
             type="button"
           >
             {text.commit}

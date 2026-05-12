@@ -83,6 +83,38 @@ describe("WorkingTreeService", () => {
       })
     });
   });
+
+  it("runs git commit with the message and returns the updated working tree without staging unstaged files", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "status --porcelain=v1") {
+        return "M  src/staged.ts\n M src/unstaged.ts\n";
+      }
+      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+        return "main\n";
+      }
+      return "";
+    });
+    const service = new WorkingTreeService({ gitRaw });
+
+    const result = await service.commit("/repo", "/repo", "feat: test");
+
+    expect(gitRaw).toHaveBeenNthCalledWith(1, "/repo", ["commit", "-m", "feat: test"]);
+    expect(gitRaw).not.toHaveBeenCalledWith("/repo", ["add", "--all"]);
+    expect(result).toEqual({
+      result: {
+        message: "Commit completed",
+        status: "ok"
+      },
+      workingTree: expect.objectContaining({
+        branch: "main",
+        repositoryId: "/repo",
+        repositoryRoot: "/repo",
+        staged: [expect.objectContaining({ path: "src/staged.ts" })],
+        unstaged: [expect.objectContaining({ path: "src/unstaged.ts" })]
+      })
+    });
+  });
+
   it("does not discard a file unless the warning confirmation returns Discard", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
       if (args.join(" ") === "status --porcelain=v1") {

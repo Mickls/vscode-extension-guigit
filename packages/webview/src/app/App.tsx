@@ -69,6 +69,7 @@ type WorkingTreeActionType =
   | "stash.apply"
   | "stash.drop"
   | "stash.pop"
+  | "workingTree.commit"
   | "workingTree.discardFile"
   | "workingTree.stageAll"
   | "workingTree.stageFile"
@@ -139,6 +140,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
   const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>("details");
   const [workingTree, setWorkingTree] = useState<WorkingTreeViewModel | undefined>();
+  const [commitMessageResetKey, setCommitMessageResetKey] = useState(0);
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
   const [i18nMessages, setI18nMessages] = useState<I18nMessages>(emptyI18nMessages);
   const [compareFiles, setCompareFiles] = useState<readonly FileChangeViewModel[]>(emptyCompareFiles);
@@ -495,6 +497,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
             message: response.payload.result.message,
             state: response.payload.result.status === "ok" ? "success" : "warning"
           });
+          if (response.type === "workingTree.commit" && response.payload.result.status === "ok") {
+            setCommitMessageResetKey((key) => key + 1);
+            reloadHistory({ preserveSelection: true });
+          }
         }
       }
 
@@ -897,6 +903,21 @@ export function App({ rpcClient }: AppProps): ReactElement {
     trackWorkingTreeOperation(id, selectedRepositoryIdRef.current);
   };
 
+  const commitWorkingTree = (message: string) => {
+    if (!selectedRepositoryIdRef.current) {
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    client?.post({
+      id,
+      message,
+      repositoryId: selectedRepositoryIdRef.current,
+      type: "workingTree.commit"
+    });
+    trackWorkingTreeOperation(id, selectedRepositoryIdRef.current);
+  };
+
   const openFileHistory = (filePath: string) => {
     if (!selectedRepositoryIdRef.current) {
       return;
@@ -1185,7 +1206,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
               />
             ) : (
               <ChangesPanel
+                commitMessageResetKey={commitMessageResetKey}
                 fileViewMode={fileViewMode}
+                onCommit={commitWorkingTree}
                 onApplyStash={(stashRef) => runStashAction("stash.apply", stashRef)}
                 onDiscardFile={discardWorkingTreeFile}
                 onDropStash={(stashRef) => runStashAction("stash.drop", stashRef)}
@@ -1576,6 +1599,7 @@ function isWorkingTreeActionResponse(
 function isWorkingTreeActionType(type: string): type is WorkingTreeActionType {
   return (
     type === "workingTree.stageAll" ||
+    type === "workingTree.commit" ||
     type === "workingTree.discardFile" ||
     type === "workingTree.stageFile" ||
     type === "workingTree.unstageAll" ||

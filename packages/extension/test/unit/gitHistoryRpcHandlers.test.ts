@@ -235,6 +235,69 @@ describe("Git history RPC handlers", () => {
     ]);
   });
 
+  it("routes working tree commit for the requested repository", async () => {
+    const calls: unknown[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        getCurrentUser: async () => undefined,
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async () => ({ message: "working tree diff opened", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: createGitService(),
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      proxyService: createProxyService(),
+      remoteService: createRemoteService(),
+      languageService: createLanguageService(),
+      settingsService: createSettingsService(),
+      workingTreeService: {
+        ...createWorkingTreeService(),
+        commit: async (repositoryId, repositoryRoot, message) => {
+          calls.push(["commit", repositoryId, repositoryRoot, message]);
+          return { result: { message: "Commit completed", status: "ok" }, workingTree };
+        }
+      }
+    });
+
+    await expect(
+      handlers["workingTree.commit"]!({
+        id: "working-tree-commit",
+        message: "feat: test",
+        repositoryId: "/repo",
+        type: "workingTree.commit"
+      })
+    ).resolves.toEqual({ result: { message: "Commit completed", status: "ok" }, workingTree });
+
+    expect(calls).toEqual([["commit", "/repo", "/repo", "feat: test"]]);
+  });
+
   it("opens working tree files and diffs for the requested repository", async () => {
     const calls: unknown[] = [];
     const handlers = createGitHistoryRpcHandlers({

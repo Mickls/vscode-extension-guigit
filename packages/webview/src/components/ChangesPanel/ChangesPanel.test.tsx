@@ -24,6 +24,32 @@ describe("ChangesPanel", () => {
     expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
   });
 
+  it("keeps the commit button disabled when the message is empty", () => {
+    render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
+
+    expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+  });
+
+  it("keeps the commit button disabled when staged files are empty", async () => {
+    const user = userEvent.setup();
+
+    render(<ChangesPanel fileViewMode="list" workingTree={{ ...workingTree, staged: [] }} />);
+    await user.type(screen.getByRole("textbox", { name: "Commit message" }), "feat: test");
+
+    expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+  });
+
+  it("sends typed commit messages when the commit button is enabled", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+
+    render(<ChangesPanel fileViewMode="list" onCommit={onCommit} workingTree={workingTree} />);
+    await user.type(screen.getByRole("textbox", { name: "Commit message" }), "feat: test");
+    await user.click(screen.getByRole("button", { name: "Commit" }));
+
+    expect(onCommit).toHaveBeenCalledWith("feat: test");
+  });
+
   it("uses one shared file view mode control", () => {
     render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
 

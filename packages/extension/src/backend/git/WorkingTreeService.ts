@@ -52,6 +52,10 @@ export class WorkingTreeService {
     return this.withResult(repositoryId, repositoryRoot, ["restore", "--staged", "--", "."], "Unstaged all changes");
   }
 
+  public async commit(repositoryId: string, repositoryRoot: string, message: string): Promise<WorkingTreeActionResult> {
+    return this.withResult(repositoryId, repositoryRoot, ["commit", "-m", message], "Commit completed");
+  }
+
   public async discardFile(repositoryId: string, repositoryRoot: string, filePath: string): Promise<WorkingTreeActionResult> {
     const confirmation = await this.showWarningMessage(`Discard changes in ${filePath}?`, { modal: true }, "Discard");
     if (confirmation !== "Discard") {
