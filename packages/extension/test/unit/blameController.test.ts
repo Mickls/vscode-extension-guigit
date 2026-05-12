@@ -32,6 +32,7 @@ describe("BlameController", () => {
         return markdown;
       },
       editor,
+      now: () => new Date("2026-05-09T10:05:00+08:00"),
       settings: createSettings({
         blameFormat: "${author}, ${time}: ${summary}",
         blameShowOnlyCurrentLine: false
@@ -70,6 +71,7 @@ describe("BlameController", () => {
     const editor = createEditor(0);
     const controller = createController({
       editor,
+      now: () => new Date("2026-05-09T10:05:00+08:00"),
       settings: createSettings({
         blameFormat: "${hash} ${author}: ${summary}",
         blameShowOnlyCurrentLine: false
@@ -104,6 +106,7 @@ describe("BlameController", () => {
     const updateBlameEnabled = vi.fn();
     const controller = createController({
       editor,
+      now: () => new Date("2026-05-09T10:05:00+08:00"),
       settings: createSettings({
         blameEnabled: false
       }),
