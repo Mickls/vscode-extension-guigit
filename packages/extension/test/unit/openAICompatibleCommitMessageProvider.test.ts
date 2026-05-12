@@ -2,6 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 import { OpenAICompatibleCommitMessageProvider } from "../../src/backend/git/OpenAICompatibleCommitMessageProvider";
 
 describe("OpenAICompatibleCommitMessageProvider", () => {
+  it("reports a clear error at generation time when fetch is unavailable", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      Reflect.deleteProperty(globalThis, "fetch");
+      const provider = new OpenAICompatibleCommitMessageProvider();
+
+      await expect(
+        provider.generate({
+          apiKey: "sk-test",
+          baseUrl: "https://api.example.com/v1",
+          model: "gpt-test",
+          prompt: "Write one line"
+        })
+      ).rejects.toThrow("OpenAI-compatible provider requires fetch support in this VS Code host");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("posts the prompt to the chat completions endpoint with the configured model", async () => {
     const fetch = vi.fn(async () => ({
       ok: true,

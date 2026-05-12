@@ -18,14 +18,19 @@ interface OpenAICompatibleChatCompletionsResponse {
 }
 
 export class OpenAICompatibleCommitMessageProvider {
-  private readonly fetch: typeof fetch;
+  private readonly fetch?: typeof fetch;
 
   public constructor(input: OpenAICompatibleCommitMessageProviderInput = {}) {
-    this.fetch = input.fetch ?? globalThis.fetch.bind(globalThis);
+    this.fetch = input.fetch;
   }
 
   public async generate(input: OpenAICompatibleCommitMessageRequest): Promise<string> {
-    const response = await this.fetch(`${trimTrailingSlash(input.baseUrl)}/chat/completions`, {
+    const requestFetch = this.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
+    if (!requestFetch) {
+      throw new Error("OpenAI-compatible provider requires fetch support in this VS Code host");
+    }
+
+    const response = await requestFetch(`${trimTrailingSlash(input.baseUrl)}/chat/completions`, {
       body: JSON.stringify({
         messages: [
           {

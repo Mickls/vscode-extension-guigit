@@ -33,6 +33,21 @@ interface GitExtensionExports {
   getAPI(version: 1): GitApiLike;
 }
 
+interface VsCodeLanguageModelApi {
+  lm?: {
+    selectChatModels?: (selector: Record<string, unknown>) => Promise<readonly VsCodeLanguageModel[]>;
+  };
+  LanguageModelChatMessage?: {
+    User(content: string): unknown;
+  };
+}
+
+interface VsCodeLanguageModel {
+  sendRequest(messages: readonly unknown[]): Promise<{
+    stream: AsyncIterable<unknown>;
+  }>;
+}
+
 export function activate(context: ExtensionContext): void {
   const guigitConfiguration = () => workspace.getConfiguration("guigit");
   const outputChannel = window.createOutputChannel("GUI Git History", "guigit-log");
@@ -84,31 +99,19 @@ export function activate(context: ExtensionContext): void {
   });
   const languageModelProvider = new LanguageModelCommitMessageProvider({
     selectChatModels: async () => {
-      const models = await ((vscode as unknown as {
-        lm: {
-          selectChatModels(selector: Record<string, unknown>): Promise<
-            readonly {
-              sendRequest(messages: readonly unknown[]): Promise<{
-                stream: AsyncIterable<unknown>;
-              }>;
-            }[]
-          >;
-        };
-        LanguageModelChatMessage: {
-          User(content: string): unknown;
-        };
-      }).lm.selectChatModels({}));
+      const vscodeLanguageModelApi = vscode as unknown as VsCodeLanguageModelApi;
+      const selectChatModels = vscodeLanguageModelApi.lm?.selectChatModels;
+      const languageModelChatMessage = vscodeLanguageModelApi.LanguageModelChatMessage;
+      if (!selectChatModels || !languageModelChatMessage) {
+        return [];
+      }
+
+      const models = await selectChatModels.call(vscodeLanguageModelApi.lm, {});
 
       return models.map((model) => ({
         sendRequest: async (messages: readonly string[]) => {
           const response = await model.sendRequest(
-            messages.map((message) =>
-              (vscode as unknown as {
-                LanguageModelChatMessage: {
-                  User(content: string): unknown;
-                };
-              }).LanguageModelChatMessage.User(message)
-            )
+            messages.map((message) => languageModelChatMessage.User(message))
           );
           let content = "";
           for await (const part of response.stream) {
