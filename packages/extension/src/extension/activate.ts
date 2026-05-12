@@ -1,6 +1,8 @@
 import type { ExtensionContext } from "vscode";
+import * as vscode from "vscode";
 import { commands as vscodeCommands, ConfigurationTarget, Disposable, env, extensions, MarkdownString, Range, RelativePattern, window, workspace } from "vscode";
 import type { FileViewMode } from "../backend/rpc/contract";
+import { CommitMessageAiService } from "../backend/git/CommitMessageAiService";
 import { createGitHistoryRpcHandlers } from "../backend/rpc/gitHistoryRpcHandlers";
 import { createRpcRouter } from "../backend/rpc/router";
 import { BranchService } from "../backend/git/BranchService";
@@ -14,6 +16,8 @@ import { SafetyService } from "../backend/git/SafetyService";
 import { ProxyService } from "../backend/git/ProxyService";
 import { WorkingTreeService } from "../backend/git/WorkingTreeService";
 import { LanguageService } from "../backend/i18n/LanguageService";
+import { LanguageModelCommitMessageProvider } from "../backend/vscode/LanguageModelCommitMessageProvider";
+import { OpenAICompatibleCommitMessageProvider } from "../backend/git/OpenAICompatibleCommitMessageProvider";
 import { DiffService } from "../backend/vscode/DiffService";
 import { BlameController } from "../backend/vscode/BlameController";
 import { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
@@ -65,7 +69,70 @@ export function activate(context: ExtensionContext): void {
       update: async (key: SettingsConfigurationKey, value) => {
         await guigitConfiguration().update(key, value, ConfigurationTarget.Workspace);
       }
+    },
+    secretStorage: {
+      delete: async (key) => {
+        await context.secrets.delete(key);
+      },
+      get: async (key) => context.secrets.get(key),
+      store: async (key, value) => {
+        await context.secrets.store(key, value);
+      }
+    },
+    showInputBox: (options) => window.showInputBox(options),
+    showQuickPick: (items, options) => window.showQuickPick([...items], options)
+  });
+  const languageModelProvider = new LanguageModelCommitMessageProvider({
+    selectChatModels: async () => {
+      const models = await ((vscode as unknown as {
+        lm: {
+          selectChatModels(selector: Record<string, unknown>): Promise<
+            readonly {
+              sendRequest(messages: readonly unknown[]): Promise<{
+                stream: AsyncIterable<unknown>;
+              }>;
+            }[]
+          >;
+        };
+        LanguageModelChatMessage: {
+          User(content: string): unknown;
+        };
+      }).lm.selectChatModels({}));
+
+      return models.map((model) => ({
+        sendRequest: async (messages: readonly string[]) => {
+          const response = await model.sendRequest(
+            messages.map((message) =>
+              (vscode as unknown as {
+                LanguageModelChatMessage: {
+                  User(content: string): unknown;
+                };
+              }).LanguageModelChatMessage.User(message)
+            )
+          );
+          let content = "";
+          for await (const part of response.stream) {
+            if (typeof part === "string") {
+              content += part;
+              continue;
+            }
+
+            if (part && typeof part === "object" && "value" in part) {
+              content += (part as { value?: string }).value ?? "";
+            }
+          }
+
+          return content;
+        }
+      }));
     }
+  });
+  const openAICompatibleProvider = new OpenAICompatibleCommitMessageProvider();
+  const commitMessageAiService = new CommitMessageAiService({
+    gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
+    languageModelProvider,
+    openAICompatibleProvider,
+    settingsService
   });
   const languageService = new LanguageService({
     settingsService,
@@ -129,6 +196,7 @@ export function activate(context: ExtensionContext): void {
       fileService,
       gitService,
       graphService,
+      commitMessageAiService,
       languageService,
       proxyService,
       remoteService,

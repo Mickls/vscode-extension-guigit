@@ -131,6 +131,25 @@
           "default": "tree",
           "description": "Default file change view mode in commit details"
         },
+        "guigit.ai.provider": {
+          "type": "string",
+          "enum": [
+            "vscodeLanguageModel",
+            "openAICompatible"
+          ],
+          "default": "vscodeLanguageModel",
+          "description": "AI provider used to generate commit messages"
+        },
+        "guigit.ai.openAICompatible.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for an OpenAI-compatible chat completions endpoint"
+        },
+        "guigit.ai.openAICompatible.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model name for the OpenAI-compatible provider"
+        },
         "guigit.logLevel": {
           "type": "string",
           "enum": [

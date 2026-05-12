@@ -616,9 +616,12 @@ describe("Git history RPC handlers", () => {
       },
       settingsService: {
         getSettings: () => createSettings("tree"),
+        getOpenAICompatibleApiKey: async () => undefined,
+        configureAiProvider: async () => ({ message: "AI provider configured", status: "ok" }),
         resetAutoStashPreference: async () => {
           resetAutoStashPreferenceCalled = true;
         },
+        testAiProvider: async () => ({ message: "AI provider tested", status: "ok" }),
         updateSettings: async (settings) => {
           updates.push(settings);
         }
@@ -673,6 +676,107 @@ describe("Git history RPC handlers", () => {
     expect(updates).toEqual([{ fileViewMode: "list" }]);
     expect(resetAutoStashPreferenceCalled).toBe(true);
     expect(proxyCalls).toEqual(["configure", "refresh"]);
+  });
+
+  it("generates commit messages and configures AI providers", async () => {
+    const calls: string[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        getCurrentUser: async () => undefined,
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      commitMessageAiService: {
+        generate: async (repositoryRoot) => {
+          calls.push(`generate:${repositoryRoot}`);
+          return { suggestion: { message: "feat: generated commit message" } };
+        },
+        testProvider: async () => ({
+          message: "AI provider tested",
+          status: "ok" as const
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: createGitService(),
+      repositoryService: {
+        discoverRepositories: async () => [{ id: "/repo", name: "repo", rootPath: "/repo" }],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      proxyService: createProxyService(),
+      remoteService: createRemoteService(),
+      languageService: {
+        changeLanguagePreference: async () => ({ message: "language changed", status: "ok" }),
+        getBundle: () => ({
+          locale: "en",
+          messages: {}
+        })
+      },
+      settingsService: {
+        configureAiProvider: async () => ({
+          message: "AI provider configured",
+          status: "ok"
+        }),
+        getSettings: () => createSettings("tree"),
+        getOpenAICompatibleApiKey: async () => undefined,
+        resetAutoStashPreference: async () => undefined,
+        testAiProvider: async () => ({ message: "AI provider tested", status: "ok" }),
+        updateSettings: async () => undefined
+      },
+      workingTreeService: createWorkingTreeService()
+    });
+
+    await expect(
+      handlers["commitMessage.generate"]!({
+        id: "commit-message-generate",
+        repositoryId: "/repo",
+        type: "commitMessage.generate"
+      })
+    ).resolves.toEqual({
+      suggestion: {
+        message: "feat: generated commit message"
+      }
+    });
+    await expect(handlers["settings.configureAiProvider"]!({ id: "configure-ai", type: "settings.configureAiProvider" })).resolves.toEqual({
+      i18n: {
+        locale: "en",
+        messages: {}
+      },
+      result: {
+        message: "AI provider configured",
+        status: "ok"
+      },
+      settings: createSettings("tree")
+    });
+    await expect(handlers["settings.testAiProvider"]!({ id: "test-ai", type: "settings.testAiProvider" })).resolves.toEqual({
+      message: "AI provider tested",
+      status: "ok"
+    });
+
+    expect(calls).toEqual(["generate:/repo"]);
   });
 
   it("returns commit details for the requested repository", async () => {
@@ -1206,6 +1310,14 @@ describe("Git history RPC handlers", () => {
 function createSettings(mode: "tree" | "list") {
   return {
     autoStashOnPull: "ask",
+    ai: {
+      provider: "vscodeLanguageModel",
+      openAICompatible: {
+        baseUrl: "",
+        configured: false,
+        model: ""
+      }
+    },
     blameEnabled: true,
     blameFormat: "${author}, ${time}: ${summary}",
     blameShowOnlyCurrentLine: false,
@@ -1223,7 +1335,10 @@ function createSettings(mode: "tree" | "list") {
 function createSettingsService() {
   return {
     getSettings: () => createSettings("tree"),
+    getOpenAICompatibleApiKey: async () => undefined,
+    configureAiProvider: async () => ({ message: "AI provider configured", status: "ok" as const }),
     resetAutoStashPreference: async () => undefined,
+    testAiProvider: async () => ({ message: "AI provider tested", status: "ok" as const }),
     updateSettings: async () => undefined
   };
 }

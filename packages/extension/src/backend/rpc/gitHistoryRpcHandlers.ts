@@ -1,5 +1,6 @@
 import type { BranchService } from "../git/BranchService";
 import type { CommitService } from "../git/CommitService";
+import type { CommitMessageAiService } from "../git/CommitMessageAiService";
 import type { FileService } from "../git/FileService";
 import type { GitService } from "../git/GitService";
 import type { GraphService } from "../git/GraphService";
@@ -55,7 +56,8 @@ export interface GitHistoryRpcHandlerInput {
     RepositoryService,
     "discoverRepositories" | "getCurrentRepository" | "switchToActiveEditorRepository"
   >;
-  settingsService: Pick<SettingsService, "getSettings" | "resetAutoStashPreference" | "updateSettings">;
+  commitMessageAiService: Pick<CommitMessageAiService, "generate" | "testProvider">;
+  settingsService: Pick<SettingsService, "configureAiProvider" | "getSettings" | "resetAutoStashPreference" | "updateSettings">;
   workingTreeService: Pick<
     WorkingTreeService,
     | "applyStash"
@@ -154,6 +156,15 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
         settings: input.settingsService.getSettings()
       };
     },
+    "settings.configureAiProvider": async () => {
+      const result = await input.settingsService.configureAiProvider();
+
+      return {
+        i18n: input.languageService.getBundle(),
+        result,
+        settings: input.settingsService.getSettings()
+      };
+    },
     "settings.resetAutoStash": async () => {
       await input.settingsService.resetAutoStashPreference();
 
@@ -163,6 +174,7 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       };
     },
     "settings.changeLanguage": () => input.languageService.changeLanguagePreference(),
+    "settings.testAiProvider": () => input.commitMessageAiService.testProvider(),
     "proxy.configure": () => input.proxyService.configureProxy(),
     "proxy.refresh": () => input.proxyService.refreshProxy(),
     "git.pull": async (request) => {
@@ -251,6 +263,11 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       const repository = await findRepository(input.repositoryService, request.repositoryId);
 
       return input.gitService.editCommitMessage(repository.rootPath, request.hash);
+    },
+    "commitMessage.generate": async (request) => {
+      const repository = await findRepository(input.repositoryService, request.repositoryId);
+
+      return input.commitMessageAiService.generate(repository.rootPath);
     },
     "workingTree.load": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);

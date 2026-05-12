@@ -51,4 +51,23 @@ describe("package manifest", () => {
       ])
     );
   });
+
+  it("contributes AI provider configuration keys without exposing the API key", async () => {
+    const manifest = JSON.parse(await readFile("package.json", "utf8")) as {
+      contributes: {
+        configuration: {
+          properties: Record<string, unknown>;
+        };
+      };
+    };
+
+    expect(manifest.contributes.configuration.properties).toEqual(
+      expect.objectContaining({
+        "guigit.ai.provider": expect.any(Object),
+        "guigit.ai.openAICompatible.baseUrl": expect.any(Object),
+        "guigit.ai.openAICompatible.model": expect.any(Object)
+      })
+    );
+    expect(manifest.contributes.configuration.properties).not.toHaveProperty("guigit.ai.openAICompatible.apiKey");
+  });
 });
