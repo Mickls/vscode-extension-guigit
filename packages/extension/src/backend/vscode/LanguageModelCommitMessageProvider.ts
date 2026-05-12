@@ -19,7 +19,12 @@ export class LanguageModelCommitMessageProvider {
       throw new Error("No VS Code language model is available");
     }
 
-    return firstLine((await model.sendRequest([prompt])).trim());
+    const message = firstLine((await model.sendRequest([prompt])).trim());
+    if (!message) {
+      throw new Error("VS Code language model returned no commit message");
+    }
+
+    return message;
   }
 }
 
