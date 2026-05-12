@@ -23,9 +23,11 @@ describe("SettingsMenu", () => {
       "configureProxy",
       "refreshProxy",
       "manageRemotes",
+      "configureAiProvider",
+      "testAiProvider",
       "changeLanguage"
     ]);
-    expect(within(menu).getAllByRole("separator")).toHaveLength(2);
+    expect(within(menu).getAllByRole("separator")).toHaveLength(3);
     expect(menu).toHaveStyle({ left: "100px", top: "48px" });
   });
 

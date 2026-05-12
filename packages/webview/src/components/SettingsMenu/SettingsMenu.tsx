@@ -5,6 +5,8 @@ export type SettingsMenuAction =
   | "configureProxy"
   | "refreshProxy"
   | "manageRemotes"
+  | "configureAiProvider"
+  | "testAiProvider"
   | "changeLanguage";
 
 interface SettingsMenuActionItem {
@@ -19,6 +21,10 @@ const actionGroups: readonly (readonly SettingsMenuActionItem[])[] = [
     { action: "configureProxy", icon: "P", label: "Configure Proxy" },
     { action: "refreshProxy", icon: "I", label: "Refresh Proxy" },
     { action: "manageRemotes", icon: "G", label: "Manage Remotes" }
+  ],
+  [
+    { action: "configureAiProvider", icon: "A", label: "Configure AI Provider" },
+    { action: "testAiProvider", icon: "T", label: "Test AI Provider" }
   ],
   [{ action: "changeLanguage", icon: "L", label: "Change Language" }]
 ];

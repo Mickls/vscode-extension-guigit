@@ -65,6 +65,7 @@ type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
 type ProxyOperationType = "proxy.configure" | "proxy.refresh";
 type FileOperationType = "diff.openCommitFile" | "diff.openCompareFile" | "files.openHistory" | "files.openWorkingFile";
+type AiSettingsOperationType = "settings.configureAiProvider" | "settings.testAiProvider";
 type WorkingTreeActionType =
   | "stash.apply"
   | "stash.drop"
@@ -90,10 +91,12 @@ type ContextGitOperationRequest = DistributiveOmit<Extract<RpcRequest, { type: C
 
 const settingsMenuRequests = {
   changeLanguage: "settings.changeLanguage",
+  configureAiProvider: "settings.configureAiProvider",
   configureProxy: "proxy.configure",
   refreshProxy: "proxy.refresh",
-  resetStash: "settings.resetAutoStash"
-} as const satisfies Partial<Record<SettingsMenuAction, SettingsOperationType | ProxyOperationType>>;
+  resetStash: "settings.resetAutoStash",
+  testAiProvider: "settings.testAiProvider"
+} as const satisfies Partial<Record<SettingsMenuAction, AiSettingsOperationType | SettingsOperationType | ProxyOperationType>>;
 
 export interface AppProps {
   rpcClient?: RpcClient;
@@ -140,6 +143,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [commitDetails, setCommitDetails] = useState<CommitDetailsViewModel | undefined>();
   const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>("details");
   const [workingTree, setWorkingTree] = useState<WorkingTreeViewModel | undefined>();
+  const [commitMessageSuggestion, setCommitMessageSuggestion] = useState<{ message: string; requestId: string } | undefined>();
+  const [generatingCommitMessage, setGeneratingCommitMessage] = useState(false);
   const [commitMessageResetKey, setCommitMessageResetKey] = useState(0);
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
   const [i18nMessages, setI18nMessages] = useState<I18nMessages>(emptyI18nMessages);
@@ -171,6 +176,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const pendingStashDetailsRequestsRef = useRef(new Map<string, StashDetailsRequestMeta>());
   const currentStashDetailsRequestsRef = useRef(new Map<string, string>());
   const latestWorkingTreeOperationRef = useRef<{ id: string; repositoryId: string; sequence: number } | undefined>(undefined);
+  const latestCommitMessageGenerateRequestRef = useRef<{ id: string; repositoryId: string } | undefined>(undefined);
   const workingTreeOperationSequenceRef = useRef(0);
   const rightPanelTabRef = useRef<RightPanelTab>("details");
   const [contextMenu, setContextMenu] = useState({
@@ -380,6 +386,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (!response.ok) {
         if (
+          isStaleCommitMessageGenerateError(response, latestCommitMessageGenerateRequestRef.current, selectedRepositoryIdRef.current) ||
           isStaleWorkingTreeActionError(response, latestWorkingTreeOperationRef.current, selectedRepositoryIdRef.current) ||
           isStaleStashDetailsError(
             response,
@@ -392,6 +399,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
         if (isGitOperationType(response.type)) {
           setActiveGitOperation(undefined);
+        }
+        if (response.type === "commitMessage.generate") {
+          latestCommitMessageGenerateRequestRef.current = undefined;
+          setGeneratingCommitMessage(false);
         }
         if (isRemoteOperationType(response.type) || response.type === "remotes.list") {
           setRemoteStatus({ message: response.error.message, state: "error" });
@@ -504,6 +515,18 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
       }
 
+      if (response.type === "commitMessage.generate") {
+        const generateRequest = latestCommitMessageGenerateRequestRef.current;
+        if (isCurrentCommitMessageGenerateResponse(generateRequest, response.id, selectedRepositoryIdRef.current)) {
+          latestCommitMessageGenerateRequestRef.current = undefined;
+          setGeneratingCommitMessage(false);
+          setCommitMessageSuggestion({
+            message: response.payload.suggestion.message,
+            requestId: response.id
+          });
+        }
+      }
+
       if (response.type === "stash.getDetails") {
         const stashRequest = pendingStashDetailsRequestsRef.current.get(response.id);
         pendingStashDetailsRequestsRef.current.delete(response.id);
@@ -557,6 +580,22 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (isFileOperationResponse(response)) {
+        notify({
+          message: response.payload.message,
+          state: response.payload.status === "ok" ? "success" : "warning"
+        });
+      }
+
+      if (response.type === "settings.configureAiProvider") {
+        setFileViewMode(response.payload.settings.fileViewMode);
+        setI18nMessages(response.payload.i18n.messages);
+        notify({
+          message: response.payload.result.message,
+          state: response.payload.result.status === "ok" ? "success" : "warning"
+        });
+      }
+
+      if (response.type === "settings.testAiProvider") {
         notify({
           message: response.payload.message,
           state: response.payload.status === "ok" ? "success" : "warning"
@@ -688,6 +727,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
     selectedCommitHashRef.current = undefined;
     showCommitDetails(undefined);
     setWorkingTree(undefined);
+    latestCommitMessageGenerateRequestRef.current = undefined;
+    setGeneratingCommitMessage(false);
     requestHistory(client, pendingHistoryRequestsRef.current, {
       author: trimFilter(authorQueryRef.current),
       repositoryId,
@@ -916,6 +957,25 @@ export function App({ rpcClient }: AppProps): ReactElement {
       type: "workingTree.commit"
     });
     trackWorkingTreeOperation(id, selectedRepositoryIdRef.current);
+  };
+
+  const generateCommitMessage = (): string | undefined => {
+    if (!selectedRepositoryIdRef.current || generatingCommitMessage) {
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    latestCommitMessageGenerateRequestRef.current = {
+      id,
+      repositoryId: selectedRepositoryIdRef.current
+    };
+    setGeneratingCommitMessage(true);
+    client?.post({
+      id,
+      repositoryId: selectedRepositoryIdRef.current,
+      type: "commitMessage.generate"
+    });
+    return id;
   };
 
   const openFileHistory = (filePath: string) => {
@@ -1207,13 +1267,16 @@ export function App({ rpcClient }: AppProps): ReactElement {
             ) : (
               <ChangesPanel
                 commitMessageResetKey={commitMessageResetKey}
+                commitMessageSuggestion={commitMessageSuggestion}
                 fileViewMode={fileViewMode}
+                generatingCommitMessage={generatingCommitMessage}
                 onCommit={commitWorkingTree}
                 onApplyStash={(stashRef) => runStashAction("stash.apply", stashRef)}
                 onDiscardFile={discardWorkingTreeFile}
                 onDropStash={(stashRef) => runStashAction("stash.drop", stashRef)}
                 onExpandStash={loadStashDetails}
                 onFileViewModeChange={updateFileViewMode}
+                onGenerateCommitMessage={generateCommitMessage}
                 onOpenFile={openWorkingTreeFile}
                 onOpenFileDiff={openWorkingTreeFileDiff}
                 onOpenStashDiff={openStashDiff}
@@ -1255,10 +1318,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
       <SettingsMenu
         labels={{
           changeLanguage: tx("settingsMenu.changeLanguage", "Change Language"),
+          configureAiProvider: tx("settingsMenu.configureAiProvider", "Configure AI Provider"),
           configureProxy: tx("settingsMenu.configureProxy", "Configure Proxy"),
           manageRemotes: tx("settingsMenu.manageRemotes", "Manage Remotes"),
           refreshProxy: tx("settingsMenu.refreshProxy", "Refresh Proxy"),
-          resetStash: tx("settingsMenu.resetStash", "Reset Auto Stash Preference")
+          resetStash: tx("settingsMenu.resetStash", "Reset Auto Stash Preference"),
+          testAiProvider: tx("settingsMenu.testAiProvider", "Test AI Provider")
         }}
         onAction={handleSettingsMenuAction}
         onClose={() => setSettingsMenu((current) => ({ ...current, visible: false }))}
@@ -1372,6 +1437,25 @@ function isCurrentWorkingTreeOperation(
     latestOperation?.id === responseId &&
     latestOperation.repositoryId === responseRepositoryId &&
     latestOperation.repositoryId === selectedRepositoryId
+  );
+}
+
+function isCurrentCommitMessageGenerateResponse(
+  latestRequest: { id: string; repositoryId: string } | undefined,
+  responseId: string,
+  selectedRepositoryId: string | undefined
+): boolean {
+  return latestRequest?.id === responseId && latestRequest.repositoryId === selectedRepositoryId;
+}
+
+function isStaleCommitMessageGenerateError(
+  response: RpcResponse & { ok: false },
+  latestRequest: { id: string; repositoryId: string } | undefined,
+  selectedRepositoryId: string | undefined
+): boolean {
+  return (
+    response.type === "commitMessage.generate" &&
+    !(latestRequest?.id === response.id && latestRequest.repositoryId === selectedRepositoryId)
   );
 }
 

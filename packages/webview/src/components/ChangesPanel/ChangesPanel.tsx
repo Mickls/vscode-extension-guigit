@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { ArchiveRestore, Check, ChevronDown, ChevronRight, FileText, RotateCcw, Trash2, X } from "lucide-react";
 import type {
   FileViewMode,
@@ -57,10 +57,13 @@ const defaultLabels: ChangesPanelLabels = {
 
 export interface ChangesPanelProps {
   commitMessageResetKey?: number;
+  commitMessageSuggestion?: { message: string; requestId: string };
   fileViewMode: FileViewMode;
+  generatingCommitMessage?: boolean;
   labels?: Partial<ChangesPanelLabels>;
   onCommit?: (message: string) => void;
   onFileViewModeChange?: (mode: FileViewMode) => void;
+  onGenerateCommitMessage?: () => string | undefined;
   onApplyStash?: (stashRef: string) => void;
   onDiscardFile?: (path: string) => void;
   onDropStash?: (stashRef: string) => void;
@@ -76,7 +79,9 @@ export interface ChangesPanelProps {
 
 export function ChangesPanel({
   commitMessageResetKey = 0,
+  commitMessageSuggestion,
   fileViewMode,
+  generatingCommitMessage = false,
   labels,
   onCommit,
   onApplyStash,
@@ -84,6 +89,7 @@ export function ChangesPanel({
   onDropStash,
   onExpandStash,
   onFileViewModeChange,
+  onGenerateCommitMessage,
   onOpenFile,
   onOpenFileDiff,
   onOpenStashDiff,
@@ -94,6 +100,9 @@ export function ChangesPanel({
 }: ChangesPanelProps): ReactElement {
   const text = { ...defaultLabels, ...labels };
   const [commitMessage, setCommitMessage] = useState("");
+  const editSequenceRef = useRef(0);
+  const latestGenerateRequestIdRef = useRef<string | undefined>(undefined);
+  const generateRequestEditSequencesRef = useRef(new Map<string, number>());
   const staged = workingTree?.staged ?? [];
   const unstaged = workingTree?.unstaged ?? [];
   const stashes = workingTree?.stashes ?? [];
@@ -101,7 +110,38 @@ export function ChangesPanel({
 
   useEffect(() => {
     setCommitMessage("");
+    editSequenceRef.current += 1;
+    latestGenerateRequestIdRef.current = undefined;
+    generateRequestEditSequencesRef.current.clear();
   }, [commitMessageResetKey]);
+
+  useEffect(() => {
+    if (!commitMessageSuggestion) {
+      return;
+    }
+
+    const requestEditSequence = generateRequestEditSequencesRef.current.get(commitMessageSuggestion.requestId);
+    generateRequestEditSequencesRef.current.delete(commitMessageSuggestion.requestId);
+    if (
+      latestGenerateRequestIdRef.current === commitMessageSuggestion.requestId &&
+      requestEditSequence === editSequenceRef.current
+    ) {
+      setCommitMessage(commitMessageSuggestion.message);
+    }
+  }, [commitMessageSuggestion]);
+
+  const changeCommitMessage = (message: string) => {
+    editSequenceRef.current += 1;
+    setCommitMessage(message);
+  };
+
+  const generateCommitMessage = () => {
+    const requestId = onGenerateCommitMessage?.();
+    if (requestId) {
+      latestGenerateRequestIdRef.current = requestId;
+      generateRequestEditSequencesRef.current.set(requestId, editSequenceRef.current);
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
@@ -159,13 +199,15 @@ export function ChangesPanel({
           <textarea
             aria-label={text.commitMessage}
             className="min-h-20 resize-y rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] p-2 text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
-            onChange={(event) => setCommitMessage(event.currentTarget.value)}
+            onChange={(event) => changeCommitMessage(event.currentTarget.value)}
             value={commitMessage}
           />
         </label>
         <div className="flex justify-end gap-2">
           <button
-            className="rounded-[3px] border border-[var(--vscode-button-border)] px-2 py-1 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)]"
+            className="rounded-[3px] border border-[var(--vscode-button-border)] px-2 py-1 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={generatingCommitMessage}
+            onClick={generateCommitMessage}
             type="button"
           >
             {text.generate}

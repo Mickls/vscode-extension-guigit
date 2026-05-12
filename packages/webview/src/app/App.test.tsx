@@ -92,6 +92,18 @@ describe("App", () => {
     expect(latestRequest(rpcClient, "settings.changeLanguage")).toEqual(expect.objectContaining({
       type: "settings.changeLanguage"
     }));
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configure AI Provider" }));
+    expect(latestRequest(rpcClient, "settings.configureAiProvider")).toEqual(expect.objectContaining({
+      type: "settings.configureAiProvider"
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Test AI Provider" }));
+    expect(latestRequest(rpcClient, "settings.testAiProvider")).toEqual(expect.objectContaining({
+      type: "settings.testAiProvider"
+    }));
   });
 
   it("posts checkout and clone actions from the header", async () => {
@@ -251,6 +263,58 @@ describe("App", () => {
       repositoryId: "/repo",
       type: "commits.getDetails"
     }));
+  });
+
+  it("generates commit messages for the selected repository and fills the returned suggestion", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id);
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Generate" }));
+    const generateRequest = latestRequest(rpcClient, "commitMessage.generate");
+    expect(generateRequest).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      type: "commitMessage.generate"
+    }));
+    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+
+    dispatchCommitMessageGenerateResponse(generateRequest.id, "feat: generated");
+
+    expect(screen.getByRole("textbox", { name: "Commit message" })).toHaveValue("feat: generated");
+    expect(screen.getByRole("button", { name: "Generate" })).not.toBeDisabled();
+  });
+
+  it("keeps stale commit message generation errors from replacing the current notification", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(loadRequest.id);
+    rpcClient.post.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Generate" }));
+    const staleGenerateRequest = latestRequest(rpcClient, "commitMessage.generate");
+    dispatchCommitMessageGenerateResponse(staleGenerateRequest.id, "feat: generated");
+    await user.click(screen.getByRole("button", { name: "Unstage src/staged.ts" }));
+    const unstageRequest = latestRequest(rpcClient, "workingTree.unstageFile");
+    dispatchWorkingTreeActionResponse(unstageRequest.id, "workingTree.unstageFile", createWorkingTree("/repo", "src/current.ts"), "Current action");
+    expect(await screen.findByText("Current action")).toBeInTheDocument();
+
+    dispatchErrorResponse(staleGenerateRequest.id, "commitMessage.generate", "Stale generate failed");
+
+    expect(screen.queryByText("Stale generate failed")).not.toBeInTheDocument();
+    expect(screen.getByText("Current action")).toBeInTheDocument();
   });
 
   it("clears the draft and reloads history after stale successful commit responses", async () => {
@@ -2611,6 +2675,25 @@ function dispatchErrorResponse(id: string, type: RpcResponse["type"], message: s
           id,
           ok: false,
           type
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchCommitMessageGenerateResponse(id: string, message: string): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type: "commitMessage.generate",
+          payload: {
+            suggestion: {
+              message
+            }
+          }
         } satisfies RpcResponse
       })
     );

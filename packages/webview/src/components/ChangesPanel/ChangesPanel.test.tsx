@@ -50,6 +50,103 @@ describe("ChangesPanel", () => {
     expect(onCommit).toHaveBeenCalledWith("feat: test");
   });
 
+  it("starts commit message generation and applies the returned suggestion", async () => {
+    const user = userEvent.setup();
+    const onGenerateCommitMessage = vi.fn(() => "generate-1");
+    const { rerender } = render(
+      <ChangesPanel
+        fileViewMode="list"
+        onGenerateCommitMessage={onGenerateCommitMessage}
+        workingTree={workingTree}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+    rerender(
+      <ChangesPanel
+        commitMessageSuggestion={{ message: "feat: generated", requestId: "generate-1" }}
+        fileViewMode="list"
+        onGenerateCommitMessage={onGenerateCommitMessage}
+        workingTree={workingTree}
+      />
+    );
+
+    expect(onGenerateCommitMessage).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox", { name: "Commit message" })).toHaveValue("feat: generated");
+  });
+
+  it("disables commit message generation while a request is pending", () => {
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        generatingCommitMessage
+        workingTree={workingTree}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+  });
+
+  it("does not let stale generated suggestions replace newer manual text", async () => {
+    const user = userEvent.setup();
+    const onGenerateCommitMessage = vi.fn(() => "generate-1");
+    const { rerender } = render(
+      <ChangesPanel
+        fileViewMode="list"
+        onGenerateCommitMessage={onGenerateCommitMessage}
+        workingTree={workingTree}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+    await user.type(screen.getByRole("textbox", { name: "Commit message" }), "manual message");
+    rerender(
+      <ChangesPanel
+        commitMessageSuggestion={{ message: "feat: stale", requestId: "generate-1" }}
+        fileViewMode="list"
+        onGenerateCommitMessage={onGenerateCommitMessage}
+        workingTree={workingTree}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "Commit message" })).toHaveValue("manual message");
+  });
+
+  it("does not let older generated suggestions replace the latest generated result", async () => {
+    const user = userEvent.setup();
+    const onGenerateCommitMessage = vi.fn()
+      .mockReturnValueOnce("generate-1")
+      .mockReturnValueOnce("generate-2");
+    const { rerender } = render(
+      <ChangesPanel
+        fileViewMode="list"
+        onGenerateCommitMessage={onGenerateCommitMessage}
+        workingTree={workingTree}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+    rerender(
+      <ChangesPanel
+        commitMessageSuggestion={{ message: "feat: latest", requestId: "generate-2" }}
+        fileViewMode="list"
+        onGenerateCommitMessage={onGenerateCommitMessage}
+        workingTree={workingTree}
+      />
+    );
+    rerender(
+      <ChangesPanel
+        commitMessageSuggestion={{ message: "feat: stale", requestId: "generate-1" }}
+        fileViewMode="list"
+        onGenerateCommitMessage={onGenerateCommitMessage}
+        workingTree={workingTree}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "Commit message" })).toHaveValue("feat: latest");
+  });
+
   it("uses one shared file view mode control", () => {
     render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
 
