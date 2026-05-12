@@ -86,4 +86,25 @@ describe("NotificationCenter", () => {
     expect(onShowUnreadCountChange).toHaveBeenCalledWith(false);
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("closes when clicking outside the panel", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(
+      <NotificationCenter
+        labels={labels}
+        notifications={notifications}
+        onClear={vi.fn()}
+        onClose={onClose}
+        onCopyNotification={vi.fn()}
+        onShowUnreadCountChange={vi.fn()}
+        open
+        showUnreadCount
+      />
+    );
+    await user.click(document.body);
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });

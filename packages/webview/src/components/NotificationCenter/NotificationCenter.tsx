@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 import { Clipboard, Trash2, X } from "lucide-react";
 
 export type NotificationState = "error" | "running" | "success" | "warning";
@@ -42,6 +42,26 @@ export function NotificationCenter({
   open,
   showUnreadCount
 }: NotificationCenterProps): ReactElement | null {
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const panel = panelRef.current;
+      if (panel?.contains(event.target as Node)) {
+        return;
+      }
+
+      onClose();
+    };
+
+    window.addEventListener("click", closeOnOutsideClick);
+    return () => window.removeEventListener("click", closeOnOutsideClick);
+  }, [onClose, open]);
+
   if (!open) {
     return null;
   }
@@ -50,6 +70,7 @@ export function NotificationCenter({
     <section
       aria-label={labels.title}
       className="fixed right-3 top-14 z-50 flex max-h-[min(520px,calc(100vh-72px))] w-[380px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-[4px] border border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] text-[var(--vscode-editor-foreground)] shadow-xl"
+      ref={panelRef}
       role="region"
     >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] px-3">

@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type MouseEvent, type ReactElement } from "react";
+import { useRef, type ChangeEvent, type MouseEvent, type ReactElement } from "react";
 import {
   CloudDownload,
   Bell,
@@ -12,6 +12,7 @@ import {
   User
 } from "lucide-react";
 import type { BranchesViewModel, CurrentUserViewModel, RepositoryViewModel } from "../../app/rpcContract.generated";
+import { BranchMenu } from "./BranchMenu";
 
 type ToolbarAction = "fetch" | "notifications" | "pull" | "push" | "refresh" | "settings";
 type HeaderAction = ToolbarAction | "checkout" | "clone";
@@ -139,16 +140,8 @@ export function Header({
   notificationsOpen = false,
   settingsOpen = false
 }: HeaderProps): ReactElement {
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const text = { ...defaultLabels, ...labels };
   const graphLabel = graphVisible ? text.hideGraph : text.showGraph;
-  const branchOptions = flattenBranches(branches);
-  const selectedBranchSet = new Set(selectedBranches);
-  const branchLabel = selectedBranches.length === 0
-    ? text.allBranches
-    : selectedBranches.length === 1
-      ? selectedBranches[0]!
-      : text.selectedBranches.replace("{0}", selectedBranches.length.toString());
   const toolbarActions: readonly ToolbarActionItem[] = [
     {
       action: "refresh",
@@ -235,8 +228,14 @@ export function Header({
       onPush?.();
     },
     refresh: onRefresh,
-    notifications: onNotificationsClick,
-    settings: onSettingsClick
+    notifications: (event) => {
+      event.stopPropagation();
+      onNotificationsClick?.();
+    },
+    settings: (event) => {
+      event.stopPropagation();
+      onSettingsClick?.(event);
+    }
   };
   const handleMouseDown = (event: MouseEvent<HTMLButtonElement>, action: HeaderAction) => {
     if (!hasAdvancedModifier(event)) {
@@ -265,15 +264,9 @@ export function Header({
   const updateRepository = (event: ChangeEvent<HTMLSelectElement>) => {
     onRepositoryChange?.(event.currentTarget.value);
   };
-  const toggleBranch = (branch: string) => {
-    const nextBranches = selectedBranchSet.has(branch)
-      ? selectedBranches.filter((selectedBranch) => selectedBranch !== branch)
-      : [...selectedBranches, branch];
-    onBranchSelectionChange?.(nextBranches);
-  };
 
   return (
-    <header className="relative flex h-11 shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] px-2">
+    <header className="relative flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-panel-background)] px-2 py-2">
       <select
         aria-label={text.repository}
         className="h-7 max-w-[220px] rounded-[3px] border border-[var(--vscode-dropdown-border)] bg-[var(--vscode-dropdown-background)] px-2 text-xs text-[var(--vscode-dropdown-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
@@ -286,50 +279,16 @@ export function Header({
           </option>
         ))}
       </select>
-      <div className="relative">
-        <button
-          aria-expanded={branchMenuOpen}
-          aria-label={text.branch}
-          className="h-7 max-w-[220px] truncate rounded-[3px] border border-[var(--vscode-dropdown-border)] bg-[var(--vscode-dropdown-background)] px-2 text-left text-xs text-[var(--vscode-dropdown-foreground)]"
-          onClick={() => setBranchMenuOpen((open) => !open)}
-          type="button"
-        >
-          {branchLabel}
-        </button>
-        {branchMenuOpen ? (
-          <div
-            aria-label={text.branch}
-            className="absolute left-0 top-8 z-[1000] max-h-[320px] min-w-[220px] overflow-y-auto rounded border border-[var(--vscode-menu-border)] bg-[var(--vscode-menu-background)] py-1 text-xs shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
-            onPointerDown={(event) => event.stopPropagation()}
-            role="menu"
-          >
-            <button
-              className="block w-full bg-transparent px-3 py-2 text-left text-[var(--vscode-menu-foreground,var(--vscode-foreground))] hover:bg-[var(--vscode-menu-selectionBackground)]"
-              onClick={() => {
-                onBranchSelectionChange?.([]);
-                setBranchMenuOpen(false);
-              }}
-              role="menuitem"
-              type="button"
-            >
-              {text.allBranches}
-            </button>
-            {branchOptions.map((branch) => (
-              <label
-                className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[var(--vscode-menu-foreground,var(--vscode-foreground))] hover:bg-[var(--vscode-menu-selectionBackground)]"
-                key={branch}
-              >
-                <input
-                  checked={selectedBranchSet.has(branch)}
-                  onChange={() => toggleBranch(branch)}
-                  type="checkbox"
-                />
-                <span>{branch}</span>
-              </label>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      <BranchMenu
+        branches={branches}
+        labels={{
+          allBranches: text.allBranches,
+          branch: text.branch,
+          selectedBranches: text.selectedBranches
+        }}
+        onBranchSelectionChange={onBranchSelectionChange}
+        selectedBranches={selectedBranches}
+      />
       <input
         aria-label={text.searchCommits}
         className="h-7 min-w-[180px] flex-1 rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
@@ -338,7 +297,7 @@ export function Header({
         type="search"
         value={searchValue}
       />
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <input
           aria-label={text.filterAuthor}
           className="h-7 w-[150px] rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] px-2 text-xs text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
@@ -359,7 +318,7 @@ export function Header({
           <span>{text.authorMe}</span>
         </button>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <button
           aria-label={graphLabel}
           aria-pressed={graphVisible}
@@ -400,15 +359,4 @@ export function Header({
       </div>
     </header>
   );
-}
-
-function flattenBranches(branches: BranchesViewModel | undefined): readonly string[] {
-  if (!branches) {
-    return [];
-  }
-
-  return [
-    ...branches.locals.map((branch) => branch.name),
-    ...branches.remotes.flatMap((remote) => remote.branches.map((branch) => branch.name))
-  ];
 }

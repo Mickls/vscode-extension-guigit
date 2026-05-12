@@ -22,10 +22,12 @@ import { createTranslator } from "./i18n";
 import { CompareOverlay } from "../components/CompareOverlay/CompareOverlay";
 import { CommitDetails } from "../components/CommitDetails/CommitDetails";
 import { CommitList, type CommitSelectionIntent } from "../components/CommitList/CommitList";
+import { ConflictBanner } from "../components/ConflictBanner/ConflictBanner";
 import { ContextMenu, type ContextMenuAction } from "../components/ContextMenu/ContextMenu";
 import { Header } from "../components/Header/Header";
 import { SplitPanels } from "../components/Layout/SplitPanels";
 import { NotificationCenter, type NotificationHistoryItem, type NotificationState } from "../components/NotificationCenter/NotificationCenter";
+import { OperationToast } from "../components/OperationToast/OperationToast";
 import { RemoteManager } from "../components/RemoteManager/RemoteManager";
 import { SettingsMenu, type SettingsMenuAction } from "../components/SettingsMenu/SettingsMenu";
 
@@ -1009,6 +1011,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           resetStash: tx("settingsMenu.resetStash", "Reset Auto Stash Preference")
         }}
         onAction={handleSettingsMenuAction}
+        onClose={() => setSettingsMenu((current) => ({ ...current, visible: false }))}
         visible={settingsMenu.visible}
         x={settingsMenu.x}
         y={settingsMenu.y}
@@ -1376,66 +1379,6 @@ function resetModeFromContextAction(action: ContextMenuAction): GitResetMode | u
   }
 
   return undefined;
-}
-
-function OperationToast({ message, state }: { message: string; state: OperationNotification["state"] }): ReactElement {
-  const stateClass = {
-    error: "border-l-4 border-l-[var(--vscode-errorForeground)]",
-    running: "border-l-4 border-l-[var(--vscode-progressBar-background)]",
-    success: "border-l-4 border-l-[var(--vscode-testing-iconPassed)]",
-    warning: "border-l-4 border-l-[var(--vscode-editorWarning-foreground)]"
-  }[state];
-
-  return (
-    <div
-      className={`fixed bottom-4 right-4 flex max-w-[360px] items-center gap-2 rounded-[4px] border border-[var(--vscode-notifications-border)] bg-[var(--vscode-notifications-background)] px-3 py-2 text-xs text-[var(--vscode-notifications-foreground)] shadow-lg ${stateClass}`}
-      role="status"
-    >
-      {state === "running" ? (
-        <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-[var(--vscode-progressBar-background)] border-t-transparent" />
-      ) : null}
-      {message}
-    </div>
-  );
-}
-
-function ConflictBanner({
-  labels,
-  message,
-  onAbort,
-  onContinue
-}: {
-  labels: {
-    abort: string;
-    continue: string;
-    label: string;
-  };
-  message: string;
-  onAbort: () => void;
-  onContinue: () => void;
-}): ReactElement {
-  return (
-    <section
-      aria-label={labels.label}
-      className="flex shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-notifications-background)] px-3 py-2 text-xs text-[var(--vscode-notifications-foreground)]"
-    >
-      <span className="min-w-0 flex-1">{message}</span>
-      <button
-        className="h-7 whitespace-nowrap rounded-[3px] border border-[var(--vscode-button-border,transparent)] bg-[var(--vscode-button-background)] px-2 text-xs text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)]"
-        onClick={onContinue}
-        type="button"
-      >
-        {labels.continue}
-      </button>
-      <button
-        className="h-7 whitespace-nowrap rounded-[3px] border border-[var(--vscode-button-secondaryBorder,transparent)] bg-[var(--vscode-button-secondaryBackground)] px-2 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)]"
-        onClick={onAbort}
-        type="button"
-      >
-        {labels.abort}
-      </button>
-    </section>
-  );
 }
 
 function selectCommitAfterHistoryLoad(

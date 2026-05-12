@@ -38,4 +38,14 @@ describe("SettingsMenu", () => {
 
     expect(onAction).toHaveBeenCalledWith("manageRemotes");
   });
+
+  it("closes when clicking outside the menu", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(<SettingsMenu onClose={onClose} visible x={0} y={0} />);
+    await user.click(document.body);
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });

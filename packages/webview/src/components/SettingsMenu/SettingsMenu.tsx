@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 
 export type SettingsMenuAction =
   | "resetStash"
@@ -26,12 +26,33 @@ const actionGroups: readonly (readonly SettingsMenuActionItem[])[] = [
 export interface SettingsMenuProps {
   labels?: Partial<Record<SettingsMenuAction, string>>;
   onAction?: (action: SettingsMenuAction) => void;
+  onClose?: () => void;
   visible: boolean;
   x: number;
   y: number;
 }
 
-export function SettingsMenu({ labels, onAction, visible, x, y }: SettingsMenuProps): ReactElement | null {
+export function SettingsMenu({ labels, onAction, onClose, visible, x, y }: SettingsMenuProps): ReactElement | null {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!visible || !onClose) {
+      return;
+    }
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const menu = menuRef.current;
+      if (menu?.contains(event.target as Node)) {
+        return;
+      }
+
+      onClose();
+    };
+
+    window.addEventListener("click", closeOnOutsideClick);
+    return () => window.removeEventListener("click", closeOnOutsideClick);
+  }, [onClose, visible]);
+
   if (!visible) {
     return null;
   }
@@ -40,6 +61,7 @@ export function SettingsMenu({ labels, onAction, visible, x, y }: SettingsMenuPr
     <div
       aria-label="Settings actions"
       className="fixed z-[1000] max-h-[calc(100vh-40px)] min-w-[220px] max-w-[280px] overflow-y-auto rounded border border-[var(--vscode-menu-border)] bg-[var(--vscode-menu-background)] py-1 text-[13px] shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+      ref={menuRef}
       role="menu"
       style={{ left: x, top: y }}
     >
