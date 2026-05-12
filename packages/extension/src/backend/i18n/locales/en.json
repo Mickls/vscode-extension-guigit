@@ -268,7 +268,23 @@
       "resolvedAndStaged": "Resolved and Staged",
       "abort": "Abort"
     },
+    "notifications": {
+      "title": "Notifications",
+      "copy": "Copy notification",
+      "clear": "Clear notifications",
+      "close": "Close notifications",
+      "empty": "No notifications in the last 7 days",
+      "showUnreadCount": "Show unread count",
+      "states": {
+        "error": "Error",
+        "running": "Running",
+        "success": "Success",
+        "warning": "Warning"
+      }
+    },
     "status": {
+      "completed": "{0} completed",
+      "cancelled": "{0} cancelled",
       "running": "{0} is running..."
     }
   }

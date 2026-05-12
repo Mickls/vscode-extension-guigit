@@ -268,7 +268,23 @@
       "resolvedAndStaged": "Resolu et indexe",
       "abort": "Abandonner"
     },
+    "notifications": {
+      "title": "Notifications",
+      "copy": "Copier la notification",
+      "clear": "Effacer les notifications",
+      "close": "Fermer les notifications",
+      "empty": "Aucune notification des 7 derniers jours",
+      "showUnreadCount": "Afficher le nombre non lu",
+      "states": {
+        "error": "Erreur",
+        "running": "En cours",
+        "success": "Succes",
+        "warning": "Avertissement"
+      }
+    },
     "status": {
+      "completed": "{0} termine",
+      "cancelled": "{0} annule",
       "running": "{0} en cours..."
     }
   }

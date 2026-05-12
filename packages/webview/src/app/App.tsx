@@ -25,6 +25,7 @@ import { CommitList, type CommitSelectionIntent } from "../components/CommitList
 import { ContextMenu, type ContextMenuAction } from "../components/ContextMenu/ContextMenu";
 import { Header } from "../components/Header/Header";
 import { SplitPanels } from "../components/Layout/SplitPanels";
+import { NotificationCenter, type NotificationHistoryItem, type NotificationState } from "../components/NotificationCenter/NotificationCenter";
 import { RemoteManager } from "../components/RemoteManager/RemoteManager";
 import { SettingsMenu, type SettingsMenuAction } from "../components/SettingsMenu/SettingsMenu";
 
@@ -47,12 +48,16 @@ const minimumGraphViewportWidth = 120;
 const maximumGraphViewportWidth = 240;
 const defaultFileViewMode: FileViewMode = "list";
 const emptyI18nMessages: I18nMessages = {};
+const notificationHistoryStorageKey = "guigit.notificationHistory";
+const notificationCountVisibilityStorageKey = "guigit.notificationCountVisible";
+const notificationRetentionMs = 7 * 24 * 60 * 60 * 1000;
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
 type PromptGitOperationType = "git.checkout" | "git.clone";
 type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
 type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
 type ProxyOperationType = "proxy.configure" | "proxy.refresh";
+type FileOperationType = "diff.openCommitFile" | "diff.openCompareFile" | "files.openHistory" | "files.openWorkingFile";
 type ContextGitOperationType =
   | "git.cherryPick"
   | "git.compareCommits"
@@ -87,7 +92,7 @@ interface HistoryRequestMeta {
 
 interface OperationNotification {
   message: string;
-  state: "error" | "running" | "success" | "warning";
+  state: NotificationState;
 }
 
 export function App({ rpcClient }: AppProps): ReactElement {
@@ -118,6 +123,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [remotes, setRemotes] = useState<readonly RemoteViewModel[]>(emptyRemotes);
   const [remoteStatus, setRemoteStatus] = useState<OperationNotification | undefined>();
   const [operationNotification, setOperationNotification] = useState<OperationNotification | undefined>();
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
+  const [notificationHistory, setNotificationHistory] = useState<readonly NotificationHistoryItem[]>(() =>
+    loadNotificationHistory(Date.now())
+  );
+  const [showNotificationCount, setShowNotificationCount] = useState(() => loadNotificationCountVisibility());
   const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | PromptGitOperationType | undefined>();
   const [conflictOperation, setConflictOperation] = useState<OperationNotification | undefined>();
   const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
@@ -168,6 +178,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
     "git.revert": tx("contextMenu.revert", "Revert"),
     "git.squashCommits": tx("contextMenu.squashCommits", "Squash Commits")
   } as const satisfies Record<ContextGitOperationType, string>;
+  const primaryGitOperationLabelsRef = useRef(primaryGitOperationLabels);
+  const promptGitOperationLabelsRef = useRef(promptGitOperationLabels);
+  const contextGitOperationLabelsRef = useRef(contextGitOperationLabels);
   const graphHeaderWidth = Math.min(Math.max(graph.width, minimumGraphViewportWidth), maximumGraphViewportWidth);
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
@@ -185,6 +198,41 @@ export function App({ rpcClient }: AppProps): ReactElement {
     selectedRepositoryIdRef.current = repositoryId;
     setSelectedRepositoryId(repositoryId);
   };
+  const notify = (notification: OperationNotification) => {
+    const now = Date.now();
+    const entry: NotificationHistoryItem = {
+      ...notification,
+      createdAt: new Date(now).toISOString(),
+      id: crypto.randomUUID(),
+      read: false
+    };
+    setOperationNotification(notification);
+    setNotificationHistory((current) => pruneNotificationHistory([entry, ...current], now));
+  };
+  const copyNotification = (notification: NotificationHistoryItem) => {
+    void navigator.clipboard.writeText(formatNotificationHistory([notification]));
+  };
+  const operationResultNotification = (
+    label: string,
+    result: OperationResultViewModel
+  ): OperationNotification => ({
+    message: result.status === "ok"
+      ? tx("status.completed", "{0} completed", label)
+      : result.status === "cancelled"
+        ? tx("status.cancelled", "{0} cancelled", label)
+        : result.message,
+    state: result.status === "ok" ? "success" : "warning"
+  });
+  const operationResultNotificationRef = useRef(operationResultNotification);
+  primaryGitOperationLabelsRef.current = primaryGitOperationLabels;
+  promptGitOperationLabelsRef.current = promptGitOperationLabels;
+  contextGitOperationLabelsRef.current = contextGitOperationLabels;
+  operationResultNotificationRef.current = operationResultNotification;
+  const clearNotifications = () => setNotificationHistory([]);
+  const markNotificationsRead = () => {
+    setNotificationHistory((current) => current.map((notification) => ({ ...notification, read: true })));
+  };
+  const unreadNotificationCount = notificationHistory.filter((notification) => !notification.read).length;
   const reloadHistory = (options: { preserveSelection?: boolean; repositoryId?: string } = {}) => {
     requestHistory(client, pendingHistoryRequestsRef.current, {
       author: trimFilter(authorQueryRef.current),
@@ -198,7 +246,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   useEffect(() => {
     reloadHistory();
     requestSettings(client);
-  }, [client]);
+  }, [client, i18nMessages]);
 
   useEffect(() => {
     if (!operationNotification || operationNotification.state === "running") {
@@ -208,6 +256,14 @@ export function App({ rpcClient }: AppProps): ReactElement {
     const timeout = window.setTimeout(() => setOperationNotification(undefined), 3500);
     return () => window.clearTimeout(timeout);
   }, [operationNotification]);
+
+  useEffect(() => {
+    window.localStorage.setItem(notificationHistoryStorageKey, JSON.stringify(notificationHistory));
+  }, [notificationHistory]);
+
+  useEffect(() => {
+    window.localStorage.setItem(notificationCountVisibilityStorageKey, showNotificationCount ? "true" : "false");
+  }, [showNotificationCount]);
 
   useEffect(() => {
     if (!contextMenu.visible) {
@@ -249,6 +305,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
           });
         }
 
+        if (response.type === "operation.completed") {
+          notify({
+            message: response.result.message,
+            state: response.result.status === "ok" ? "success" : "warning"
+          });
+        }
+
         return;
       }
 
@@ -259,7 +322,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if (isRemoteOperationType(response.type) || response.type === "remotes.list") {
           setRemoteStatus({ message: response.error.message, state: "error" });
         }
-        setOperationNotification({ message: response.error.message, state: "error" });
+        notify({ message: response.error.message, state: "error" });
         return;
       }
 
@@ -368,7 +431,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (isSettingsMenuOperationResponse(response)) {
-        setOperationNotification({
+        notify({
           message: response.payload.message,
           state: response.payload.status === "ok" ? "success" : "warning"
         });
@@ -377,19 +440,23 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
       }
 
+      if (isFileOperationResponse(response)) {
+        notify({
+          message: response.payload.message,
+          state: response.payload.status === "ok" ? "success" : "warning"
+        });
+      }
+
       if (isPrimaryGitOperationResponse(response)) {
         setActiveGitOperation(undefined);
         if (response.payload.status === "conflict") {
           setConflictOperation({ message: response.payload.message, state: "warning" });
-          setOperationNotification({ message: response.payload.message, state: "warning" });
+          notify({ message: response.payload.message, state: "warning" });
           return;
         }
 
         setConflictOperation(undefined);
-        setOperationNotification({
-          message: response.payload.message,
-          state: response.payload.status === "ok" ? "success" : "warning"
-        });
+        notify(operationResultNotificationRef.current(primaryGitOperationLabelsRef.current[response.type], response.payload));
         if (response.payload.status === "ok") {
           reloadHistory({ preserveSelection: true });
         }
@@ -397,10 +464,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
       if (isPromptGitOperationResponse(response)) {
         setActiveGitOperation(undefined);
-        setOperationNotification({
-          message: response.payload.message,
-          state: response.payload.status === "ok" ? "success" : "warning"
-        });
+        notify(operationResultNotificationRef.current(promptGitOperationLabelsRef.current[response.type], response.payload));
         if (response.payload.status === "ok") {
           reloadHistory({ preserveSelection: true });
         }
@@ -410,12 +474,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
         setActiveGitOperation(undefined);
         if (response.payload.status === "conflict") {
           setConflictOperation({ message: response.payload.message, state: "warning" });
-          setOperationNotification({ message: response.payload.message, state: "warning" });
+          notify({ message: response.payload.message, state: "warning" });
           return;
         }
 
         setConflictOperation(undefined);
-        setOperationNotification({
+        notify({
           message: response.payload.message,
           state: response.payload.status === "ok" ? "success" : "warning"
         });
@@ -428,10 +492,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         if (response.type === "git.compareCommits") {
           setCompareFiles(response.payload.files);
         }
-        setOperationNotification({
-          message: result.message,
-          state: result.status === "ok" ? "success" : "warning"
-        });
+        notify(operationResultNotificationRef.current(contextGitOperationLabelsRef.current[response.type], result));
         if (result.status === "ok" && response.type !== "git.copyHash" && response.type !== "git.compareCommits") {
           reloadHistory({ preserveSelection: true });
         }
@@ -705,7 +766,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
     const label = primaryGitOperationLabels[type];
     setActiveGitOperation(type);
-    setOperationNotification({ message: tx("status.running", "{0} is running...", label), state: "running" });
+    notify({ message: tx("status.running", "{0} is running...", label), state: "running" });
     client?.post({
       id: crypto.randomUUID(),
       repositoryId: selectedRepositoryIdRef.current,
@@ -719,7 +780,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
     const label = promptGitOperationLabels[type];
     setActiveGitOperation(type);
-    setOperationNotification({ message: tx("status.running", "{0} is running...", label), state: "running" });
+    notify({ message: tx("status.running", "{0} is running...", label), state: "running" });
     if (type === "git.checkout") {
       client?.post({
         id: crypto.randomUUID(),
@@ -757,7 +818,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
     const label = contextGitOperationLabels[request.type];
     setActiveGitOperation(request.type);
-    setOperationNotification({ message: tx("status.running", "{0} is running...", label), state: "running" });
+    notify({ message: tx("status.running", "{0} is running...", label), state: "running" });
     client?.post({
       ...request,
       id: crypto.randomUUID()
@@ -792,6 +853,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           searchPlaceholder: tx("placeholderCommitMessage", "Search commits"),
           selectedBranches: tx("header.selectedBranches", "{0} branches"),
           settings: tx("gitOperations.settings", "Settings"),
+          notifications: tx("notifications.title", "Notifications"),
           showGraph: tx("graph.show", "Show Git Graph")
         }}
         currentUser={currentUser}
@@ -805,6 +867,16 @@ export function App({ rpcClient }: AppProps): ReactElement {
         onFetch={() => startGitOperation("git.fetch")}
         onPull={() => startGitOperation("git.pull")}
         onPush={() => startGitOperation("git.push")}
+        onNotificationsClick={() => {
+          setSettingsMenu((current) => ({ ...current, visible: false }));
+          setNotificationCenterOpen((open) => {
+            const nextOpen = !open;
+            if (nextOpen) {
+              markNotificationsRead();
+            }
+            return nextOpen;
+          });
+        }}
         onRefresh={() => {
           reloadHistory({ preserveSelection: true });
         }}
@@ -813,6 +885,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         onSettingsClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
           setContextMenu((current) => ({ ...current, visible: false }));
+          setNotificationCenterOpen(false);
           setSettingsMenu((current) => ({
             visible: !current.visible,
             x: Math.max(0, rect.right - 220),
@@ -823,6 +896,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
         searchValue={searchQuery}
         selectedBranches={selectedBranches}
         selectedRepositoryId={selectedRepositoryId}
+        notificationCount={showNotificationCount ? unreadNotificationCount : 0}
+        notificationsOpen={notificationCenterOpen}
         settingsOpen={settingsMenu.visible}
       />
       {conflictOperation ? (
@@ -965,6 +1040,29 @@ export function App({ rpcClient }: AppProps): ReactElement {
         open={remoteManagerOpen}
         remotes={remotes}
         status={remoteStatus ? { kind: remoteStatusKind(remoteStatus.state), message: remoteStatus.message } : undefined}
+      />
+      <NotificationCenter
+        labels={{
+          clear: tx("notifications.clear", "Clear notifications"),
+          close: tx("notifications.close", "Close notifications"),
+          copy: tx("notifications.copy", "Copy notification"),
+          empty: tx("notifications.empty", "No notifications in the last 7 days"),
+          showUnreadCount: tx("notifications.showUnreadCount", "Show unread count"),
+          states: {
+            error: tx("notifications.states.error", "Error"),
+            running: tx("notifications.states.running", "Running"),
+            success: tx("notifications.states.success", "Success"),
+            warning: tx("notifications.states.warning", "Warning")
+          },
+          title: tx("notifications.title", "Notifications")
+        }}
+        notifications={notificationHistory}
+        onClear={clearNotifications}
+        onClose={() => setNotificationCenterOpen(false)}
+        onCopyNotification={copyNotification}
+        onShowUnreadCountChange={setShowNotificationCount}
+        open={notificationCenterOpen}
+        showUnreadCount={showNotificationCount}
       />
       <CompareOverlay
         files={compareFiles}
@@ -1130,6 +1228,17 @@ function isSettingsMenuOperationResponse(
     response.type === "proxy.refresh" ||
     response.type === "settings.changeLanguage" ||
     response.type === "settings.resetAutoStash"
+  );
+}
+
+function isFileOperationResponse(
+  response: RpcResponse
+): response is Extract<RpcResponse, { type: FileOperationType }> {
+  return (
+    response.type === "diff.openCommitFile" ||
+    response.type === "diff.openCompareFile" ||
+    response.type === "files.openHistory" ||
+    response.type === "files.openWorkingFile"
   );
 }
 
@@ -1368,6 +1477,42 @@ function formatMessage(message: string, args: readonly unknown[]): string {
 function trimFilter(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function loadNotificationHistory(now: number): readonly NotificationHistoryItem[] {
+  const value = window.localStorage.getItem(notificationHistoryStorageKey);
+  if (!value) {
+    return [];
+  }
+
+  try {
+    return pruneNotificationHistory(JSON.parse(value) as readonly NotificationHistoryItem[], now);
+  } catch {
+    window.localStorage.removeItem(notificationHistoryStorageKey);
+    return [];
+  }
+}
+
+function loadNotificationCountVisibility(): boolean {
+  return window.localStorage.getItem(notificationCountVisibilityStorageKey) !== "false";
+}
+
+function pruneNotificationHistory(
+  notifications: readonly NotificationHistoryItem[],
+  now: number
+): readonly NotificationHistoryItem[] {
+  const oldestRetained = now - notificationRetentionMs;
+  return notifications.filter((notification) => Date.parse(notification.createdAt) >= oldestRetained);
+}
+
+function formatNotificationHistory(notifications: readonly NotificationHistoryItem[]): string {
+  return notifications
+    .map((notification) => `[${formatNotificationTime(notification.createdAt)}] ${notification.state}: ${notification.message}`)
+    .join("\n");
+}
+
+function formatNotificationTime(createdAt: string): string {
+  return new Date(createdAt).toLocaleString();
 }
 
 function formatArgument(value: unknown): string {

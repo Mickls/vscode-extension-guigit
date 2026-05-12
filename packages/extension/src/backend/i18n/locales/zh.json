@@ -268,7 +268,23 @@
       "resolvedAndStaged": "已解决并暂存",
       "abort": "中止"
     },
+    "notifications": {
+      "title": "通知",
+      "copy": "复制通知",
+      "clear": "清空通知",
+      "close": "关闭通知",
+      "empty": "最近 7 天没有通知",
+      "showUnreadCount": "显示未读数量",
+      "states": {
+        "error": "错误",
+        "running": "执行中",
+        "success": "成功",
+        "warning": "警告"
+      }
+    },
     "status": {
+      "completed": "{0}已完成",
+      "cancelled": "{0}已取消",
       "running": "{0} 正在执行..."
     }
   }

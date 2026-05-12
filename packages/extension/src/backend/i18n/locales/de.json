@@ -268,7 +268,23 @@
       "resolvedAndStaged": "Geloest und gestaged",
       "abort": "Abbrechen"
     },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "copy": "Benachrichtigung kopieren",
+      "clear": "Benachrichtigungen loeschen",
+      "close": "Benachrichtigungen schliessen",
+      "empty": "Keine Benachrichtigungen der letzten 7 Tage",
+      "showUnreadCount": "Ungelesene Anzahl anzeigen",
+      "states": {
+        "error": "Fehler",
+        "running": "Laeuft",
+        "success": "Erfolg",
+        "warning": "Warnung"
+      }
+    },
     "status": {
+      "completed": "{0} abgeschlossen",
+      "cancelled": "{0} abgebrochen",
       "running": "{0} laeuft..."
     }
   }

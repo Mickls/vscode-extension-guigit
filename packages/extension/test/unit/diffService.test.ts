@@ -126,19 +126,18 @@ describe("DiffService", () => {
     });
   });
 
-  it("reports unchanged compare files without opening a diff editor", async () => {
+  it("reports unchanged compare files without using VS Code notifications", async () => {
     const executeCommand = vi.fn();
     const showInformationMessage = vi.fn();
     const service = createService({
       executeCommand,
-      gitRaw: async () => "same",
-      showInformationMessage
+      gitRaw: async () => "same"
     });
 
     const result = await service.openCompareFileDiff("/repo", "from", "to", "unchanged.ts");
 
     expect(result).toEqual({ status: "ok", message: "No changes in unchanged.ts between these commits" });
-    expect(showInformationMessage).toHaveBeenCalledWith("No changes in unchanged.ts between these commits");
+    expect(showInformationMessage).not.toHaveBeenCalled();
     expect(executeCommand).not.toHaveBeenCalled();
   });
 });
@@ -146,16 +145,12 @@ describe("DiffService", () => {
 function createService(input: {
   executeCommand?: (...args: readonly unknown[]) => Thenable<void> | void;
   gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
-  showInformationMessage?: (message: string) => Thenable<void> | void;
 }): DiffService<string> {
   return new DiffService({
     executeCommand: async (command, ...args) => {
       await input.executeCommand?.(command, ...args);
     },
     gitRaw: input.gitRaw,
-    showInformationMessage: async (message) => {
-      await input.showInformationMessage?.(message);
-    },
     virtualDocuments: {
       createDocument: (content, fileName) => `${fileName}:${content}`
     }

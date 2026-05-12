@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,9 @@ import type { RpcClient, RpcRequest, RpcResponse } from "./rpcClient";
 describe("App", () => {
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("opens the remote manager from the settings menu", async () => {
@@ -1102,7 +1105,7 @@ describe("App", () => {
     expect(rpcClient.post.mock.calls.filter(([request]) => request.type === "git.pull")).toHaveLength(1);
 
     dispatchOperationResponse(pullRequest.id, "git.pull");
-    expect(screen.getByRole("status")).toHaveTextContent("Git operation completed");
+    expect(screen.getByRole("status")).toHaveTextContent("Pull completed");
     expect(screen.getByRole("button", { name: "Pull" })).not.toBeDisabled();
 
     const pullReloadRequest = rpcClient.post.mock.calls.find(
@@ -1137,13 +1140,183 @@ describe("App", () => {
       })
     );
 
-    const closeNotification = setTimeoutSpy.mock.calls.at(-1)?.[0];
-    expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 3500);
+    const closeNotification = setTimeoutSpy.mock.calls.find((call) => call[1] === 3500)?.[0];
+    expect(closeNotification).toEqual(expect.any(Function));
     act(() => {
       closeNotification?.();
     });
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    setTimeoutSpy.mockRestore();
+  });
+
+  it("keeps a seven day notification history, marks opened notifications read, copies individual messages, and clears all", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-05-12T08:00:00.000Z"));
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    window.localStorage.setItem(
+      "guigit.notificationHistory",
+      JSON.stringify([
+        {
+          createdAt: "2026-05-04T07:59:59.000Z",
+          id: "expired",
+          message: "Expired notification",
+          read: false,
+          state: "success"
+        },
+        {
+          createdAt: "2026-05-10T08:00:00.000Z",
+          id: "recent",
+          message: "Recent notification",
+          read: false,
+          state: "warning"
+        }
+      ])
+    );
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pull" }));
+    const pullRequest = latestRequest(rpcClient, "git.pull");
+    dispatchOperationResponse(pullRequest.id, "git.pull", {
+      message: "Pulled latest changes",
+      status: "ok"
+    });
+
+    expect(screen.getByRole("button", { name: "Notifications" })).toHaveTextContent("3");
+
+    const notificationsButton = screen.getByRole("button", { name: "Notifications" });
+    fireEvent.click(notificationsButton);
+    expect(notificationsButton).not.toHaveTextContent("3");
+    const notificationCenter = screen.getByRole("region", { name: "Notifications" });
+    expect(notificationCenter).toBeInTheDocument();
+    expect(notificationCenter).toHaveTextContent("Pull completed");
+    expect(notificationCenter).toHaveTextContent("Recent notification");
+    expect(notificationCenter).not.toHaveTextContent("Expired notification");
+    expect(notificationCenter).toHaveTextContent("Success");
+    expect(notificationCenter).toHaveTextContent("Warning");
+
+    fireEvent.click(within(notificationCenter).getAllByRole("button", { name: "Copy notification" })[0]!);
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Pull completed"));
+    expect(writeText.mock.calls.at(-1)?.[0]).not.toContain("Recent notification");
+
+    fireEvent.click(within(notificationCenter).getByRole("button", { name: "Clear notifications" }));
+    expect(notificationCenter).toHaveTextContent("No notifications in the last 7 days");
+    expect(notificationCenter).not.toHaveTextContent("Pull completed");
+  });
+
+  it("can hide unread notification counts", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show unread count" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close notifications" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Fetch" }));
+    const fetchRequest = latestRequest(rpcClient, "git.fetch");
+    dispatchOperationResponse(fetchRequest.id, "git.fetch", {
+      message: "Fetch completed",
+      status: "ok"
+    });
+
+    expect(screen.getByRole("button", { name: "Notifications" })).not.toHaveTextContent("2");
+  });
+
+  it("localizes notification center labels and states from the settings bundle", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    const settingsRequest = latestRequest(rpcClient, "settings.get");
+    dispatchSettingsResponse(settingsRequest.id, "list", "settings.get", {
+      locale: "zh",
+      messages: {
+        gitOperations: {
+          pull: "拉取"
+        },
+        notifications: {
+          clear: "清空通知",
+          close: "关闭通知",
+          copy: "复制通知",
+          empty: "最近 7 天没有通知",
+          showUnreadCount: "显示未读数量",
+          states: {
+            error: "错误",
+            running: "执行中",
+            success: "成功",
+            warning: "警告"
+          },
+          title: "通知"
+        },
+        status: {
+          completed: "{0}已完成",
+          running: "{0}正在执行..."
+        }
+      }
+    });
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+
+    fireEvent.click(screen.getByRole("button", { name: "拉取" }));
+    const pullRequest = latestRequest(rpcClient, "git.pull");
+    dispatchOperationResponse(pullRequest.id, "git.pull", {
+      message: "Pulled latest changes",
+      status: "ok"
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "通知" }));
+    const notificationCenter = screen.getByRole("region", { name: "通知" });
+    expect(within(notificationCenter).getByRole("button", { name: "清空通知" })).toBeInTheDocument();
+    expect(within(notificationCenter).getByRole("button", { name: "关闭通知" })).toBeInTheDocument();
+    expect(within(notificationCenter).getAllByRole("button", { name: "复制通知" })).not.toHaveLength(0);
+    expect(within(notificationCenter).getByRole("checkbox", { name: "显示未读数量" })).toBeInTheDocument();
+    expect(notificationCenter).toHaveTextContent("成功");
+    expect(notificationCenter).toHaveTextContent("拉取已完成");
+  });
+
+  it("shows file and diff operation results through the internal notification surface", async () => {
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+
+    const detailsRequest = latestRequest(rpcClient, "commits.getDetails");
+    dispatchDetailsResponse(detailsRequest.id, {
+      body: "Backend details",
+      files: [
+        {
+          binary: false,
+          deletions: 1,
+          insertions: 3,
+          path: "src/app/App.tsx",
+          status: "modified"
+        }
+      ],
+      hash: "abc1234567890abcdef",
+      message: "Wire real data"
+    });
+    await screen.findByText("src/app/App.tsx");
+    rpcClient.post.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open diff for src/app/App.tsx" }));
+    const diffRequest = latestRequest(rpcClient, "diff.openCommitFile");
+    dispatchOperationResponse(diffRequest.id, "diff.openCommitFile", {
+      message: "Opened diff for src/app/App.tsx",
+      status: "ok"
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Opened diff for src/app/App.tsx");
   });
 
   it("shows conflict actions and posts explicit continue or abort intents", async () => {
@@ -1749,6 +1922,10 @@ function dispatchRemoteOperationResponse(
 function dispatchOperationResponse(
   id: string,
   type:
+    | "diff.openCommitFile"
+    | "diff.openCompareFile"
+    | "files.openHistory"
+    | "files.openWorkingFile"
     | "git.abortOperation"
     | "git.advancedPull"
     | "git.advancedPush"

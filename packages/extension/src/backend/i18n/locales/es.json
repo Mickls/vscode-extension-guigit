@@ -268,7 +268,23 @@
       "resolvedAndStaged": "Resuelto y preparado",
       "abort": "Abortar"
     },
+    "notifications": {
+      "title": "Notificaciones",
+      "copy": "Copiar notificacion",
+      "clear": "Borrar notificaciones",
+      "close": "Cerrar notificaciones",
+      "empty": "No hay notificaciones de los ultimos 7 dias",
+      "showUnreadCount": "Mostrar conteo sin leer",
+      "states": {
+        "error": "Error",
+        "running": "En ejecucion",
+        "success": "Correcto",
+        "warning": "Advertencia"
+      }
+    },
     "status": {
+      "completed": "{0} completado",
+      "cancelled": "{0} cancelado",
       "running": "{0} en ejecucion..."
     }
   }

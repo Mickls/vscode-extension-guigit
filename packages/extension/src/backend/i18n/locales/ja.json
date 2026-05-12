@@ -268,7 +268,23 @@
       "resolvedAndStaged": "解決してステージ済み",
       "abort": "中止"
     },
+    "notifications": {
+      "title": "通知",
+      "copy": "通知をコピー",
+      "clear": "通知をクリア",
+      "close": "通知を閉じる",
+      "empty": "過去 7 日間の通知はありません",
+      "showUnreadCount": "未読数を表示",
+      "states": {
+        "error": "エラー",
+        "running": "実行中",
+        "success": "成功",
+        "warning": "警告"
+      }
+    },
     "status": {
+      "completed": "{0} が完了しました",
+      "cancelled": "{0} をキャンセルしました",
       "running": "{0} を実行中..."
     }
   }

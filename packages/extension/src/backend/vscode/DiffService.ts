@@ -1,4 +1,4 @@
-import { commands, ViewColumn, window } from "vscode";
+import { commands, ViewColumn } from "vscode";
 import { simpleGit } from "simple-git";
 import type { OperationResultViewModel } from "../rpc/contract";
 import type { Logger } from "../../logging/LoggerService";
@@ -12,7 +12,6 @@ export interface DiffServiceInput<TUri> {
   executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug">;
-  showInformationMessage?: (message: string) => Thenable<void>;
   virtualDocuments?: DiffVirtualDocuments<TUri>;
 }
 
@@ -20,7 +19,6 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
   private readonly executeCommand: (command: string, ...args: readonly unknown[]) => Thenable<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug"> | undefined;
-  private readonly showInformationMessage: (message: string) => Thenable<void>;
   private readonly virtualDocuments: DiffVirtualDocuments<TUri>;
 
   public constructor(input: DiffServiceInput<TUri> = {}) {
@@ -31,11 +29,6 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
       });
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
-    this.showInformationMessage =
-      input.showInformationMessage ??
-      (async (message) => {
-        await window.showInformationMessage(message);
-      });
     this.virtualDocuments = input.virtualDocuments ?? new VirtualDocumentService<TUri>();
   }
 
@@ -99,7 +92,6 @@ export class DiffService<TUri extends { toString(): string } = { toString(): str
 
     if (fromContent === toContent) {
       const message = `No changes in ${filePath} between these commits`;
-      await this.showInformationMessage(message);
       this.logger?.debug("diff.compareFile.unchanged", {
         filePath,
         fromHash,

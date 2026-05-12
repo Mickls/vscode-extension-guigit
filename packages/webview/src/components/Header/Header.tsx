@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent, type MouseEvent, type ReactElement } from "react";
 import {
   CloudDownload,
+  Bell,
   GitBranch,
   GitGraph,
   GitPullRequestArrow,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import type { BranchesViewModel, CurrentUserViewModel, RepositoryViewModel } from "../../app/rpcContract.generated";
 
-type ToolbarAction = "fetch" | "pull" | "push" | "refresh" | "settings";
+type ToolbarAction = "fetch" | "notifications" | "pull" | "push" | "refresh" | "settings";
 type HeaderAction = ToolbarAction | "checkout" | "clone";
 
 interface ToolbarActionItem {
@@ -45,6 +46,7 @@ export interface HeaderLabels {
   selectedBranches: string;
   settings: string;
   showGraph: string;
+  notifications: string;
 }
 
 const defaultLabels: HeaderLabels = {
@@ -68,7 +70,8 @@ const defaultLabels: HeaderLabels = {
   searchPlaceholder: "Search commits",
   selectedBranches: "{0} branches",
   settings: "Settings",
-  showGraph: "Show Git Graph"
+  showGraph: "Show Git Graph",
+  notifications: "Notifications"
 };
 
 function hasAdvancedModifier(event: MouseEvent<HTMLButtonElement>): boolean {
@@ -98,8 +101,11 @@ export interface HeaderProps {
   onPush?: () => void;
   onRepositoryChange?: (repositoryId: string) => void;
   onSearchChange?: (value: string) => void;
+  onNotificationsClick?: () => void;
   onSettingsClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   gitOperationBusy?: boolean;
+  notificationCount?: number;
+  notificationsOpen?: boolean;
   settingsOpen?: boolean;
 }
 
@@ -126,8 +132,11 @@ export function Header({
   onRefresh,
   onRepositoryChange,
   onSearchChange,
+  onNotificationsClick,
   onSettingsClick,
   gitOperationBusy = false,
+  notificationCount = 0,
+  notificationsOpen = false,
   settingsOpen = false
 }: HeaderProps): ReactElement {
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
@@ -179,6 +188,12 @@ export function Header({
       label: text.clone
     },
     {
+      action: "notifications",
+      icon: <Bell aria-hidden="true" className="h-4 w-4" />,
+      label: text.notifications,
+      title: notificationCount > 0 ? `${text.notifications} (${notificationCount})` : text.notifications
+    },
+    {
       action: "settings",
       icon: <Settings aria-hidden="true" className="h-4 w-4" />,
       label: text.settings
@@ -220,6 +235,7 @@ export function Header({
       onPush?.();
     },
     refresh: onRefresh,
+    notifications: onNotificationsClick,
     settings: onSettingsClick
   };
   const handleMouseDown = (event: MouseEvent<HTMLButtonElement>, action: HeaderAction) => {
@@ -360,6 +376,7 @@ export function Header({
             aria-label={item.label}
             aria-busy={item.gitOperation && gitOperationBusy ? true : undefined}
             aria-expanded={item.action === "settings" ? settingsOpen : undefined}
+            aria-pressed={item.action === "notifications" ? notificationsOpen : undefined}
             className="flex h-7 items-center justify-center gap-1 whitespace-nowrap rounded-[3px] border border-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
             disabled={item.gitOperation && gitOperationBusy}
             key={item.action}
@@ -370,6 +387,14 @@ export function Header({
           >
             {item.icon}
             <span>{item.label}</span>
+            {item.action === "notifications" && notificationCount > 0 ? (
+              <span
+                aria-hidden="true"
+                className="min-w-4 rounded-full bg-[var(--vscode-badge-background)] px-1 text-center text-[10px] leading-4 text-[var(--vscode-badge-foreground)]"
+              >
+                {notificationCount}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
