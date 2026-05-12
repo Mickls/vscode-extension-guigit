@@ -2,7 +2,7 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.1.6",
+  "version": "0.1.9",
   "publisher": "Mickls",
   "license": "MIT",
   "icon": "assets/gui-git-history-high-resolution-logo-transparent.png",

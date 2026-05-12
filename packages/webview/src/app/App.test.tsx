@@ -1451,6 +1451,46 @@ describe("App", () => {
     dispatchOperationResponse(resetRequest.id, "git.reset");
   });
 
+  it("posts non-consecutive selected commits for squash", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, {
+      commits: [
+        createCommit({
+          hash: "head111111111111111",
+          message: "Finish feature",
+          parents: ["middle2222222222222"]
+        }),
+        createCommit({
+          hash: "middle2222222222222",
+          message: "Keep separate",
+          parents: ["selected33333333333"]
+        }),
+        createCommit({
+          hash: "selected33333333333",
+          message: "Start feature",
+          parents: ["base44444444444444"]
+        })
+      ]
+    });
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    const commitRows = screen.getAllByTestId("commit-row");
+    await user.click(commitRows[0]!);
+    fireEvent.click(commitRows[2]!, { metaKey: true });
+    await openContextMenu(user, commitRows[2]!);
+    await user.click(screen.getByRole("menuitem", { name: "Squash 2 Commits" }));
+
+    expect(latestRequest(rpcClient, "git.squashCommits")).toEqual(expect.objectContaining({
+      hashes: ["head111111111111111", "selected33333333333"],
+      repositoryId: "/repo",
+      type: "git.squashCommits"
+    }));
+  });
+
   it("posts edit commit message only for editable commits", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

@@ -583,7 +583,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       return;
     }
 
-    const request = contextActionRequest(action, selectedRepositoryIdRef.current, contextHash, selectedPair);
+    const request = contextActionRequest(action, selectedRepositoryIdRef.current, contextHash, selectedHashesInHistoryOrder);
     if (request) {
       startContextOperation(request);
     }
@@ -901,7 +901,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       />
       <ContextMenu
         canEditCommitMessage={commits.find((commit) => commit.hash === contextMenu.hash)?.canEditMessage ?? false}
-        canSquashCommits={canSquashSelectedCommits(commits, selectedCommitHashes)}
+        canSquashCommits={canSquashSelectedCommits(selectedCommitHashes)}
         labels={{
           cherryPick: tx("contextMenu.cherryPick", "Cherry Pick"),
           compare: tx("contextMenu.compareSelected", "Compare Selected"),
@@ -1192,7 +1192,7 @@ function contextActionRequest(
   action: ContextMenuAction,
   repositoryId: string,
   hash: string,
-  selectedPair: readonly string[]
+  selectedHashes: readonly string[]
 ): ContextGitOperationRequest | undefined {
   if (action === "copyHash") {
     return { hash, repositoryId, type: "git.copyHash" };
@@ -1207,7 +1207,7 @@ function contextActionRequest(
   }
 
   if (action === "squash") {
-    return { hashes: selectedPair, repositoryId, type: "git.squashCommits" };
+    return { hashes: selectedHashes, repositoryId, type: "git.squashCommits" };
   }
 
   if (action === "createBranch") {
@@ -1249,19 +1249,8 @@ function getSelectedHashesInHistoryOrder(
     .map((commit) => commit.hash);
 }
 
-function canSquashSelectedCommits(
-  commits: readonly CommitListItemViewModel[],
-  selectedHashes: readonly string[]
-): boolean {
-  const selectedCommits = commits.filter((commit) => selectedHashes.includes(commit.hash));
-  if (selectedCommits.length < 2 || selectedCommits[0]?.hash !== commits[0]?.hash) {
-    return false;
-  }
-
-  return selectedCommits.every((commit, index) => {
-    const nextCommit = selectedCommits[index + 1];
-    return !nextCommit || commit.parents[0] === nextCommit.hash;
-  });
+function canSquashSelectedCommits(selectedHashes: readonly string[]): boolean {
+  return selectedHashes.length > 1;
 }
 
 function resetModeFromContextAction(action: ContextMenuAction): GitResetMode | undefined {

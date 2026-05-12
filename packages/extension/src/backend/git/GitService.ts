@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { env, Uri, window } from "vscode";
 import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
@@ -16,6 +19,13 @@ interface QuickPickItem {
 interface QuickPickWithInputOptions {
   createRemote: string;
   placeHolder: string;
+}
+
+interface SquashPlan {
+  base: string;
+  mode: "cherry-pick" | "soft-reset";
+  selectedInCommitOrder: readonly string[];
+  unselectedInCommitOrder: readonly string[];
 }
 
 export interface GitServiceInput {
@@ -401,9 +411,17 @@ export class GitService {
       return { message: "Select at least 2 commits to squash", status: "cancelled" };
     }
 
-    if (!(await this.isSquashableHeadRange(repositoryRoot, hashes))) {
+    const plan = await this.buildSquashPlan(repositoryRoot, hashes);
+    if (!plan) {
       return {
-        message: "Selected commits are not a consecutive range ending at HEAD",
+        message: "Selected commits are not on the current branch",
+        status: "cancelled"
+      };
+    }
+
+    if (!(await this.verifySquashPlanAppliesCleanly(repositoryRoot, plan))) {
+      return {
+        message: "Selected commits cannot be squashed cleanly. Include the dependent commits or resolve the squash manually.",
         status: "cancelled"
       };
     }
@@ -422,14 +440,30 @@ export class GitService {
       return { message: "Squash cancelled", status: "cancelled" };
     }
 
-    const oldestHash = hashes.at(-1)!;
-    const parent = (await this.runGitRaw(repositoryRoot, ["rev-parse", `${oldestHash}^`])).trim();
-    await this.runGitRaw(repositoryRoot, ["reset", "--soft", parent]);
-    await this.runGitRaw(repositoryRoot, ["commit", "-m", message.trim()]);
-    return {
-      message: `Squashed ${hashes.length} commits`,
-      status: "ok"
-    };
+    return this.safetyService.runWithAutoStash(repositoryRoot, this.settingsService.getSettings().autoStashOnPull, async () => {
+      await this.runSquashPlan(repositoryRoot, plan, message.trim());
+
+      return {
+        message: `Squashed ${hashes.length} commits`,
+        status: "ok"
+      };
+    });
+  }
+
+  private async runSquashPlan(repositoryRoot: string, plan: SquashPlan, message: string): Promise<void> {
+    if (plan.mode === "soft-reset") {
+      await this.runGitRaw(repositoryRoot, ["reset", "--soft", plan.base]);
+    } else {
+      await this.runGitRaw(repositoryRoot, ["reset", "--hard", plan.base]);
+      for (const hash of plan.selectedInCommitOrder) {
+        await this.runGitRaw(repositoryRoot, ["cherry-pick", "--no-commit", hash]);
+      }
+    }
+
+    await this.runGitRaw(repositoryRoot, ["commit", "-m", message]);
+    for (const hash of plan.unselectedInCommitOrder) {
+      await this.runGitRaw(repositoryRoot, ["cherry-pick", hash]);
+    }
   }
 
   private async squashCommitMessage(repositoryRoot: string, hashes: readonly string[]): Promise<string> {
@@ -467,6 +501,55 @@ export class GitService {
         status: "ok"
       };
     }, conflict);
+  }
+
+  private async buildSquashPlan(repositoryRoot: string, hashes: readonly string[]): Promise<SquashPlan | undefined> {
+    if (await this.isSquashableHeadRange(repositoryRoot, hashes)) {
+      const oldestHash = hashes.at(-1)!;
+      return {
+        base: (await this.runGitRaw(repositoryRoot, ["rev-parse", `${oldestHash}^`])).trim(),
+        mode: "soft-reset",
+        selectedInCommitOrder: [],
+        unselectedInCommitOrder: []
+      };
+    }
+
+    const firstParentHistory = parseLines(await this.runGitRaw(repositoryRoot, ["rev-list", "--first-parent", "HEAD"]));
+    const selectedIndexes = hashes.map((hash) => firstParentHistory.indexOf(hash));
+    if (selectedIndexes.includes(-1)) {
+      return undefined;
+    }
+
+    const oldestSelectedIndex = Math.max(...selectedIndexes);
+    const commitsInCommitOrder = firstParentHistory.slice(0, oldestSelectedIndex + 1).reverse();
+    const selectedHashes = new Set(hashes);
+    const selectedInCommitOrder = commitsInCommitOrder.filter((hash) => selectedHashes.has(hash));
+    const unselectedInCommitOrder = commitsInCommitOrder.filter((hash) => !selectedHashes.has(hash));
+
+    return {
+      base: (await this.runGitRaw(repositoryRoot, ["rev-parse", `${commitsInCommitOrder[0]!}^`])).trim(),
+      mode: "cherry-pick",
+      selectedInCommitOrder,
+      unselectedInCommitOrder
+    };
+  }
+
+  private async verifySquashPlanAppliesCleanly(repositoryRoot: string, plan: SquashPlan): Promise<boolean> {
+    if (plan.mode === "soft-reset") {
+      return true;
+    }
+
+    const preflightRoot = await mkdtemp(join(tmpdir(), "guigit-squash-"));
+    try {
+      await this.runGitRaw(repositoryRoot, ["worktree", "add", "--detach", preflightRoot, "HEAD"]);
+      await this.runSquashPlan(preflightRoot, plan, "GUI Git History squash preflight");
+      return true;
+    } catch {
+      return false;
+    } finally {
+      await this.runGitRaw(repositoryRoot, ["worktree", "remove", "--force", preflightRoot]);
+      await rm(preflightRoot, { force: true, recursive: true });
+    }
   }
 
   private async isSquashableHeadRange(repositoryRoot: string, hashes: readonly string[]): Promise<boolean> {
@@ -761,6 +844,10 @@ function splitRemoteBranch(branch: string): { branch: string; remote: string } {
     branch: branch.slice(separatorIndex + 1),
     remote: branch.slice(0, separatorIndex)
   };
+}
+
+function parseLines(output: string): readonly string[] {
+  return output.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
 function preferLastSelection<T extends QuickPickItem>(items: readonly T[], lastSelection: string | undefined): readonly T[] {

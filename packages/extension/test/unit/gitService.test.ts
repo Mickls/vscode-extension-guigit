@@ -874,9 +874,9 @@ describe("GitService", () => {
       "commit --amend -m Updated subject",
       "rev-parse HEAD",
       "rev-parse abc123^",
+      "rev-parse old456^",
       "show --no-patch --format=%s abc123",
       "show --no-patch --format=%s old456",
-      "rev-parse old456^",
       "reset --soft parent000",
       "commit -m Squashed subject"
     ]);
@@ -953,15 +953,179 @@ describe("GitService", () => {
     expect(calls).toEqual([
       "rev-parse HEAD",
       "rev-parse abc123^",
+      "rev-parse old456^",
       "show --no-patch --format=%s abc123",
       "show --no-patch --format=%s old456",
-      "rev-parse old456^",
       "reset --soft parent000",
       "commit -m Keep subject\nDrop subject"
     ]);
   });
 
-  it("cancels squash when selected commits are not a first-parent range ending at HEAD", async () => {
+  it("squashes non-consecutive selected commits and replays unselected commits", async () => {
+    const calls: string[] = [];
+    const showInputBox = vi.fn().mockResolvedValue("Squashed selected work");
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-list --first-parent HEAD") {
+          return "head111\nmiddle222\nselected333\nbase444\n";
+        }
+
+        if (args.join(" ") === "rev-parse selected333^") {
+          return "base444\n";
+        }
+
+        if (args.join(" ") === "show --no-patch --format=%s head111") {
+          return "Finish feature\n";
+        }
+
+        if (args.join(" ") === "show --no-patch --format=%s selected333") {
+          return "Start feature\n";
+        }
+
+        return "";
+      },
+      showInputBox,
+      showWarningMessage: vi.fn().mockResolvedValue("Continue")
+    });
+
+    await expect(service.squashCommits("/repo", ["head111", "selected333"])).resolves.toEqual({
+      message: "Squashed 2 commits",
+      status: "ok"
+    });
+
+    expect(showInputBox).toHaveBeenCalledWith({
+      placeHolder: "Enter squashed commit message",
+      prompt: "Squash commit message",
+      value: "Finish feature\nStart feature"
+    });
+    expect(calls).toEqual([
+      "rev-parse HEAD",
+      "rev-list --first-parent HEAD",
+      "rev-parse selected333^",
+      expect.stringMatching(/^worktree add --detach .* HEAD$/),
+      "reset --hard base444",
+      "cherry-pick --no-commit selected333",
+      "cherry-pick --no-commit head111",
+      "commit -m GUI Git History squash preflight",
+      "cherry-pick middle222",
+      expect.stringMatching(/^worktree remove --force .*/),
+      "show --no-patch --format=%s head111",
+      "show --no-patch --format=%s selected333",
+      "reset --hard base444",
+      "cherry-pick --no-commit selected333",
+      "cherry-pick --no-commit head111",
+      "commit -m Squashed selected work",
+      "cherry-pick middle222"
+    ]);
+  });
+
+  it("runs squash through safety auto-stash handling", async () => {
+    const calls: string[] = [];
+    let safetyPreference: "ask" | "always" | "never" | undefined;
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-list --first-parent HEAD") {
+          return "head111\nmiddle222\nselected333\nbase444\n";
+        }
+
+        if (args.join(" ") === "rev-parse selected333^") {
+          return "base444\n";
+        }
+
+        if (args.join(" ") === "show --no-patch --format=%s head111") {
+          return "Finish feature\n";
+        }
+
+        if (args.join(" ") === "show --no-patch --format=%s selected333") {
+          return "Start feature\n";
+        }
+
+        if (args.join(" ") === "status --porcelain") {
+          return " M src/file.ts\n";
+        }
+
+        return "";
+      },
+      safetyService: {
+        runWithAutoStash: async (repositoryRoot, preference, operation) => {
+          safetyPreference = preference;
+          calls.push(`safety ${repositoryRoot} ${preference}`);
+          return operation();
+        }
+      },
+      settingsService: {
+        getSettings: () => ({ autoStashOnPull: "always" })
+      },
+      showInputBox: vi.fn().mockResolvedValue("Squashed selected work"),
+      showWarningMessage: vi.fn().mockResolvedValue("Continue")
+    });
+
+    await expect(service.squashCommits("/repo", ["head111", "selected333"])).resolves.toEqual({
+      message: "Squashed 2 commits",
+      status: "ok"
+    });
+    expect(safetyPreference).toBe("always");
+    expect(calls).toEqual([
+      "rev-parse HEAD",
+      "rev-list --first-parent HEAD",
+      "rev-parse selected333^",
+      expect.stringMatching(/^worktree add --detach .* HEAD$/),
+      "reset --hard base444",
+      "cherry-pick --no-commit selected333",
+      "cherry-pick --no-commit head111",
+      "commit -m GUI Git History squash preflight",
+      "cherry-pick middle222",
+      expect.stringMatching(/^worktree remove --force .*/),
+      "show --no-patch --format=%s head111",
+      "show --no-patch --format=%s selected333",
+      "safety /repo always",
+      "reset --hard base444",
+      "cherry-pick --no-commit selected333",
+      "cherry-pick --no-commit head111",
+      "commit -m Squashed selected work",
+      "cherry-pick middle222"
+    ]);
+  });
+
+  it("cancels non-consecutive squash before touching the worktree when replay conflicts", async () => {
+    const calls: string[] = [];
+    let preflightRoot = "";
+    const service = createService({
+      gitRaw: async (repositoryRoot, args) => {
+        calls.push(`${repositoryRoot}: ${args.join(" ")}`);
+        if (args.join(" ") === "rev-list --first-parent HEAD") {
+          return "head111\nmiddle222\nselected333\nbase444\n";
+        }
+
+        if (args.join(" ") === "rev-parse selected333^") {
+          return "base444\n";
+        }
+
+        if (args.join(" ").startsWith("worktree add --detach ")) {
+          preflightRoot = args[3]!;
+          return "";
+        }
+
+        if (repositoryRoot === preflightRoot && args.join(" ") === "cherry-pick --no-commit head111") {
+          throw new Error("CONFLICT (content): could not apply head111");
+        }
+
+        return "";
+      },
+      showWarningMessage: vi.fn().mockResolvedValue("Continue")
+    });
+
+    await expect(service.squashCommits("/repo", ["head111", "selected333"])).resolves.toEqual({
+      message: "Selected commits cannot be squashed cleanly. Include the dependent commits or resolve the squash manually.",
+      status: "cancelled"
+    });
+    expect(calls.some((call) => call === "/repo: reset --hard base444")).toBe(false);
+    expect(calls.some((call) => call === "/repo: cherry-pick --no-commit selected333")).toBe(false);
+  });
+
+  it("cancels squash when selected commits are not on the current branch", async () => {
     const calls: string[] = [];
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
@@ -979,10 +1143,10 @@ describe("GitService", () => {
     });
 
     await expect(service.squashCommits("/repo", ["abc123", "old456"])).resolves.toEqual({
-      message: "Selected commits are not a consecutive range ending at HEAD",
+      message: "Selected commits are not on the current branch",
       status: "cancelled"
     });
-    expect(calls).toEqual(["rev-parse HEAD", "rev-parse abc123^"]);
+    expect(calls).toEqual(["rev-parse HEAD", "rev-parse abc123^", "rev-list --first-parent HEAD"]);
   });
 
   it("cancels commit context operations when required input is dismissed", async () => {
