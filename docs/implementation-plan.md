@@ -421,6 +421,67 @@ gui-git-history/
 - [x] Restore current view state after language change.
 - [x] Commit with `feat: add internationalization`.
 
+## Phase 6.5: Changes Commit Workflow
+
+### Task 6.5.1: Working-tree status and Changes tab
+
+**Files:**
+
+- Modify: `packages/shared/src/rpc/contract.ts`
+- Create: `packages/extension/src/backend/git/WorkingTreeService.ts`
+- Create: `packages/webview/src/components/ChangesPanel/ChangesPanel.tsx`
+- Create: `packages/webview/src/components/PanelTabs/PanelTabs.tsx`
+
+- [x] Add typed RPC requests and handlers for working-tree status, file actions, stash actions, commit message generation, and AI provider settings.
+- [x] Add `Changes` beside `Details` in the right panel.
+- [x] Render current branch, operation status, staged files, unstaged/untracked files, stash entries, and commit composer.
+- [x] Preserve the selected tab, draft message, expanded file groups, expanded stash entries, and scroll position across refreshes.
+- [x] Keep Webview behavior to rendering and user-intent RPC messages.
+
+### Task 6.5.2: Stage, unstage, diff, discard, and stash actions
+
+**Files:**
+
+- Modify: `packages/extension/src/backend/git/WorkingTreeService.ts`
+- Modify: `packages/extension/src/backend/vscode/DiffService.ts`
+- Modify: `packages/webview/src/components/ChangesPanel/ChangesPanel.tsx`
+
+- [x] Support stage file, stage all, unstage file, and unstage all from `Changes`.
+- [x] Support opening staged and working-tree diffs from file rows.
+- [x] Support opening the working file from file rows.
+- [x] Confirm destructive discard, stash pop, and stash drop actions through VS Code dialogs.
+- [x] Support stash list, stash details, stash diff, apply, pop, and drop.
+
+### Task 6.5.3: Staged-only commit and AI message generation
+
+**Files:**
+
+- Create: `packages/extension/src/backend/git/CommitMessageAiService.ts`
+- Create: `packages/extension/src/backend/vscode/LanguageModelCommitMessageProvider.ts`
+- Create: `packages/extension/src/backend/vscode/OpenAICompatibleCommitMessageProvider.ts`
+- Modify: `packages/extension/src/state/SettingsService.ts`
+- Modify: `packages/webview/src/components/SettingsMenu/SettingsMenu.tsx`
+
+- [x] Commit action commits only staged files and does not silently stage unstaged work.
+- [x] Disable commit when staged files are empty, message is empty, an operation is running, or the repository is in an unfinished Git state.
+- [x] Refresh working-tree and history state after a successful commit without disrupting the active view.
+- [x] Support VS Code Language Model and OpenAI-compatible providers for commit message generation.
+- [x] Add settings menu entries to configure and test the AI provider.
+- [x] Store OpenAI-compatible API keys outside the Webview.
+
+### Task 6.5.4: Verification slices
+
+- [x] Typed RPC and backend working-tree read model.
+- [x] `Changes` tab and read-only working-tree UI.
+- [x] Stage, unstage, open, and diff actions.
+- [x] Discard and stash operations with modal confirmations.
+- [x] Commit composer and staged-only commit operation.
+- [x] AI provider settings and generation service.
+- [x] Watcher integration and refresh preservation.
+- [x] i18n coverage and local verification for the Changes workflow.
+
+This phase tracks the integrated `Changes` workflow only. Packaging, old-repository replacement, and final branch/rebase integration remain tracked by Phase 7 and are not marked complete here.
+
 ## Phase 7: Packaging And Replacement
 
 ### Task 7.1: Package VSIX
