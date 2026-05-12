@@ -1,0 +1,291 @@
+{
+  "messages": {
+    "loading": "Chargement des commits...",
+    "loadingMoreCommits": "Chargement d'autres commits...",
+    "loadingCommitDetails": "Chargement des détails du commit...",
+    "loadingGeneric": "Chargement...",
+    "noGitRepository": "Aucun dépôt Git trouvé dans l'espace de travail actuel.",
+    "selectCommit": "Sélectionnez un commit pour afficher les détails",
+    "placeholderCommitMessage": "Rechercher des messages ou des hashes de commit...",
+    "noCommitsFound": "Aucun commit trouvé",
+    "noCommitsFoundForSearch": "Aucun commit trouvé pour \"{0}\"",
+    "allBranches": "Toutes les branches",
+    "branchTabs": {
+      "recent": "Récentes",
+      "local": "Locales",
+      "remote": "Distantes",
+      "noRecent": "Aucune branche récente",
+      "noLocal": "Aucune branche locale",
+      "noRemote": "Aucune branche distante",
+      "all": "Toutes les branches"
+    },
+    "pullTooltip": "Pull (Command/Ctrl+clic pour Pull avance)",
+    "pushTooltip": "Push (Command/Ctrl+clic pour Push avance)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Cloner",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "Paramètres",
+    "jumpToHeadTooltip": "Aller au HEAD",
+    "refreshTooltip": "Actualiser",
+    "toggleGraphTooltip": "Afficher/Masquer le graphique Git",
+    "collapseTooltip": "Réduire le panneau",
+    "settingsMenu": {
+      "resetStash": "Réinitialiser la préférence de stash",
+      "configureProxy": "Configurer le proxy",
+      "refreshProxy": "Afficher l'état du proxy",
+      "manageRemotes": "Gérer les remotes",
+      "changeLanguage": "Changer de langue"
+    },
+    "remoteManager": {
+      "title": "Gérer les remotes",
+      "description": "Afficher, modifier, ajouter ou supprimer les remotes du dépôt actuel.",
+      "name": "Nom",
+      "url": "URL",
+      "actions": "Actions",
+      "empty": "Aucun remote n'est configuré.",
+      "close": "Fermer",
+      "addButton": "Ajouter un remote",
+      "addNamePlaceholder": "Nom du remote (ex. origin)",
+      "addUrlPlaceholder": "URL du remote (https://... ou git@...)",
+      "status": {
+        "loading": "Chargement des remotes...",
+        "working": "Application des modifications...",
+        "awaitingConfirmation": "Veuillez confirmer l'action dans l'invite VS Code..."
+      },
+      "buttons": {
+        "save": "Enregistrer",
+        "delete": "Supprimer"
+      },
+      "messages": {
+        "loadFailed": "Échec du chargement des remotes : {0}",
+        "operationFailed": "Échec de l'opération sur le remote : {0}",
+        "addSuccess": "Remote \"{0}\" ajouté",
+        "updateSuccess": "Remote \"{0}\" mis à jour",
+        "removeSuccess": "Remote \"{0}\" supprimé",
+        "removeCancelled": "Suppression du remote annulée",
+        "invalidName": "Le nom du remote est requis",
+        "invalidUrl": "L'URL du remote est requise",
+        "duplicateName": "Le remote \"{0}\" existe déjà",
+        "removeConfirm": "Supprimer le remote \"{0}\" ?",
+        "invalidUrlFormat": "L URL du remote doit commencer par git@ ou https://"
+      }
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Cloner",
+      "checkout": "Checkout",
+      "settings": "Paramètres",
+      "advancedPull": "Pull avance",
+      "advancedPush": "Push avance"
+    },
+    "clone": {
+      "prompt": "Entrez l'URL du dépôt à cloner",
+      "placeholder": "https://github.com/user/repo.git",
+      "urlRequired": "L'URL du dépôt est requise",
+      "selectFolder": "Choisir l'emplacement de clonage",
+      "progress": "Clonage du dépôt...",
+      "success": "Dépôt cloné avec succès",
+      "openFolderAction": "Ouvrir le dossier"
+    },
+    "advancedOperations": {
+      "pull": {
+        "noRemoteBranches": "Aucune branche distante trouvée.",
+        "mergeLabel": "Merge",
+        "mergeDescription": "Récupérer avec merge",
+        "rebaseLabel": "Rebase",
+        "rebaseDescription": "Récupérer avec rebase",
+        "methodPlaceholder": "Choisissez une stratégie de pull (Merge ou Rebase)",
+        "methodPlaceholderWithHistory": "Choisissez une stratégie de pull (dernier choix : {0})",
+        "suggestionsSeparator": "Suggestions",
+        "remoteSeparator": "Branches distantes",
+        "upstreamLabel": "Upstream : {0}",
+        "upstreamDescription": "Upstream de la branche actuelle",
+        "upstreamDescriptionWithBranch": "Upstream de la branche actuelle {0}",
+        "remoteDescription": "Branche distante",
+        "selectBranchPlaceholder": "Sélectionnez une branche distante à récupérer ({0})",
+        "progressMerge": "Récupération de {0}...",
+        "progressRebase": "Récupération avec rebase de {0}...",
+        "resultMerge": "Pull effectué : {0}",
+        "resultRebase": "Pull avec rebase effectué : {0}"
+      },
+      "push": {
+        "placeholder": "Sélectionnez une branche distante ou saisissez-en une nouvelle",
+        "existingDescription": "Branche distante existante",
+        "createLabel": "Créer : {0}",
+        "createDescription": "Créer une nouvelle branche distante",
+        "createDetail": "La branche distante sera créée avant le push",
+        "pushOptionsPlaceholder": "Choisissez une option de push",
+        "pushNormalLabel": "Push normal",
+        "pushForceLabel": "Push forcé (--force)",
+        "forceConfirm": "Un push forcé peut écraser les changements distants et provoquer une perte de données. Continuer ?",
+        "forceConfirmYes": "Oui, push forcé",
+        "forceConfirmCancel": "Annuler",
+        "progressNormal": "Push vers {0}{1}...",
+        "progressForce": "Push forcé vers {0}{1}...",
+        "progressNewBranchSuffix": " (nouvelle branche)",
+        "successNormal": "Push réussi vers {0}{1}",
+        "successForce": "Push forcé réussi vers {0}{1}",
+        "successNewBranchSuffix": " (nouvelle branche créée)"
+      },
+      "checkout": {
+        "createOption": "+ Créer une nouvelle branche",
+        "placeholder": "Sélectionnez une branche à checkout ou créez-en une nouvelle",
+        "inputPrompt": "Entrez le nom de la nouvelle branche",
+        "inputPlaceholder": "new-branch-name",
+        "inputRequired": "Le nom de la branche est requis",
+        "inputExists": "Cette branche existe déjà",
+        "inputInvalid": "Nom de branche invalide. Utilisez uniquement lettres, chiffres, points, tirets, underscores et slashs.",
+        "progressCreate": "Création et checkout de la branche {0}...",
+        "progressCheckout": "Checkout de la branche {0}...",
+        "successCreate": "Branche créée et sélectionnée : {0}",
+        "successCheckout": "Branche sélectionnée : {0}"
+      }
+    },
+    "errors": {
+      "noWorkspace": "Aucun dossier d'espace de travail trouvé",
+      "noLocalFile": "Veuillez sélectionner un fichier local pour afficher l'historique",
+      "repositoryNotFound": "Impossible de déterminer le dépôt Git du fichier sélectionné",
+      "fileNotInRepo": "Le fichier sélectionné n'appartient pas au dépôt actuel",
+      "noRemoteRepo": "Aucun dépôt distant trouvé",
+      "proxyConfigFailed": "Échec de la configuration du proxy",
+      "proxyStatusFailed": "Échec de la récupération de l'état du proxy",
+      "commitDetailsFailed": "Échec du chargement des détails du commit",
+      "headCommitFailed": "Échec de l'obtention du commit HEAD"
+    },
+    "success": {
+      "proxyConfigured": "Configuration du proxy enregistrée et appliquée",
+      "proxyDisabled": "Proxy personnalisé désactivé ; détection automatique utilisée",
+      "proxyStatusRefreshed": "État du proxy actualisé",
+      "revertCompleted": "Revert effectué avec succès",
+      "resetCompleted": "Reset effectué avec succès",
+      "squashCompleted": "Squash effectué avec succès",
+      "pullSuccessful": "Pull depuis le dépôt distant réussi",
+      "pushSuccessful": "Push vers le dépôt distant réussi",
+      "commitMessageEdited": "Message du commit modifié avec succès",
+      "autoStashCompleted": "Les modifications non commises ont été automatiquement sauvegardées"
+    },
+    "warnings": {
+      "cherryPickConfirm": "Voulez-vous vraiment cherry-pick le commit {0} ?",
+      "revertConfirm": "Voulez-vous vraiment revert le commit {0} ?",
+      "resetConfirm": "Voulez-vous vraiment réinitialiser au commit {0} ({1}) ?",
+      "squashConfirm": "Voulez-vous vraiment compresser ces commits ?",
+      "atLeastTwoCommits": "Sélectionnez au moins 2 commits à compresser",
+      "consecutiveCommits": "Les commits sélectionnés ne sont pas consécutifs et ne peuvent pas être compressés",
+      "noCommitsProcessed": "Aucun commit n'a été traité avec succès",
+      "uncommittedChangesDetected": "Des modifications non commises ont été détectées ; l'opération a été annulée. Veuillez les valider ou les sauvegarder."
+    },
+    "headers": {
+      "hash": "Hash",
+      "message": "Message",
+      "tags": "Tags",
+      "author": "Auteur",
+      "date": "Date",
+      "compareCommits": "Comparer les commits",
+      "refs": "Refs"
+    },
+    "authorFilterPrefix": "Auteur : ",
+    "authorFilterCurrent": "Filtre actuel : {0}",
+    "authorFilterNone": "Aucun filtre",
+    "authorFilterPlaceholder": "Saisissez des noms d'auteur (séparez plusieurs auteurs avec |)...",
+    "authorFilterMe": "Mes commits",
+    "authorFilterClear": "Effacer le filtre",
+    "noRepositoriesFound": "Aucun dépôt trouvé",
+    "noFilesChanged": "Aucun fichier modifié",
+    "collapseAllFolders": "Replier tous les dossiers",
+    "contextMenu": {
+      "copyHash": "Copier le hash",
+      "cherryPick": "Cherry-pick",
+      "revert": "Revert",
+      "editCommitMessage": "Modifier le message du commit",
+      "compareSelected": "Comparer les commits sélectionnés",
+      "squashCommits": "Compresser les commits",
+      "createBranch": "Créer une branche à partir d'ici",
+      "pushToCommit": "Pousser tous les commits jusqu'ici",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)",
+      "menuLabel": "Actions du commit",
+      "compareSelectedCount": "Comparer la selection ({0})",
+      "compareSelectedProgress": "Comparer la selection ({0}/2)",
+      "squashCommitsCount": "Squash {0} commits",
+      "reset": "Reset"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "La branche \"{0}\" vient d'être poussée. Ouvrir une Pull Request ? (Fermeture automatique dans {1}s)",
+      "openPullRequestAction": "Ouvrir la Pull Request",
+      "dismissAction": "Ignorer"
+    },
+    "header": {
+      "searchCommits": "Rechercher des commits",
+      "filterAuthor": "Filtrer auteur",
+      "repository": "Depot",
+      "branch": "Branches",
+      "selectedBranches": "{0} branches"
+    },
+    "graph": {
+      "toggle": "Graphe",
+      "hide": "Masquer le graphe Git",
+      "show": "Afficher le graphe Git",
+      "label": "Graphe Git",
+      "selectCommit": "Selectionner le commit {0} dans le graphe"
+    },
+    "panels": {
+      "commitList": "Panneau liste des commits",
+      "commitDetails": "Panneau details du commit",
+      "collapseCommitList": "Replier le panneau liste des commits",
+      "expandCommitList": "Deplier le panneau liste des commits",
+      "collapseCommitDetails": "Replier le panneau details du commit",
+      "expandCommitDetails": "Deplier le panneau details du commit",
+      "resize": "Redimensionner les panneaux"
+    },
+    "files": {
+      "changed": "Fichiers modifies",
+      "tree": "Arbre",
+      "list": "Liste",
+      "treeView": "Vue arbre",
+      "listView": "Vue liste",
+      "expandDirectory": "Deplier {0}",
+      "collapseDirectory": "Replier {0}",
+      "openDiff": "Ouvrir le diff de {0}",
+      "openFile": "Ouvrir le fichier {0}",
+      "openFileHistory": "Ouvrir l historique de {0}",
+      "binary": "binaire"
+    },
+    "compare": {
+      "title": "Comparer les commits",
+      "close": "Fermer la comparaison",
+      "from": "De",
+      "to": "a",
+      "baseCommit": "Commit de base",
+      "targetCommit": "Commit cible",
+      "changedFiles": "Fichiers modifies",
+      "openDiff": "Ouvrir le diff de {0}"
+    },
+    "conflict": {
+      "label": "Conflit Git",
+      "resolvedAndStaged": "Resolu et indexe",
+      "abort": "Abandonner"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "copy": "Copier la notification",
+      "clear": "Effacer les notifications",
+      "close": "Fermer les notifications",
+      "empty": "Aucune notification des 7 derniers jours",
+      "showUnreadCount": "Afficher le nombre non lu",
+      "states": {
+        "error": "Erreur",
+        "running": "En cours",
+        "success": "Succes",
+        "warning": "Avertissement"
+      }
+    },
+    "status": {
+      "completed": "{0} termine",
+      "cancelled": "{0} annule",
+      "running": "{0} en cours..."
+    }
+  }
+}

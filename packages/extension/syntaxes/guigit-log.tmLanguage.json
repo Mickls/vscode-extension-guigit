@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "GUI Git History Log",
+  "patterns": [
+    {
+      "match": "\\[debug\\]",
+      "name": "markup.changed.guigit-log"
+    },
+    {
+      "match": "\\[info\\]",
+      "name": "markup.inserted.guigit-log"
+    },
+    {
+      "match": "\\[(?:warn|warning)\\]",
+      "name": "markup.warning.guigit-log"
+    },
+    {
+      "match": "\\[error\\]",
+      "name": "markup.deleted.guigit-log"
+    },
+    {
+      "captures": {
+        "1": {
+          "name": "support.type.property-name.guigit-log"
+        },
+        "2": {
+          "name": "string.quoted.git-command.guigit-log"
+        },
+        "3": {
+          "name": "punctuation.definition.string.end.guigit-log"
+        }
+      },
+      "match": "(\"command\"\\s*:\\s*\")([^\"]+)(\")",
+      "name": "meta.git-command.guigit-log"
+    }
+  ],
+  "scopeName": "source.guigit-log"
+}

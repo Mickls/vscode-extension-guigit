@@ -1,6 +1,12 @@
-out/
-node_modules/
-*.vsix
-.vscode-test/
 .DS_Store
-.vscode/
+node_modules/
+dist/
+out/
+coverage/
+*.vsix
+*.tsbuildinfo
+.vscode-test/
+.pnpm-store/
+webview-dist/
+.superpowers/
+.worktrees/

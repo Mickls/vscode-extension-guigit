@@ -1,0 +1,23 @@
+{
+  "name": "@gui-git-history/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./out/rpc/contract.js",
+  "exports": {
+    "./rpc/contract": {
+      "types": "./src/rpc/contract.ts",
+      "default": "./out/rpc/contract.js"
+    }
+  },
+  "scripts": {
+    "dev": "node ../../scripts/watch-rpc-contract.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "eslint": "eslint src --ext .ts",
+    "lint": "pnpm run eslint",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.15"
+  }
+}

@@ -1,0 +1,291 @@
+{
+  "messages": {
+    "loading": "コミットを読み込み中...",
+    "loadingMoreCommits": "さらにコミットを読み込み中...",
+    "loadingCommitDetails": "コミットの詳細を読み込み中...",
+    "loadingGeneric": "読み込み中...",
+    "noGitRepository": "現在のワークスペースに Git リポジトリが見つかりません。",
+    "selectCommit": "コミットを選択して詳細を表示してください",
+    "placeholderCommitMessage": "コミットメッセージまたはハッシュを検索...",
+    "noCommitsFound": "コミットが見つかりませんでした",
+    "noCommitsFoundForSearch": "\"{0}\" に一致するコミットは見つかりませんでした",
+    "allBranches": "すべてのブランチ",
+    "branchTabs": {
+      "recent": "最近",
+      "local": "ローカル",
+      "remote": "リモート",
+      "noRecent": "最近のブランチはありません",
+      "noLocal": "ローカルブランチがありません",
+      "noRemote": "リモートブランチがありません",
+      "all": "すべてのブランチ"
+    },
+    "pullTooltip": "Pull (Command/Ctrl+クリックで高度な Pull)",
+    "pushTooltip": "Push (Command/Ctrl+クリックで高度な Push)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Clone",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "設定",
+    "jumpToHeadTooltip": "HEAD へ移動",
+    "refreshTooltip": "更新",
+    "toggleGraphTooltip": "Git グラフの表示/非表示",
+    "collapseTooltip": "パネルを折りたたむ",
+    "settingsMenu": {
+      "resetStash": "スタッシュ設定をリセット",
+      "configureProxy": "プロキシを設定",
+      "refreshProxy": "プロキシ状態を表示",
+      "manageRemotes": "リモートを管理",
+      "changeLanguage": "言語を変更"
+    },
+    "remoteManager": {
+      "title": "リモートを管理",
+      "description": "現在のリポジトリのリモートを表示・編集・追加・削除します。",
+      "name": "名前",
+      "url": "URL",
+      "actions": "操作",
+      "empty": "リモートはまだ設定されていません。",
+      "close": "閉じる",
+      "addButton": "リモートを追加",
+      "addNamePlaceholder": "リモート名（例: origin）",
+      "addUrlPlaceholder": "リモートURL（https://... または git@...）",
+      "status": {
+        "loading": "リモートを読み込み中...",
+        "working": "変更を適用しています...",
+        "awaitingConfirmation": "VS Code のダイアログで操作を確認してください..."
+      },
+      "buttons": {
+        "save": "保存",
+        "delete": "削除"
+      },
+      "messages": {
+        "loadFailed": "リモートの読み込みに失敗しました: {0}",
+        "operationFailed": "リモート操作に失敗しました: {0}",
+        "addSuccess": "リモート「{0}」を追加しました",
+        "updateSuccess": "リモート「{0}」を更新しました",
+        "removeSuccess": "リモート「{0}」を削除しました",
+        "removeCancelled": "リモートの削除をキャンセルしました",
+        "invalidName": "リモート名は必須です",
+        "invalidUrl": "リモートURLは必須です",
+        "duplicateName": "リモート「{0}」は既に存在します",
+        "removeConfirm": "リモート「{0}」を削除しますか？",
+        "invalidUrlFormat": "リモート URL は git@ または https:// で始める必要があります"
+      }
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Clone",
+      "checkout": "Checkout",
+      "settings": "Settings",
+      "advancedPull": "高度な Pull",
+      "advancedPush": "高度な Push"
+    },
+    "clone": {
+      "prompt": "クローンするリポジトリの URL を入力してください",
+      "placeholder": "https://github.com/user/repo.git",
+      "urlRequired": "リポジトリの URL は必須です",
+      "selectFolder": "クローン先を選択",
+      "progress": "リポジトリをクローンしています...",
+      "success": "リポジトリをクローンしました",
+      "openFolderAction": "フォルダーを開く"
+    },
+    "advancedOperations": {
+      "pull": {
+        "noRemoteBranches": "リモート ブランチが見つかりませんでした。",
+        "mergeLabel": "Merge",
+        "mergeDescription": "Merge で取得",
+        "rebaseLabel": "Rebase",
+        "rebaseDescription": "Rebase で取得",
+        "methodPlaceholder": "Pull 方法を選択 (Merge / Rebase)",
+        "methodPlaceholderWithHistory": "Pull 方法を選択 (前回: {0})",
+        "suggestionsSeparator": "提案",
+        "remoteSeparator": "リモート ブランチ",
+        "upstreamLabel": "上流: {0}",
+        "upstreamDescription": "現在のブランチの上流",
+        "upstreamDescriptionWithBranch": "現在のブランチ {0} の上流",
+        "remoteDescription": "リモート ブランチ",
+        "selectBranchPlaceholder": "Pull するリモート ブランチを選択 ({0})",
+        "progressMerge": "{0} を取得中...",
+        "progressRebase": "Rebase で {0} を取得中...",
+        "resultMerge": "Pull 完了: {0}",
+        "resultRebase": "Rebase Pull 完了: {0}"
+      },
+      "push": {
+        "placeholder": "リモート ブランチを選択、または新規作成名を入力",
+        "existingDescription": "既存のリモート ブランチ",
+        "createLabel": "作成: {0}",
+        "createDescription": "新しいリモート ブランチを作成",
+        "createDetail": "Push 前にリモート ブランチを作成します",
+        "pushOptionsPlaceholder": "Push オプションを選択",
+        "pushNormalLabel": "通常の Push",
+        "pushForceLabel": "強制 Push (--force)",
+        "forceConfirm": "強制 Push はリモートの変更を上書きし、データ損失を引き起こす可能性があります。続行しますか？",
+        "forceConfirmYes": "はい、強制 Push",
+        "forceConfirmCancel": "キャンセル",
+        "progressNormal": "{0}{1} に Push 中...",
+        "progressForce": "{0}{1} に強制 Push 中...",
+        "progressNewBranchSuffix": " (新しいブランチ)",
+        "successNormal": "{0}{1} への Push に成功しました",
+        "successForce": "{0}{1} への強制 Push に成功しました",
+        "successNewBranchSuffix": " (新しいブランチを作成)"
+      },
+      "checkout": {
+        "createOption": "+ 新しいブランチを作成",
+        "placeholder": "チェックアウトするブランチを選択、または新規作成",
+        "inputPrompt": "新しいブランチ名を入力",
+        "inputPlaceholder": "new-branch-name",
+        "inputRequired": "ブランチ名は必須です",
+        "inputExists": "ブランチ名は既に存在します",
+        "inputInvalid": "無効なブランチ名です。英数字、ドット、ハイフン、アンダー スコア、スラッシュのみ使用できます。",
+        "progressCreate": "ブランチ {0} を作成してチェックアウト中...",
+        "progressCheckout": "ブランチ {0} をチェックアウト中...",
+        "successCreate": "ブランチを作成してチェックアウトしました: {0}",
+        "successCheckout": "ブランチをチェックアウトしました: {0}"
+      }
+    },
+    "errors": {
+      "noWorkspace": "ワークスペースフォルダーが見つかりません",
+      "noLocalFile": "履歴を表示するローカル ファイルを選択してください",
+      "repositoryNotFound": "選択したファイルの Git リポジトリを特定できませんでした",
+      "fileNotInRepo": "選択したファイルは現在のリポジトリにありません",
+      "noRemoteRepo": "リモート リポジトリが見つかりません",
+      "proxyConfigFailed": "プロキシの設定に失敗しました",
+      "proxyStatusFailed": "プロキシ状況の取得に失敗しました",
+      "commitDetailsFailed": "コミットの詳細を読み込めませんでした",
+      "headCommitFailed": "HEAD コミットを取得できませんでした"
+    },
+    "success": {
+      "proxyConfigured": "プロキシ設定を保存し適用しました",
+      "proxyDisabled": "カスタム プロキシを無効化しました（自動検出を使用）",
+      "proxyStatusRefreshed": "プロキシ状態を更新しました",
+      "revertCompleted": "Revert が正常に完了しました",
+      "resetCompleted": "Reset が正常に完了しました",
+      "squashCompleted": "Squash が正常に完了しました",
+      "pullSuccessful": "リモートからの Pull が成功しました",
+      "pushSuccessful": "リモートへの Push が成功しました",
+      "commitMessageEdited": "コミットメッセージを編集しました",
+      "autoStashCompleted": "未コミットの変更を自動的にスタッシュしました"
+    },
+    "warnings": {
+      "cherryPickConfirm": "コミット {0} を cherry-pick しますか？",
+      "revertConfirm": "コミット {0} を revert しますか？",
+      "resetConfirm": "コミット {0} ({1}) へ reset しますか？",
+      "squashConfirm": "これらのコミットを squash しますか？",
+      "atLeastTwoCommits": "Squash するには少なくとも 2 つのコミットを選択してください",
+      "consecutiveCommits": "選択したコミットは連続していないため squash できません",
+      "noCommitsProcessed": "コミットは処理されませんでした",
+      "uncommittedChangesDetected": "未コミットの変更が検出されたため操作を中止しました。コミットするか手動でスタッシュしてください。"
+    },
+    "headers": {
+      "hash": "ハッシュ",
+      "message": "メッセージ",
+      "tags": "タグ",
+      "author": "作者",
+      "date": "日付",
+      "compareCommits": "コミットを比較",
+      "refs": "Refs"
+    },
+    "authorFilterPrefix": "作者: ",
+    "authorFilterCurrent": "現在のフィルター: {0}",
+    "authorFilterNone": "フィルターなし",
+    "authorFilterPlaceholder": "作者名を入力（複数は | で区切る）...",
+    "authorFilterMe": "自分のコミット",
+    "authorFilterClear": "フィルターをクリア",
+    "noRepositoriesFound": "リポジトリが見つかりません",
+    "noFilesChanged": "変更されたファイルはありません",
+    "collapseAllFolders": "すべてのフォルダーを折りたたむ",
+    "contextMenu": {
+      "copyHash": "ハッシュをコピー",
+      "cherryPick": "Cherry-pick",
+      "revert": "Revert",
+      "editCommitMessage": "コミットメッセージを編集",
+      "compareSelected": "選択したコミットを比較",
+      "squashCommits": "コミットを squash",
+      "createBranch": "ここからブランチを作成",
+      "pushToCommit": "ここまでのコミットを push",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)",
+      "menuLabel": "コミット操作",
+      "compareSelectedCount": "選択を比較 ({0})",
+      "compareSelectedProgress": "選択を比較 ({0}/2)",
+      "squashCommitsCount": "{0} 件のコミットを squash",
+      "reset": "Reset"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "ブランチ「{0}」をプッシュしました。Pull Request を作成しますか？（{1} 秒後に自動的に閉じます）",
+      "openPullRequestAction": "Pull Request を開く",
+      "dismissAction": "今はしない"
+    },
+    "header": {
+      "searchCommits": "コミットを検索",
+      "filterAuthor": "作者をフィルター",
+      "repository": "リポジトリ",
+      "branch": "ブランチ",
+      "selectedBranches": "{0} ブランチ"
+    },
+    "graph": {
+      "toggle": "グラフ",
+      "hide": "Git グラフを隠す",
+      "show": "Git グラフを表示",
+      "label": "Git グラフ",
+      "selectCommit": "グラフ内のコミット {0} を選択"
+    },
+    "panels": {
+      "commitList": "コミット一覧パネル",
+      "commitDetails": "コミット詳細パネル",
+      "collapseCommitList": "コミット一覧パネルを折りたたむ",
+      "expandCommitList": "コミット一覧パネルを展開",
+      "collapseCommitDetails": "コミット詳細パネルを折りたたむ",
+      "expandCommitDetails": "コミット詳細パネルを展開",
+      "resize": "パネルサイズを変更"
+    },
+    "files": {
+      "changed": "変更ファイル",
+      "tree": "ツリー",
+      "list": "リスト",
+      "treeView": "ツリー表示",
+      "listView": "リスト表示",
+      "expandDirectory": "{0} を展開",
+      "collapseDirectory": "{0} を折りたたむ",
+      "openDiff": "{0} の差分を開く",
+      "openFile": "ファイル {0} を開く",
+      "openFileHistory": "{0} のファイル履歴を開く",
+      "binary": "バイナリ"
+    },
+    "compare": {
+      "title": "コミットを比較",
+      "close": "比較を閉じる",
+      "from": "From",
+      "to": "to",
+      "baseCommit": "ベースコミット",
+      "targetCommit": "ターゲットコミット",
+      "changedFiles": "変更ファイル",
+      "openDiff": "{0} の比較差分を開く"
+    },
+    "conflict": {
+      "label": "Git 競合",
+      "resolvedAndStaged": "解決してステージ済み",
+      "abort": "中止"
+    },
+    "notifications": {
+      "title": "通知",
+      "copy": "通知をコピー",
+      "clear": "通知をクリア",
+      "close": "通知を閉じる",
+      "empty": "過去 7 日間の通知はありません",
+      "showUnreadCount": "未読数を表示",
+      "states": {
+        "error": "エラー",
+        "running": "実行中",
+        "success": "成功",
+        "warning": "警告"
+      }
+    },
+    "status": {
+      "completed": "{0} が完了しました",
+      "cancelled": "{0} をキャンセルしました",
+      "running": "{0} を実行中..."
+    }
+  }
+}

@@ -1,0 +1,291 @@
+{
+  "messages": {
+    "loading": "Загрузка коммитов...",
+    "loadingMoreCommits": "Загрузка дополнительных коммитов...",
+    "loadingCommitDetails": "Загрузка деталей коммита...",
+    "loadingGeneric": "Загрузка...",
+    "noGitRepository": "В текущем рабочем пространстве не найден Git-репозиторий.",
+    "selectCommit": "Выберите коммит, чтобы увидеть подробности",
+    "placeholderCommitMessage": "Поиск сообщений или хэшей коммитов...",
+    "noCommitsFound": "Коммиты не найдены",
+    "noCommitsFoundForSearch": "Коммиты для \"{0}\" не найдены",
+    "allBranches": "Все ветки",
+    "branchTabs": {
+      "recent": "Недавние",
+      "local": "Локальные",
+      "remote": "Удалённые",
+      "noRecent": "Недавних веток нет",
+      "noLocal": "Локальных веток нет",
+      "noRemote": "Удалённых веток нет",
+      "all": "Все ветки"
+    },
+    "pullTooltip": "Pull (Command/Ctrl+click для расширенного Pull)",
+    "pushTooltip": "Push (Command/Ctrl+click для расширенного Push)",
+    "fetchTooltip": "Fetch",
+    "cloneTooltip": "Clone",
+    "checkoutTooltip": "Checkout",
+    "settingsTooltip": "Настройки",
+    "jumpToHeadTooltip": "Перейти к HEAD",
+    "refreshTooltip": "Обновить",
+    "toggleGraphTooltip": "Показать/скрыть граф Git",
+    "collapseTooltip": "Свернуть панель",
+    "settingsMenu": {
+      "resetStash": "Сбросить настройку stash",
+      "configureProxy": "Настроить прокси",
+      "refreshProxy": "Показать состояние прокси",
+      "manageRemotes": "Управление удалёнными",
+      "changeLanguage": "Изменить язык"
+    },
+    "remoteManager": {
+      "title": "Управление удалёнными",
+      "description": "Просматривайте, изменяйте, добавляйте или удаляйте удалённые репозитории текущего проекта.",
+      "name": "Имя",
+      "url": "Адрес",
+      "actions": "Действия",
+      "empty": "Удалённые репозитории не настроены.",
+      "close": "Закрыть",
+      "addButton": "Добавить удалённый",
+      "addNamePlaceholder": "Имя удалённого (например, origin)",
+      "addUrlPlaceholder": "URL удалённого (https://... или git@...)",
+      "status": {
+        "loading": "Идёт загрузка удалённых...",
+        "working": "Изменения применяются...",
+        "awaitingConfirmation": "Подтвердите действие в диалоге VS Code..."
+      },
+      "buttons": {
+        "save": "Сохранить",
+        "delete": "Удалить"
+      },
+      "messages": {
+        "loadFailed": "Не удалось загрузить удалённые: {0}",
+        "operationFailed": "Ошибка при выполнении операции с удалённым: {0}",
+        "addSuccess": "Удалённый «{0}» добавлен",
+        "updateSuccess": "Удалённый «{0}» обновлён",
+        "removeSuccess": "Удалённый «{0}» удалён",
+        "removeCancelled": "Удаление удалённого отменено",
+        "invalidName": "Требуется имя удалённого репозитория",
+        "invalidUrl": "Требуется URL удалённого репозитория",
+        "duplicateName": "Удалённый «{0}» уже существует",
+        "removeConfirm": "Удалить удалённый «{0}»?",
+        "invalidUrlFormat": "URL remote должен начинаться с git@ или https://"
+      }
+    },
+    "gitOperations": {
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "clone": "Clone",
+      "checkout": "Checkout",
+      "settings": "Настройки",
+      "advancedPull": "Расширенный Pull",
+      "advancedPush": "Расширенный Push"
+    },
+    "clone": {
+      "prompt": "Введите URL репозитория для клонирования",
+      "placeholder": "https://github.com/user/repo.git",
+      "urlRequired": "Необходимо указать URL репозитория",
+      "selectFolder": "Выберите папку для клонирования",
+      "progress": "Клонирование репозитория...",
+      "success": "Репозиторий успешно клонирован",
+      "openFolderAction": "Открыть папку"
+    },
+    "advancedOperations": {
+      "pull": {
+        "noRemoteBranches": "Удалённые ветки не найдены.",
+        "mergeLabel": "Merge",
+        "mergeDescription": "Выполнить pull через merge",
+        "rebaseLabel": "Rebase",
+        "rebaseDescription": "Выполнить pull через rebase",
+        "methodPlaceholder": "Выберите стратегию pull (Merge или Rebase)",
+        "methodPlaceholderWithHistory": "Выберите стратегию pull (последняя: {0})",
+        "suggestionsSeparator": "Предложения",
+        "remoteSeparator": "Удалённые ветки",
+        "upstreamLabel": "Upstream: {0}",
+        "upstreamDescription": "Upstream текущей ветки",
+        "upstreamDescriptionWithBranch": "Upstream текущей ветки {0}",
+        "remoteDescription": "Удалённая ветка",
+        "selectBranchPlaceholder": "Выберите удалённую ветку для pull ({0})",
+        "progressMerge": "Выполняется pull {0}...",
+        "progressRebase": "Выполняется pull с rebase {0}...",
+        "resultMerge": "Pull выполнен: {0}",
+        "resultRebase": "Pull с rebase выполнен: {0}"
+      },
+      "push": {
+        "placeholder": "Выберите удалённую ветку или введите имя новой",
+        "existingDescription": "Существующая удалённая ветка",
+        "createLabel": "Создать: {0}",
+        "createDescription": "Создать новую удалённую ветку",
+        "createDetail": "Ветка будет создана перед push",
+        "pushOptionsPlaceholder": "Выберите способ push",
+        "pushNormalLabel": "Обычный push",
+        "pushForceLabel": "Force push (--force)",
+        "forceConfirm": "Force push может перезаписать удалённые изменения и привести к потере данных. Продолжить?",
+        "forceConfirmYes": "Да, выполнить force push",
+        "forceConfirmCancel": "Отмена",
+        "progressNormal": "Выполняется push в {0}{1}...",
+        "progressForce": "Выполняется force push в {0}{1}...",
+        "progressNewBranchSuffix": " (новая ветка)",
+        "successNormal": "Успешно выполнен push в {0}{1}",
+        "successForce": "Успешно выполнен force push в {0}{1}",
+        "successNewBranchSuffix": " (создана новая ветка)"
+      },
+      "checkout": {
+        "createOption": "+ Создать новую ветку",
+        "placeholder": "Выберите ветку для checkout или создайте новую",
+        "inputPrompt": "Введите имя новой ветки",
+        "inputPlaceholder": "new-branch-name",
+        "inputRequired": "Имя ветки обязательно",
+        "inputExists": "Такая ветка уже существует",
+        "inputInvalid": "Недопустимое имя ветки. Используйте только буквы, цифры, точки, дефисы, подчёркивания и слэши.",
+        "progressCreate": "Создание и checkout ветки {0}...",
+        "progressCheckout": "Checkout ветки {0}...",
+        "successCreate": "Ветка создана и выбрана: {0}",
+        "successCheckout": "Ветка выбрана: {0}"
+      }
+    },
+    "errors": {
+      "noWorkspace": "Папка рабочей области не найдена",
+      "noLocalFile": "Выберите локальный файл, чтобы просмотреть историю",
+      "repositoryNotFound": "Не удалось определить репозиторий Git для выбранного файла",
+      "fileNotInRepo": "Выбранный файл не принадлежит текущему репозиторию",
+      "noRemoteRepo": "Удалённый репозиторий не найден",
+      "proxyConfigFailed": "Не удалось настроить прокси",
+      "proxyStatusFailed": "Не удалось получить состояние прокси",
+      "commitDetailsFailed": "Не удалось загрузить детали коммита",
+      "headCommitFailed": "Не удалось получить HEAD-коммит"
+    },
+    "success": {
+      "proxyConfigured": "Настройка прокси сохранена и применена",
+      "proxyDisabled": "Пользовательский прокси отключён; используется автодетект",
+      "proxyStatusRefreshed": "Состояние прокси обновлено",
+      "revertCompleted": "Revert успешно завершён",
+      "resetCompleted": "Reset успешно завершён",
+      "squashCompleted": "Squash успешно завершён",
+      "pullSuccessful": "Pull из удалённого репозитория выполнен успешно",
+      "pushSuccessful": "Push в удалённый репозиторий выполнен успешно",
+      "commitMessageEdited": "Сообщение коммита успешно изменено",
+      "autoStashCompleted": "Некоммитированные изменения автоматически отправлены в stash"
+    },
+    "warnings": {
+      "cherryPickConfirm": "Вы уверены, что хотите сделать cherry-pick коммита {0}?",
+      "revertConfirm": "Вы уверены, что хотите откатить коммит {0}?",
+      "resetConfirm": "Вы уверены, что хотите сделать reset к коммиту {0} ({1})?",
+      "squashConfirm": "Вы уверены, что хотите объединить эти коммиты?",
+      "atLeastTwoCommits": "Выберите минимум 2 коммита для объединения",
+      "consecutiveCommits": "Выбранные коммиты не последовательны и не могут быть объединены",
+      "noCommitsProcessed": "Ни один коммит не был обработан",
+      "uncommittedChangesDetected": "Обнаружены некоммитированные изменения; операция отменена. Зафиксируйте или сохраните изменения вручную."
+    },
+    "headers": {
+      "hash": "Хэш",
+      "message": "Сообщение",
+      "tags": "Теги",
+      "author": "Автор",
+      "date": "Дата",
+      "compareCommits": "Сравнение коммитов",
+      "refs": "Refs"
+    },
+    "authorFilterPrefix": "Автор: ",
+    "authorFilterCurrent": "Текущий фильтр: {0}",
+    "authorFilterNone": "Фильтр отсутствует",
+    "authorFilterPlaceholder": "Введите имена авторов (несколько через |)...",
+    "authorFilterMe": "Мои коммиты",
+    "authorFilterClear": "Очистить фильтр",
+    "noRepositoriesFound": "Репозитории не найдены",
+    "noFilesChanged": "Изменённых файлов нет",
+    "collapseAllFolders": "Свернуть все папки",
+    "contextMenu": {
+      "copyHash": "Копировать хэш",
+      "cherryPick": "Cherry-pick",
+      "revert": "Revert",
+      "editCommitMessage": "Изменить сообщение коммита",
+      "compareSelected": "Сравнить выбранные коммиты",
+      "squashCommits": "Объединить коммиты",
+      "createBranch": "Создать ветку отсюда",
+      "pushToCommit": "Отправить все коммиты до этого",
+      "resetSoft": "Reset (Soft)",
+      "resetMixed": "Reset (Mixed)",
+      "resetHard": "Reset (Hard)",
+      "menuLabel": "Действия с коммитом",
+      "compareSelectedCount": "Сравнить выбранные ({0})",
+      "compareSelectedProgress": "Сравнить выбранные ({0}/2)",
+      "squashCommitsCount": "Squash {0} коммитов",
+      "reset": "Reset"
+    },
+    "postPush": {
+      "createPullRequestPrompt": "Ветка \"{0}\" отправлена. Создать Pull Request? (Закроется через {1} с)",
+      "openPullRequestAction": "Открыть Pull Request",
+      "dismissAction": "Не сейчас"
+    },
+    "header": {
+      "searchCommits": "Поиск коммитов",
+      "filterAuthor": "Фильтр автора",
+      "repository": "Репозиторий",
+      "branch": "Ветки",
+      "selectedBranches": "{0} веток"
+    },
+    "graph": {
+      "toggle": "Граф",
+      "hide": "Скрыть Git-граф",
+      "show": "Показать Git-граф",
+      "label": "Git-граф",
+      "selectCommit": "Выбрать коммит {0} на графе"
+    },
+    "panels": {
+      "commitList": "Панель списка коммитов",
+      "commitDetails": "Панель деталей коммита",
+      "collapseCommitList": "Свернуть панель списка коммитов",
+      "expandCommitList": "Развернуть панель списка коммитов",
+      "collapseCommitDetails": "Свернуть панель деталей коммита",
+      "expandCommitDetails": "Развернуть панель деталей коммита",
+      "resize": "Изменить размер панелей"
+    },
+    "files": {
+      "changed": "Измененные файлы",
+      "tree": "Дерево",
+      "list": "Список",
+      "treeView": "Вид дерева",
+      "listView": "Вид списка",
+      "expandDirectory": "Развернуть {0}",
+      "collapseDirectory": "Свернуть {0}",
+      "openDiff": "Открыть diff для {0}",
+      "openFile": "Открыть файл {0}",
+      "openFileHistory": "Открыть историю файла {0}",
+      "binary": "бинарный"
+    },
+    "compare": {
+      "title": "Сравнить коммиты",
+      "close": "Закрыть сравнение",
+      "from": "От",
+      "to": "до",
+      "baseCommit": "Базовый коммит",
+      "targetCommit": "Целевой коммит",
+      "changedFiles": "Измененные файлы",
+      "openDiff": "Открыть diff для {0}"
+    },
+    "conflict": {
+      "label": "Git-конфликт",
+      "resolvedAndStaged": "Решено и staged",
+      "abort": "Прервать"
+    },
+    "notifications": {
+      "title": "Уведомления",
+      "copy": "Скопировать уведомление",
+      "clear": "Очистить уведомления",
+      "close": "Закрыть уведомления",
+      "empty": "Нет уведомлений за последние 7 дней",
+      "showUnreadCount": "Показывать число непрочитанных",
+      "states": {
+        "error": "Ошибка",
+        "running": "Выполняется",
+        "success": "Успех",
+        "warning": "Предупреждение"
+      }
+    },
+    "status": {
+      "completed": "{0} завершено",
+      "cancelled": "{0} отменено",
+      "running": "{0} выполняется..."
+    }
+  }
+}

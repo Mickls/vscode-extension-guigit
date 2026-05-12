@@ -1,157 +1,212 @@
-# GUI Git History - VSCode Extension
+# GUI Git History
 
-[中文文档](./README_zh.md) | English
+TypeScript rewrite of the Marketplace extension `Mickls.vscode-extension-guigit`.
 
-![GUI Git History Demo](./gui_git_history_main.png)
+This repository directory is named `gui-git-history`, but the published VS Code extension identity must remain compatible with the existing extension:
 
-A powerful visual Git history viewer that provides professional-grade Git operations interface and rich interactive features for VSCode. Supports multi-repository management, intelligent branch visualization, Git Blame integration, and advanced Git operations.
+- publisher: `Mickls`
+- package name: `vscode-extension-guigit`
+- extension id: `Mickls.vscode-extension-guigit`
+- commands/config/view ids: `guigit.*`, `guigit.historyView`
 
-## ✨ Core Features
+Read these documents before changing behavior:
 
-### 📊 Visual Commit History
+- [docs/README.md](docs/README.md)
+- [docs/migration-requirements.md](docs/migration-requirements.md)
+- [docs/implementation-plan.md](docs/implementation-plan.md)
 
-- **Multi-branch View** - Display commit history for all branches simultaneously with branch switching and comparison
-- **Infinite Scroll Loading** - Performance optimized for large repositories with on-demand commit loading
-- **Smart Caching System** - Dual-layer caching (frontend/backend) for improved performance in large repositories
-- **Real-time Updates** - Automatically detects Git repository changes and refreshes display with debounce optimization
+## Requirements
 
-### 🎯 Rich Git Operations
+- Node.js 24.x
+- pnpm 11.x
+- VS Code extension toolchain installed through workspace dependencies
 
-- **Basic Operations Toolbar**: Pull, Push, Fetch, Clone, Checkout
-- **Advanced Operations Support**: Ctrl+Click to show advanced options (force push, pull strategies, etc.)
-- **Smart Conflict Handling**: Configurable auto-stash for uncommitted changes
-- **Right-click Context Menu**:
-  - Copy commit hash
-  - Cherry-pick commits
-  - Revert commits
-  - Edit commit messages
-  - Create branches
-  - Reset (Soft/Mixed/Hard)
-  - Squash commits
-  - Push commits to specific locations
+Use pnpm only. Do not add `package-lock.json` or npm scripts that require npm.
 
-### 🔍 Commit Details & Comparison
+## Install
 
-- **Detailed File Changes View** - Supports both list and tree display modes with configurable defaults
-- **Multi-commit Comparison** - Ctrl+Click to select multiple commits and compare across branches
-- **File Diff Viewer** - Integrated VSCode diff editor with inline and side-by-side views
-- **File History Tracking** - View commit history and change tracking for individual files
-- **Online File Viewing** - View file contents at specific commits without branch switching
+```sh
+pnpm install
+```
 
-### 🔧 Git Blame Integration
+In non-interactive or sandboxed shells, make sure the shell can find the same pnpm and Node.js versions you use locally. On this machine that usually means:
 
-- **Line-level Responsibility Tracking** - Display commit information for each line of code in the editor
-- **Smart Display Modes** - Configurable to show blame info for current line only or entire file
-- **Custom Formatting** - Support for custom blame information display formats
-- **Commit Details Popup** - Click blame info to quickly view complete commit details
+```sh
+PATH=/Users/jiangcheng/.nvm/versions/node/v24.3.0/bin:/opt/homebrew/bin:$PATH pnpm install
+```
 
-### 🏢 Multi-repository Management
+## Project Structure
 
-- **Automatic Repository Discovery** - Intelligently scans all Git repositories in the workspace
-- **Quick Repository Switching** - Top dropdown menu for fast switching between multiple repositories
-- **Independent State Management** - Each repository maintains independent browsing state and cache
+```text
+packages/
+  shared/
+    src/rpc/contract.ts
+      Single source of truth for typed RPC request, response, notification, and ViewModel shapes.
+  extension/
+    package.json
+      Marketplace identity, VS Code contributions, commands, configuration, views, menus, and packaging.
+    src/extension/
+      VS Code activation and lifecycle wiring.
+    src/backend/
+      Git, VS Code, state, i18n, RPC, proxy, diff, blame, and operation logic.
+    src/backend/rpc/contract.ts
+      Generated runtime contract copied from `packages/shared`; do not edit by hand.
+    src/views/
+      Webview provider shell only. It creates HTML, wires scripts, and delegates messages.
+  webview/
+    src/app/
+      React UI shell, UI-only state, and typed RPC client.
+    src/app/rpcContract.generated.d.ts
+      Generated declaration copied from `packages/shared`; do not edit by hand.
+```
 
-### 🎨 User Interface Features
+Backend owns Git, VS Code, configuration, persistence, graph layout, filtering, search, diff, blame, proxy, and operation workflows. Webview owns rendering and sends typed user-intent messages only.
 
-- **Responsive Layout** - Adjustable split panels with drag-to-resize support
-- **Panel Collapsing** - Support for expanding/collapsing left and right panels to maximize content area
-- **State Management** - Smart frontend state caching and management to preserve user operation state
-- **Keyboard Shortcuts** - Support for keyboard shortcuts for common operations
+## Common Commands
 
-## 🚀 Usage Guide
+```sh
+pnpm install
+pnpm dev
+pnpm dev:extension
+pnpm dev:webview
+pnpm dev:shared
+pnpm rpc:generate
+pnpm rpc:check
+pnpm typecheck
+pnpm eslint
+pnpm test
+pnpm build
+pnpm package
+```
 
-### Basic Usage
+`pnpm package` creates the VSIX from `packages/extension` and must keep the extension id as `Mickls.vscode-extension-guigit`.
 
-1. **Open Git History View**
+## Development Loop
 
-   - **Auto Activation**: Extension automatically activates when opening a workspace with Git repositories
-   - **Manual Opening**: Use Command Palette (`Ctrl+Shift+P`) and search "Show Git History"
-   - **Panel Location**: "Git History" tab in the bottom panel
+Use this for normal extension development:
 
-2. **Browse Commit History**
+```sh
+pnpm dev
+```
 
-   - **View Commits**: Browse commit list in the left panel with infinite scroll support
-   - **Switch Repositories**: Use the top repository selector to switch between multiple repositories
-   - **Switch Branches**: Use branch selector to view history of different branches
-   - **View Details**: Click any commit to view detailed information in the right panel
+It runs these watchers in parallel:
 
-3. **Git Operations**
-   - **Basic Operations**: Use toolbar buttons like Pull, Push, Fetch
-   - **Advanced Options**: Hold `Ctrl/Cmd` while clicking operation buttons to show advanced options
-   - **Branch Operations**: Use Checkout button to create or switch branches
+- `pnpm dev:shared`: watches `packages/shared/src/rpc` and regenerates RPC files.
+- `pnpm dev:extension`: runs TypeScript watch for the extension host and writes `packages/extension/out`.
+- `pnpm dev:webview`: runs Vite build watch and writes `packages/extension/webview-dist`.
 
-![GIT Pull Advanced Features](./gui_git_history_pull.png)
+Use the focused commands when you are only changing one side:
 
-![GIT Push Advanced Features](./gui_git_history_push.png)
+```sh
+pnpm dev:extension
+pnpm dev:webview
+pnpm dev:shared
+```
 
-### Advanced Features
+For browser-only webview work, use the Vite development server:
 
-1. **Multi-commit Comparison**
+```sh
+pnpm --filter @gui-git-history/webview serve
+```
 
-   - Hold `Ctrl/Cmd` and click multiple commits to multi-select
-   - Right-click and select "Compare Selected" to view differences between commits
-   - Support for cross-branch commit comparison
+That server is only for UI development. The VS Code extension path still consumes built webview assets from `packages/extension/webview-dist`.
 
-2. **Right-click Context Menu**
+## Debugging In VS Code
 
-   - Right-click any commit to access complete Git operations menu
-   - Support for Cherry-pick, Revert, Reset and other advanced Git operations
-   - Direct commit message editing (latest commit only)
+The repository includes `.vscode/launch.json` and `.vscode/tasks.json`.
 
-3. **Interface Customization**
+Use **Run Extension** when you want F5 to build first and then open an Extension Development Host.
 
-   - **Panel Adjustment**: Drag the middle divider to adjust left/right panel sizes
-   - **Panel Collapsing**: Click panel title bar collapse buttons to hide unnecessary panels
-   - **View Modes**: Configure default display mode for file changes (list/tree) in settings
+Use **Run Extension (watch output)** when `pnpm dev` is already running in a terminal. This avoids a full pre-launch build and launches against the current watched output.
 
-4. **Git Blame Features**
-   - Use Command Palette and search "Toggle Git Blame" to enable/disable blame display
-   - Configure blame information display format and behavior in settings
-   - Click blame information to quickly jump to corresponding commit
+### Extension Logs
 
-## ⚙️ Configuration Options
+The extension writes diagnostics to the **GUI Git History** output channel.
 
-The extension provides the following configuration options, adjustable in VSCode settings:
+Use `guigit.logLevel` to control verbosity:
 
-- **`guigit.fileViewMode`** - Default display mode for file changes (list/tree)
-- **`guigit.blame.enabled`** - Enable Git blame functionality
-- **`guigit.blame.showOnlyCurrentLine`** - Show blame info for current line only
-- **`guigit.blame.format`** - Display format for blame information
-- **`guigit.autoStashOnPull`** - How to handle uncommitted changes when pulling (ask/always/never)
-- **`guigit.proxy.enabled`** - Enable custom proxy configuration
-- **`guigit.proxy.http`** - HTTP proxy URL
-- **`guigit.proxy.https`** - HTTPS proxy URL
-- **`guigit.proxy.noProxy`** - No proxy for specified hosts
-- **`guigit.language`** - Language preference (auto/en/zh)
+- `error`: backend failures only.
+- `info`: lifecycle and important operation messages.
+- `debug`: RPC request/response summaries plus Git history/details diagnostics.
+- `off`: disable extension logging.
 
-## 🎯 Feature Highlights
+When investigating UI/backend integration issues, set:
 
-- ✅ **Zero Configuration Startup** - Ready to use upon opening Git repositories, no additional setup required
-- ✅ **Performance Optimized** - Smart caching and lazy loading, supports large repositories
-- ✅ **Multi-repository Support** - Automatically discovers and manages all Git repositories in workspace
-- ✅ **Theme Adaptation** - Perfect support for VSCode light/dark themes and custom themes
-- ✅ **Intuitive and Easy to Use** - Clear user interface design following VSCode design standards
-- ✅ **Feature Rich** - Complete Git operations support for daily development needs
-- ✅ **Git Blame Integration** - Built-in blame functionality, no additional plugins required
-- ✅ **Real-time Updates** - Automatically detects repository changes and keeps interface synchronized
-- ✅ **Internationalization** - Support for multiple languages with auto-detection
+```json
+"guigit.logLevel": "debug"
+```
 
-## 📦 Installation
+Then open **Output: GUI Git History** in the Extension Development Host and include the relevant lines when reporting a failure.
 
-1. Open VSCode
-2. Go to Extensions view (`Ctrl+Shift+X`)
-3. Search for "GUI Git History"
-4. Click Install
+## RPC Contract Maintenance
 
-## 🤝 Contributing
+The RPC contract has one source file:
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+```text
+packages/shared/src/rpc/contract.ts
+```
 
-## 📄 License
+When changing request types, response payloads, backend notifications, or shared ViewModels:
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. Edit `packages/shared/src/rpc/contract.ts`.
+2. Run `pnpm rpc:generate`.
+3. Commit the updated generated files:
 
-## 🔗 Links
+```text
+packages/extension/src/backend/rpc/contract.ts
+packages/webview/src/app/rpcContract.generated.d.ts
+```
 
-- [GitHub Repository](https://github.com/Mickls/vscode-extension-guigit)
-- [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=Mickls.vscode-extension-guigit)
+4. Run `pnpm rpc:check` before committing. It fails if the generated declaration is stale.
+
+Do not import extension backend source files from the webview package. The webview may import only generated contract declarations and UI code. Do not hand-edit generated RPC files; edit `packages/shared/src/rpc/contract.ts` and regenerate.
+
+## Testing And Verification
+
+Run these before claiming a phase or task is complete:
+
+```sh
+pnpm install
+pnpm rpc:check
+pnpm typecheck
+pnpm eslint
+pnpm test
+pnpm build
+pnpm package
+```
+
+Current test policy:
+
+- Unit tests live under `packages/*/test`.
+- Contract coverage tests must prove every request type has a backend handler marker.
+- Router and backend behavior tests should be written before implementation.
+- Webview tests should verify UI state and rendering, not Git behavior.
+
+## Packaging Notes
+
+The extension package root is `packages/extension`, not the repository root. Files referenced by `packages/extension/package.json` must exist under `packages/extension`.
+
+Important packaging files:
+
+- `packages/extension/package.json`
+- `packages/extension/.vscodeignore`
+- `packages/extension/assets/gui-git-history-high-resolution-logo-transparent.png`
+- `packages/extension/webview-dist`
+
+VSIX output is written to:
+
+```text
+packages/extension/vscode-extension-guigit-<version>.vsix
+```
+
+Generated build outputs, VSIX files, and TypeScript build info are ignored by Git.
+
+## Development Rules
+
+- Use TypeScript only for extension and webview business code.
+- Use WindCSS/Tailwind-style utilities for webview styling.
+- Keep ordinary CSS limited to framework entry/generated output.
+- Keep frontend and backend boundaries strict.
+- Preserve all `guigit.*` command/config ids and `guigit.historyView`.
+- Update [docs/implementation-plan.md](docs/implementation-plan.md) checkboxes as tasks are completed.
+- Use single-line conventional commits with one of: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
