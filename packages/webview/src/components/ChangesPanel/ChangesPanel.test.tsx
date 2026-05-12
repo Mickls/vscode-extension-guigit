@@ -154,6 +154,132 @@ describe("ChangesPanel", () => {
     expect(screen.getAllByRole("button", { name: "List view" })).toHaveLength(1);
   });
 
+  it("sends bulk staged and unstaged actions", async () => {
+    const user = userEvent.setup();
+    const onStageAll = vi.fn();
+    const onUnstageAll = vi.fn();
+
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        onStageAll={onStageAll}
+        onUnstageAll={onUnstageAll}
+        workingTree={workingTree}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Stage All" }));
+    await user.click(screen.getByRole("button", { name: "Unstage All" }));
+
+    expect(onStageAll).toHaveBeenCalledTimes(1);
+    expect(onUnstageAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("groups staged and unstaged files in tree mode while preserving row actions", async () => {
+    const user = userEvent.setup();
+    const onDiscardFile = vi.fn();
+    const onOpenFile = vi.fn();
+    const onOpenFileDiff = vi.fn();
+    const onStageFile = vi.fn();
+    const onUnstageFile = vi.fn();
+
+    render(
+      <ChangesPanel
+        fileViewMode="tree"
+        onDiscardFile={onDiscardFile}
+        onOpenFile={onOpenFile}
+        onOpenFileDiff={onOpenFileDiff}
+        onStageFile={onStageFile}
+        onUnstageFile={onUnstageFile}
+        workingTree={treeWorkingTree}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Collapse src" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse assets" })).toBeInTheDocument();
+    expect(screen.getByText("Button.tsx")).toBeInTheDocument();
+    expect(screen.getByText("app.css")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open diff for src/components/Button.tsx" }));
+    await user.click(screen.getByRole("button", { name: "Unstage src/components/Button.tsx" }));
+    await user.click(screen.getByRole("button", { name: "Stage assets/styles/app.css" }));
+    await user.click(screen.getByRole("button", { name: "Discard assets/styles/app.css" }));
+    await user.click(screen.getByRole("button", { name: "Open file assets/styles/app.css" }));
+
+    expect(onOpenFileDiff).toHaveBeenCalledWith("src/components/Button.tsx", "staged", "src/old/Button.tsx");
+    expect(onUnstageFile).toHaveBeenCalledWith("src/components/Button.tsx");
+    expect(onStageFile).toHaveBeenCalledWith("assets/styles/app.css");
+    expect(onDiscardFile).toHaveBeenCalledWith("assets/styles/app.css");
+    expect(onOpenFile).toHaveBeenCalledWith("assets/styles/app.css");
+  });
+
+  it("keeps the commit button disabled while an operation is busy", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        operationBusy
+        onCommit={onCommit}
+        workingTree={workingTree}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Commit message" }), "feat: test");
+
+    expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("keeps the commit button disabled when the working tree has an unfinished operation", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        onCommit={onCommit}
+        workingTree={{
+          ...workingTree,
+          operationState: {
+            message: "Merge is still in progress",
+            status: "conflict"
+          }
+        }}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Commit message" }), "feat: test");
+
+    expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("renders repository summary, refresh action, and operation status", async () => {
+    const user = userEvent.setup();
+    const onRefresh = vi.fn();
+
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        onRefresh={onRefresh}
+        operationStatus={{ message: "Pull is running...", state: "running" }}
+        repository={{ id: "/repo", name: "repo", rootPath: "/repo" }}
+        workingTree={workingTree}
+      />
+    );
+
+    expect(screen.getByText("repo")).toBeInTheDocument();
+    expect(screen.getByText("/repo")).toBeInTheDocument();
+    expect(screen.getByText("main")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Pull is running...");
+
+    await user.click(screen.getByRole("button", { name: "Refresh Changes" }));
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
   it("sends staged and unstaged file actions", async () => {
     const user = userEvent.setup();
     const onOpenFile = vi.fn();
@@ -282,6 +408,31 @@ const renameWorkingTree = {
       path: "src/unstaged-new.ts",
       previousPath: "src/unstaged-old.ts",
       status: "renamed"
+    }
+  ]
+} satisfies WorkingTreeViewModel;
+
+const treeWorkingTree = {
+  ...workingTree,
+  staged: [
+    {
+      area: "staged",
+      binary: false,
+      deletions: 1,
+      insertions: 2,
+      path: "src/components/Button.tsx",
+      previousPath: "src/old/Button.tsx",
+      status: "renamed"
+    }
+  ],
+  unstaged: [
+    {
+      area: "unstaged",
+      binary: false,
+      deletions: 3,
+      insertions: 4,
+      path: "assets/styles/app.css",
+      status: "modified"
     }
   ]
 } satisfies WorkingTreeViewModel;

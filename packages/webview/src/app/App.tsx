@@ -25,7 +25,7 @@ import { createTranslator } from "./i18n";
 import { CompareOverlay } from "../components/CompareOverlay/CompareOverlay";
 import { CommitDetails } from "../components/CommitDetails/CommitDetails";
 import { CommitList, type CommitSelectionIntent } from "../components/CommitList/CommitList";
-import { ChangesPanel } from "../components/ChangesPanel/ChangesPanel";
+import { ChangesPanel, type ChangesPanelOperationStatus } from "../components/ChangesPanel/ChangesPanel";
 import { ConflictBanner } from "../components/ConflictBanner/ConflictBanner";
 import { ContextMenu, type ContextMenuAction } from "../components/ContextMenu/ContextMenu";
 import { Header } from "../components/Header/Header";
@@ -159,6 +159,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   );
   const [showNotificationCount, setShowNotificationCount] = useState(() => loadNotificationCountVisibility());
   const [activeGitOperation, setActiveGitOperation] = useState<ConflictGitOperationType | ContextGitOperationType | PrimaryGitOperationType | PromptGitOperationType | undefined>();
+  const [activeWorkingTreeOperation, setActiveWorkingTreeOperation] = useState<WorkingTreeActionType | undefined>();
   const [conflictOperation, setConflictOperation] = useState<OperationNotification | undefined>();
   const commitsRef = useRef<readonly CommitListItemViewModel[]>([]);
   const hasMoreRef = useRef(false);
@@ -175,9 +176,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const latestGraphRequestIdRef = useRef<string | undefined>(undefined);
   const pendingStashDetailsRequestsRef = useRef(new Map<string, StashDetailsRequestMeta>());
   const currentStashDetailsRequestsRef = useRef(new Map<string, string>());
-  const latestWorkingTreeOperationRef = useRef<{ id: string; repositoryId: string; sequence: number } | undefined>(undefined);
+  const latestWorkingTreeLoadRef = useRef<{ id: string; repositoryId: string; sequence: number } | undefined>(undefined);
+  const latestWorkingTreeActionRef = useRef<{ id: string; repositoryId: string; sequence: number } | undefined>(undefined);
   const latestCommitMessageGenerateRequestRef = useRef<{ id: string; repositoryId: string } | undefined>(undefined);
-  const workingTreeOperationSequenceRef = useRef(0);
+  const workingTreeRequestSequenceRef = useRef(0);
+  const appliedWorkingTreeSequenceRef = useRef(0);
   const rightPanelTabRef = useRef<RightPanelTab>("details");
   const [contextMenu, setContextMenu] = useState({
     hash: undefined as string | undefined,
@@ -218,6 +221,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const promptGitOperationLabelsRef = useRef(promptGitOperationLabels);
   const contextGitOperationLabelsRef = useRef(contextGitOperationLabels);
   const graphHeaderWidth = Math.min(Math.max(graph.width, minimumGraphViewportWidth), maximumGraphViewportWidth);
+  const gitOperationBusy = Boolean(activeGitOperation || activeWorkingTreeOperation || conflictOperation);
+  const selectedRepository = repositories.find((repository) => repository.id === selectedRepositoryId);
+  const changesOperationStatus: ChangesPanelOperationStatus | undefined = operationNotification;
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
     setCommitDetails(details);
@@ -283,15 +289,23 @@ export function App({ rpcClient }: AppProps): ReactElement {
     });
   };
   const loadWorkingTree = (repositoryId: string) => {
-    trackWorkingTreeOperation(requestWorkingTree(client, repositoryId), repositoryId);
+    latestWorkingTreeLoadRef.current = {
+      id: requestWorkingTree(client, repositoryId),
+      repositoryId,
+      sequence: nextWorkingTreeRequestSequence()
+    };
   };
-  const trackWorkingTreeOperation = (id: string, repositoryId: string) => {
-    workingTreeOperationSequenceRef.current += 1;
-    latestWorkingTreeOperationRef.current = {
+  const trackWorkingTreeAction = (id: string, repositoryId: string, type: WorkingTreeActionType) => {
+    latestWorkingTreeActionRef.current = {
       id,
       repositoryId,
-      sequence: workingTreeOperationSequenceRef.current
+      sequence: nextWorkingTreeRequestSequence()
     };
+    setActiveWorkingTreeOperation(type);
+  };
+  const nextWorkingTreeRequestSequence = () => {
+    workingTreeRequestSequenceRef.current += 1;
+    return workingTreeRequestSequenceRef.current;
   };
 
   useEffect(() => {
@@ -387,7 +401,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       if (!response.ok) {
         if (
           isStaleCommitMessageGenerateError(response, latestCommitMessageGenerateRequestRef.current, selectedRepositoryIdRef.current) ||
-          isStaleWorkingTreeActionError(response, latestWorkingTreeOperationRef.current, selectedRepositoryIdRef.current) ||
+          isStaleWorkingTreeActionError(response, latestWorkingTreeActionRef.current, selectedRepositoryIdRef.current) ||
           isStaleStashDetailsError(
             response,
             pendingStashDetailsRequestsRef.current,
@@ -399,6 +413,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
         }
         if (isGitOperationType(response.type)) {
           setActiveGitOperation(undefined);
+        }
+        if (isWorkingTreeActionType(response.type)) {
+          setActiveWorkingTreeOperation(undefined);
         }
         if (response.type === "commitMessage.generate") {
           latestCommitMessageGenerateRequestRef.current = undefined;
@@ -490,28 +507,48 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (response.type === "workingTree.load") {
-        if (isCurrentWorkingTreeOperation(latestWorkingTreeOperationRef.current, response.id, response.payload.workingTree.repositoryId, selectedRepositoryIdRef.current)) {
+        const latestLoad = latestWorkingTreeLoadRef.current;
+        if (
+          latestLoad &&
+          isCurrentWorkingTreeRequest(
+            latestLoad,
+            appliedWorkingTreeSequenceRef.current,
+            response.id,
+            response.payload.workingTree.repositoryId,
+            selectedRepositoryIdRef.current
+          )
+        ) {
+          appliedWorkingTreeSequenceRef.current = latestLoad.sequence;
           setWorkingTree(response.payload.workingTree);
         }
       }
 
       if (isWorkingTreeActionResponse(response)) {
-        const isCurrentOperation = isCurrentWorkingTreeOperation(
-          latestWorkingTreeOperationRef.current,
+        const isCurrentOperation = isCurrentWorkingTreeAction(
+          latestWorkingTreeActionRef.current,
+          appliedWorkingTreeSequenceRef.current,
           response.id,
           response.payload.workingTree.repositoryId,
           selectedRepositoryIdRef.current
         );
+        if (latestWorkingTreeActionRef.current?.id === response.id) {
+          const actionSequence = latestWorkingTreeActionRef.current.sequence;
+          latestWorkingTreeActionRef.current = undefined;
+          setActiveWorkingTreeOperation(undefined);
+          if (isCurrentOperation) {
+            appliedWorkingTreeSequenceRef.current = actionSequence;
+          }
+        }
         if (isCurrentOperation) {
           setWorkingTree(response.payload.workingTree);
           setOperationNotification({
             message: response.payload.result.message,
             state: response.payload.result.status === "ok" ? "success" : "warning"
           });
-        }
-        if (response.type === "workingTree.commit" && response.payload.result.status === "ok") {
-          setCommitMessageResetKey((key) => key + 1);
-          reloadHistory({ preserveSelection: true });
+          if (response.type === "workingTree.commit" && response.payload.result.status === "ok") {
+            setCommitMessageResetKey((key) => key + 1);
+            reloadHistory({ preserveSelection: true });
+          }
         }
       }
 
@@ -727,6 +764,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
     selectedCommitHashRef.current = undefined;
     showCommitDetails(undefined);
     setWorkingTree(undefined);
+    setActiveWorkingTreeOperation(undefined);
+    latestWorkingTreeActionRef.current = undefined;
+    latestWorkingTreeLoadRef.current = undefined;
+    appliedWorkingTreeSequenceRef.current = 0;
     latestCommitMessageGenerateRequestRef.current = undefined;
     setGeneratingCommitMessage(false);
     requestHistory(client, pendingHistoryRequestsRef.current, {
@@ -876,21 +917,41 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const stageWorkingTreeFile = (filePath: string) => {
     const request = postWorkingTreeFileAction(client, selectedRepositoryIdRef.current, "workingTree.stageFile", filePath);
     if (request) {
-      trackWorkingTreeOperation(request.id, request.repositoryId);
+      trackWorkingTreeAction(request.id, request.repositoryId, "workingTree.stageFile");
     }
   };
 
   const discardWorkingTreeFile = (filePath: string) => {
     const request = postWorkingTreeFileAction(client, selectedRepositoryIdRef.current, "workingTree.discardFile", filePath);
     if (request) {
-      trackWorkingTreeOperation(request.id, request.repositoryId);
+      trackWorkingTreeAction(request.id, request.repositoryId, "workingTree.discardFile");
     }
   };
 
   const unstageWorkingTreeFile = (filePath: string) => {
     const request = postWorkingTreeFileAction(client, selectedRepositoryIdRef.current, "workingTree.unstageFile", filePath);
     if (request) {
-      trackWorkingTreeOperation(request.id, request.repositoryId);
+      trackWorkingTreeAction(request.id, request.repositoryId, "workingTree.unstageFile");
+    }
+  };
+
+  const stageAllWorkingTreeChanges = () => {
+    const request = postWorkingTreeBulkAction(client, selectedRepositoryIdRef.current, "workingTree.stageAll");
+    if (request) {
+      trackWorkingTreeAction(request.id, request.repositoryId, "workingTree.stageAll");
+    }
+  };
+
+  const unstageAllWorkingTreeChanges = () => {
+    const request = postWorkingTreeBulkAction(client, selectedRepositoryIdRef.current, "workingTree.unstageAll");
+    if (request) {
+      trackWorkingTreeAction(request.id, request.repositoryId, "workingTree.unstageAll");
+    }
+  };
+
+  const refreshWorkingTree = () => {
+    if (selectedRepositoryIdRef.current) {
+      loadWorkingTree(selectedRepositoryIdRef.current);
     }
   };
 
@@ -941,11 +1002,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
       stashRef,
       type
     });
-    trackWorkingTreeOperation(id, selectedRepositoryIdRef.current);
+    trackWorkingTreeAction(id, selectedRepositoryIdRef.current, type);
   };
 
   const commitWorkingTree = (message: string) => {
-    if (!selectedRepositoryIdRef.current) {
+    if (!selectedRepositoryIdRef.current || activeGitOperation || activeWorkingTreeOperation || conflictOperation) {
       return;
     }
 
@@ -956,7 +1017,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       repositoryId: selectedRepositoryIdRef.current,
       type: "workingTree.commit"
     });
-    trackWorkingTreeOperation(id, selectedRepositoryIdRef.current);
+    trackWorkingTreeAction(id, selectedRepositoryIdRef.current, "workingTree.commit");
   };
 
   const generateCommitMessage = (): string | undefined => {
@@ -1112,7 +1173,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       <Header
         authorValue={authorQuery}
         branches={branches}
-        gitOperationBusy={Boolean(activeGitOperation || conflictOperation)}
+        gitOperationBusy={gitOperationBusy}
         graphVisible={graphVisible}
         labels={{
           allBranches: tx("allBranches", "All branches"),
@@ -1270,6 +1331,39 @@ export function App({ rpcClient }: AppProps): ReactElement {
                 commitMessageSuggestion={commitMessageSuggestion}
                 fileViewMode={fileViewMode}
                 generatingCommitMessage={generatingCommitMessage}
+                labels={{
+                  binary: tx("files.binary", "binary"),
+                  branch: tx("header.branch", "Branch"),
+                  changes: tx("changes.unstaged", "Changes"),
+                  collapseDirectory: tx("files.collapseDirectory", "Collapse {0}"),
+                  commit: tx("changes.commit", "Commit"),
+                  commitMessage: tx("changes.commitMessage", "Commit message"),
+                  discard: `${tx("changes.discard", "Discard")} {0}`,
+                  dropStash: `${tx("changes.dropStash", "Drop stash")} {0}`,
+                  expandDirectory: tx("files.expandDirectory", "Expand {0}"),
+                  expandStash: tx("changes.expandStash", "Expand stash {0}"),
+                  generate: tx("changes.generateCommitMessage", "Generate"),
+                  list: tx("files.list", "List"),
+                  listView: tx("files.listView", "List view"),
+                  noStashes: tx("changes.noStashes", "No stashes"),
+                  openDiff: tx("files.openDiff", "Open diff for {0}"),
+                  openFile: tx("files.openFile", "Open file {0}"),
+                  applyStash: `${tx("changes.applyStash", "Apply stash")} {0}`,
+                  popStash: `${tx("changes.popStash", "Pop stash")} {0}`,
+                  refreshChanges: tx("changes.refresh", "Refresh Changes"),
+                  repository: tx("header.repository", "Repository"),
+                  stage: `${tx("changes.stage", "Stage")} {0}`,
+                  stageAll: tx("changes.stageAll", "Stage All"),
+                  stagedChanges: tx("changes.staged", "Staged Changes"),
+                  stash: tx("changes.stash", "Stash"),
+                  tree: tx("files.tree", "Tree"),
+                  treeView: tx("files.treeView", "Tree view"),
+                  unstage: `${tx("changes.unstage", "Unstage")} {0}`,
+                  unstageAll: tx("changes.unstageAll", "Unstage All")
+                }}
+                operationBusy={gitOperationBusy}
+                operationStatus={changesOperationStatus}
+                repository={selectedRepository}
                 onCommit={commitWorkingTree}
                 onApplyStash={(stashRef) => runStashAction("stash.apply", stashRef)}
                 onDiscardFile={discardWorkingTreeFile}
@@ -1281,7 +1375,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
                 onOpenFileDiff={openWorkingTreeFileDiff}
                 onOpenStashDiff={openStashDiff}
                 onPopStash={(stashRef) => runStashAction("stash.pop", stashRef)}
+                onRefresh={refreshWorkingTree}
+                onStageAll={stageAllWorkingTreeChanges}
                 onStageFile={stageWorkingTreeFile}
+                onUnstageAll={unstageAllWorkingTreeChanges}
                 onUnstageFile={unstageWorkingTreeFile}
                 workingTree={workingTree}
               />
@@ -1401,7 +1498,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         open={compareOverlayOpen}
         toHash={compareHashes?.[1] ?? ""}
       />
-      {operationNotification ? (
+      {operationNotification && rightPanelTab !== "changes" ? (
         <OperationToast message={operationNotification.message} state={operationNotification.state} />
       ) : null}
     </main>
@@ -1427,16 +1524,33 @@ function requestWorkingTree(client: RpcClient | undefined, repositoryId: string)
   return id;
 }
 
-function isCurrentWorkingTreeOperation(
-  latestOperation: { id: string; repositoryId: string; sequence: number } | undefined,
+function isCurrentWorkingTreeRequest(
+  latestRequest: { id: string; repositoryId: string; sequence: number } | undefined,
+  appliedSequence: number,
   responseId: string,
   responseRepositoryId: string,
   selectedRepositoryId: string | undefined
 ): boolean {
   return (
-    latestOperation?.id === responseId &&
-    latestOperation.repositoryId === responseRepositoryId &&
-    latestOperation.repositoryId === selectedRepositoryId
+    latestRequest?.id === responseId &&
+    latestRequest.repositoryId === responseRepositoryId &&
+    latestRequest.repositoryId === selectedRepositoryId &&
+    latestRequest.sequence > appliedSequence
+  );
+}
+
+function isCurrentWorkingTreeAction(
+  latestAction: { id: string; repositoryId: string; sequence: number } | undefined,
+  appliedSequence: number,
+  responseId: string,
+  responseRepositoryId: string,
+  selectedRepositoryId: string | undefined
+): boolean {
+  return (
+    latestAction?.id === responseId &&
+    latestAction.repositoryId === responseRepositoryId &&
+    latestAction.repositoryId === selectedRepositoryId &&
+    latestAction.sequence > appliedSequence
   );
 }
 
@@ -1461,7 +1575,7 @@ function isStaleCommitMessageGenerateError(
 
 function isStaleWorkingTreeActionError(
   response: RpcResponse & { ok: false },
-  latestOperation: { id: string; repositoryId: string; sequence: number } | undefined,
+  latestOperation: { id: string; repositoryId: string } | undefined,
   selectedRepositoryId: string | undefined
 ): boolean {
   return (
@@ -1533,6 +1647,24 @@ function postWorkingTreeFileAction(
   const id = crypto.randomUUID();
   client?.post({
     filePath,
+    id,
+    repositoryId,
+    type
+  });
+  return { id, repositoryId };
+}
+
+function postWorkingTreeBulkAction(
+  client: RpcClient | undefined,
+  repositoryId: string | undefined,
+  type: "workingTree.stageAll" | "workingTree.unstageAll"
+): { id: string; repositoryId: string } | undefined {
+  if (!repositoryId) {
+    return;
+  }
+
+  const id = crypto.randomUUID();
+  client?.post({
     id,
     repositoryId,
     type

@@ -1,18 +1,22 @@
 import { simpleGit } from "simple-git";
 import type { OperationResultViewModel, StashEntryViewModel, WorkingTreeViewModel } from "../rpc/contract";
+import type { Logger } from "../../logging/LoggerService";
 import { parsePorcelainStatus, parseStashFiles, parseStashList } from "./WorkingTreeParser";
 
 export interface WorkingTreeServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  logger?: Logger;
   showWarningMessage?: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
 }
 
 export class WorkingTreeService {
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
+  private readonly logger?: Logger;
   private readonly showWarningMessage: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
 
   public constructor(input: WorkingTreeServiceInput = {}) {
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
+    this.logger = input.logger;
     this.showWarningMessage =
       input.showWarningMessage ??
       (() => Promise.resolve(undefined));
@@ -111,7 +115,25 @@ export class WorkingTreeService {
     args: readonly string[],
     message: string
   ): Promise<WorkingTreeActionResult> {
-    await this.gitRaw(repositoryRoot, args);
+    const command = formatGitCommand(repositoryRoot, args);
+    this.logger?.info("git.command", {
+      command
+    });
+    try {
+      await this.gitRaw(repositoryRoot, args);
+    } catch (error: unknown) {
+      this.logger?.info("git.result", {
+        command,
+        message: error instanceof Error ? error.message : String(error),
+        status: "error"
+      });
+      throw error;
+    }
+    this.logger?.info("git.result", {
+      command,
+      message,
+      status: "ok"
+    });
 
     return {
       result: {
@@ -140,4 +162,8 @@ export class WorkingTreeService {
 export interface WorkingTreeActionResult {
   result: OperationResultViewModel;
   workingTree: WorkingTreeViewModel;
+}
+
+function formatGitCommand(repositoryRoot: string, args: readonly string[]): string {
+  return `git -C ${repositoryRoot} ${args.join(" ")}`;
 }

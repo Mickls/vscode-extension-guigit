@@ -115,6 +115,38 @@ describe("WorkingTreeService", () => {
     });
   });
 
+  it("logs working tree write commands and successful results", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "status --porcelain=v1") {
+        return "";
+      }
+      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+        return "main\n";
+      }
+      return "";
+    });
+    const logger = {
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn()
+    };
+    const service = new WorkingTreeService({
+      gitRaw,
+      logger
+    });
+
+    await service.stageAll("/repo", "/repo");
+
+    expect(logger.info).toHaveBeenNthCalledWith(1, "git.command", {
+      command: "git -C /repo add --all"
+    });
+    expect(logger.info).toHaveBeenNthCalledWith(2, "git.result", {
+      command: "git -C /repo add --all",
+      message: "Staged all changes",
+      status: "ok"
+    });
+  });
+
   it("does not discard a file unless the warning confirmation returns Discard", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
       if (args.join(" ") === "status --porcelain=v1") {
