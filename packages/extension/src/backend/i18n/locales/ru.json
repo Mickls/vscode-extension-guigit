@@ -34,7 +34,29 @@
       "configureProxy": "Настроить прокси",
       "refreshProxy": "Показать состояние прокси",
       "manageRemotes": "Управление удалёнными",
-      "changeLanguage": "Изменить язык"
+      "changeLanguage": "Изменить язык",
+      "configureAiProvider": "Настроить провайдера ИИ",
+      "testAiProvider": "Проверить провайдера ИИ"
+    },
+    "tabs": {
+      "details": "Подробности",
+      "changes": "Изменения"
+    },
+    "changes": {
+      "staged": "В индексе",
+      "unstaged": "Не в индексе",
+      "stash": "Stash",
+      "stage": "Добавить в индекс",
+      "unstage": "Убрать из индекса",
+      "stageAll": "Добавить все в индекс",
+      "unstageAll": "Убрать всё из индекса",
+      "discard": "Отменить",
+      "applyStash": "Применить stash",
+      "popStash": "Применить и удалить stash",
+      "dropStash": "Удалить stash",
+      "commitMessage": "Сообщение коммита",
+      "generateCommitMessage": "Сгенерировать сообщение коммита",
+      "commit": "Создать коммит"
     },
     "remoteManager": {
       "title": "Управление удалёнными",

@@ -34,7 +34,29 @@
       "configureProxy": "プロキシを設定",
       "refreshProxy": "プロキシ状態を表示",
       "manageRemotes": "リモートを管理",
-      "changeLanguage": "言語を変更"
+      "changeLanguage": "言語を変更",
+      "configureAiProvider": "AI プロバイダーを設定",
+      "testAiProvider": "AI プロバイダーをテスト"
+    },
+    "tabs": {
+      "details": "詳細",
+      "changes": "変更"
+    },
+    "changes": {
+      "staged": "ステージ済み",
+      "unstaged": "未ステージ",
+      "stash": "スタッシュ",
+      "stage": "ステージ",
+      "unstage": "ステージ解除",
+      "stageAll": "すべてステージ",
+      "unstageAll": "すべてステージ解除",
+      "discard": "破棄",
+      "applyStash": "スタッシュを適用",
+      "popStash": "スタッシュを適用して削除",
+      "dropStash": "スタッシュを削除",
+      "commitMessage": "コミットメッセージ",
+      "generateCommitMessage": "コミットメッセージを生成",
+      "commit": "コミット"
     },
     "remoteManager": {
       "title": "リモートを管理",

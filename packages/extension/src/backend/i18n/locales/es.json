@@ -34,7 +34,29 @@
       "configureProxy": "Configurar proxy",
       "refreshProxy": "Ver estado del proxy",
       "manageRemotes": "Gestionar remotos",
-      "changeLanguage": "Cambiar idioma"
+      "changeLanguage": "Cambiar idioma",
+      "configureAiProvider": "Configurar proveedor de IA",
+      "testAiProvider": "Probar proveedor de IA"
+    },
+    "tabs": {
+      "details": "Detalles",
+      "changes": "Cambios"
+    },
+    "changes": {
+      "staged": "En staging",
+      "unstaged": "Sin staging",
+      "stash": "Stash",
+      "stage": "Enviar a staging",
+      "unstage": "Quitar de staging",
+      "stageAll": "Enviar todo a staging",
+      "unstageAll": "Quitar todo de staging",
+      "discard": "Descartar",
+      "applyStash": "Aplicar stash",
+      "popStash": "Aplicar y quitar stash",
+      "dropStash": "Eliminar stash",
+      "commitMessage": "Mensaje de commit",
+      "generateCommitMessage": "Generar mensaje de commit",
+      "commit": "Hacer commit"
     },
     "remoteManager": {
       "title": "Gestionar remotos",

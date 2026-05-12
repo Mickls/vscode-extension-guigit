@@ -34,7 +34,29 @@
       "configureProxy": "配置代理",
       "refreshProxy": "查看代理状态",
       "manageRemotes": "管理远程",
-      "changeLanguage": "切换语言"
+      "changeLanguage": "切换语言",
+      "configureAiProvider": "配置 AI 提供方",
+      "testAiProvider": "测试 AI 提供方"
+    },
+    "tabs": {
+      "details": "详情",
+      "changes": "更改"
+    },
+    "changes": {
+      "staged": "已暂存",
+      "unstaged": "未暂存",
+      "stash": "储藏",
+      "stage": "暂存",
+      "unstage": "取消暂存",
+      "stageAll": "全部暂存",
+      "unstageAll": "全部取消暂存",
+      "discard": "丢弃",
+      "applyStash": "应用储藏",
+      "popStash": "应用并移除储藏",
+      "dropStash": "删除储藏",
+      "commitMessage": "提交消息",
+      "generateCommitMessage": "生成提交消息",
+      "commit": "提交"
     },
     "remoteManager": {
       "title": "管理远程",
