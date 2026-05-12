@@ -107,7 +107,7 @@ describe("GitService", () => {
   it("runs push, prompts pull request creation for non-main branches, and fetches", async () => {
     const calls: string[] = [];
     const openedUrls: string[] = [];
-    const showInformationMessage = vi.fn().mockResolvedValue("Create Pull Request");
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "Open Pull Request", value: "open-pull-request" });
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -124,10 +124,11 @@ describe("GitService", () => {
       openExternal: async (url) => {
         openedUrls.push(url);
       },
-      showInformationMessage
+      showQuickPick
     });
 
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
+    await Promise.resolve();
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "rev-parse --abbrev-ref HEAD",
@@ -135,7 +136,6 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref HEAD",
       "remote get-url origin"
     ]);
-    await Promise.resolve();
     await expect(service.fetch("/repo")).resolves.toEqual({ message: "Fetch completed", status: "ok" });
 
     expect(calls).toEqual([
@@ -146,12 +146,14 @@ describe("GitService", () => {
       "remote get-url origin",
       "fetch --all --prune"
     ]);
-    expect(showInformationMessage).toHaveBeenCalledWith(
-      "Pushed feature/demo. Create a pull request?",
-      "Create Pull Request",
-      "Dismiss"
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "Open Pull Request", value: "open-pull-request" },
+        { label: "Dismiss", value: "dismiss" }
+      ],
+      { placeHolder: "Pushed feature/demo. Create a pull request?" }
     );
-    expect(openedUrls).toEqual(["https://github.com/owner/repo/pull/new/feature/demo"]);
+    expect(openedUrls).toEqual(["https://github.com/owner/repo/pull/new/feature%2Fdemo"]);
   });
 
   it("checks out a picked branch", async () => {
@@ -197,7 +199,7 @@ describe("GitService", () => {
 
   it("completes push without waiting for the pull request prompt", async () => {
     const calls: string[] = [];
-    const showInformationMessage = vi.fn(() => new Promise<string | undefined>(() => undefined));
+    const showQuickPick = vi.fn(() => new Promise<{ label: string; value: string } | undefined>(() => undefined));
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -207,7 +209,7 @@ describe("GitService", () => {
 
         return args.join(" ") === "rev-parse --abbrev-ref HEAD" ? "feature/demo\n" : "";
       },
-      showInformationMessage
+      showQuickPick
     });
 
     await expect(service.push("/repo")).resolves.toEqual({ message: "Push completed", status: "ok" });
@@ -217,10 +219,12 @@ describe("GitService", () => {
       "push origin HEAD:feature/demo",
       "rev-parse --abbrev-ref HEAD"
     ]);
-    expect(showInformationMessage).toHaveBeenCalledWith(
-      "Pushed feature/demo. Create a pull request?",
-      "Create Pull Request",
-      "Dismiss"
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "Open Pull Request", value: "open-pull-request" },
+        { label: "Dismiss", value: "dismiss" }
+      ],
+      { placeHolder: "Pushed feature/demo. Create a pull request?" }
     );
   });
 
@@ -437,13 +441,14 @@ describe("GitService", () => {
   it("uses backend quick picks for advanced pull and push", async () => {
     const calls: string[] = [];
     let conflictContext: unknown;
-    const showInformationMessage = vi.fn().mockResolvedValue("Force Push");
     const showQuickPick = vi
       .fn()
       .mockResolvedValueOnce({ label: "Rebase", value: "rebase" })
       .mockResolvedValueOnce({ label: "origin/main", value: "origin/main" })
       .mockResolvedValueOnce({ label: "origin/feature", value: "origin/feature" })
-      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" });
+      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" })
+      .mockResolvedValueOnce({ label: "Force Push", value: "confirm" })
+      .mockResolvedValueOnce({ label: "Dismiss", value: "dismiss" });
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -466,8 +471,7 @@ describe("GitService", () => {
       settingsService: {
         getSettings: () => ({ autoStashOnPull: "ask" })
       },
-      showQuickPick,
-      showInformationMessage
+      showQuickPick
     });
 
     await expect(service.advancedPull("/repo")).resolves.toEqual({ message: "Advanced pull completed", status: "ok" });
@@ -486,10 +490,12 @@ describe("GitService", () => {
       operationKind: "rebase",
       operationName: "Rebase"
     });
-    expect(showInformationMessage).toHaveBeenCalledWith(
-      "Force push to origin/feature with lease?",
-      "Force Push",
-      "Cancel"
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "Force Push", value: "confirm" },
+        { label: "Cancel", value: "cancel" }
+      ],
+      { placeHolder: "Force push to origin/feature with lease?" }
     );
   });
 
@@ -636,6 +642,14 @@ describe("GitService", () => {
         return Promise.resolve({ label: "origin/feature", value: "origin/feature" });
       }
 
+      if (options.placeHolder === "Force push to origin/feature with lease?") {
+        return Promise.resolve({ label: "Force Push", value: "confirm" });
+      }
+
+      if (options.placeHolder === "Pushed feature. Create a pull request?") {
+        return Promise.resolve({ label: "Dismiss", value: "dismiss" });
+      }
+
       selectedModes.push(items[0]!.label);
       return Promise.resolve({ label: "Force with lease", value: "force-with-lease" });
     });
@@ -651,7 +665,6 @@ describe("GitService", () => {
 
         return "";
       },
-      showInformationMessage: vi.fn().mockResolvedValue("Force Push"),
       showQuickPickWithInput: (items) => showQuickPick(items, { placeHolder: "Select remote branch to push" }),
       showQuickPick
     });
@@ -706,17 +719,16 @@ describe("GitService", () => {
 
   it("cancels advanced force push when confirmation is dismissed", async () => {
     const calls: string[] = [];
-    const showInformationMessage = vi.fn().mockResolvedValue(undefined);
     const showQuickPick = vi
       .fn()
       .mockResolvedValueOnce({ label: "origin/feature", value: "origin/feature" })
-      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" });
+      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" })
+      .mockResolvedValueOnce({ label: "Cancel", value: "cancel" });
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
         return "  origin/feature\n";
       },
-      showInformationMessage,
       showQuickPick
     });
 
@@ -763,7 +775,10 @@ describe("GitService", () => {
       .mockResolvedValueOnce("origin/review")
       .mockResolvedValueOnce("Updated subject")
       .mockResolvedValueOnce("Squashed subject");
-    const showQuickPick = vi.fn().mockResolvedValue({ label: "+ Create new remote branch", value: "__create__" });
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "+ Create new remote branch", value: "__create__" })
+      .mockResolvedValueOnce({ label: "Push Commits", value: "confirm" });
     const showInformationMessage = vi.fn().mockResolvedValue(undefined);
     const showWarningMessage = vi.fn().mockResolvedValue("Continue");
     const service = createService({
@@ -865,7 +880,14 @@ describe("GitService", () => {
       "reset --soft parent000",
       "commit -m Squashed subject"
     ]);
-    expect(showWarningMessage).toHaveBeenCalledTimes(5);
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "Push Commits", value: "confirm" },
+        { label: "Cancel", value: "cancel" }
+      ],
+      { placeHolder: "Push commits up to abc123 to origin/review?" }
+    );
+    expect(showWarningMessage).toHaveBeenCalledTimes(4);
   });
 
   it("offers to checkout a branch after creating it", async () => {

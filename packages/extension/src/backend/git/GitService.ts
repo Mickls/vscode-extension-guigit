@@ -174,12 +174,11 @@ export class GitService {
 
     const remoteTarget = splitRemoteBranch(branch.value);
     if (forceMode.value === "force-with-lease") {
-      const confirmation = await this.showInformationMessage(
+      const confirmed = await this.confirmWithQuickPick(
         `Force push to ${branch.value} with lease?`,
-        "Force Push",
-        "Cancel"
+        "Force Push"
       );
-      if (confirmation !== "Force Push") {
+      if (!confirmed) {
         return { message: "Advanced push cancelled", status: "cancelled" };
       }
     }
@@ -362,7 +361,7 @@ export class GitService {
       return { message: "Push commits cancelled", status: "cancelled" };
     }
 
-    if (!(await this.confirmCommitOperation(`Push commits up to ${hash.slice(0, 8)} to ${target}?`))) {
+    if (!(await this.confirmWithQuickPick(`Push commits up to ${hash.slice(0, 8)} to ${target}?`, "Push Commits"))) {
       return { message: "Push commits cancelled", status: "cancelled" };
     }
 
@@ -676,8 +675,11 @@ export class GitService {
   private async promptPullRequestForCurrentBranch(repositoryRoot: string, pushArgs: readonly string[]): Promise<void> {
     const branch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
     if (branch !== "main" && branch !== "master") {
-      const choice = await this.showInformationMessage(`Pushed ${branch}. Create a pull request?`, "Create Pull Request", "Dismiss");
-      if (choice === "Create Pull Request") {
+      const action = await this.pickQuickPickAction(`Pushed ${branch}. Create a pull request?`, [
+        { label: "Open Pull Request", value: "open-pull-request" },
+        { label: "Dismiss", value: "dismiss" }
+      ]);
+      if (action === "open-pull-request") {
         const remote = remoteFromPushArgs(pushArgs);
         const remoteUrl = (await this.runGitRaw(repositoryRoot, ["remote", "get-url", remote])).trim();
         await this.openExternal(pullRequestUrl(remoteUrl, branch));
@@ -694,6 +696,17 @@ export class GitService {
     this.logger?.info("git.command", {
       command: `git -C ${repositoryRoot} ${args.join(" ")}`
     });
+  }
+
+  private async confirmWithQuickPick(placeHolder: string, confirmLabel: string): Promise<boolean> {
+    return (await this.pickQuickPickAction(placeHolder, [
+      { label: confirmLabel, value: "confirm" },
+      { label: "Cancel", value: "cancel" }
+    ])) === "confirm";
+  }
+
+  private async pickQuickPickAction(placeHolder: string, items: readonly QuickPickItem[]): Promise<string | undefined> {
+    return (await this.showQuickPick(items, { placeHolder }))?.value;
   }
 }
 
@@ -811,7 +824,7 @@ function remoteFromPushArgs(args: readonly string[]): string {
 function pullRequestUrl(remoteUrl: string, branch: string): string {
   const repositoryUrl = repositoryWebUrl(remoteUrl);
   if (repositoryUrl.includes("github.com/")) {
-    return `${repositoryUrl}/pull/new/${branch}`;
+    return `${repositoryUrl}/pull/new/${encodeURIComponent(branch)}`;
   }
 
   if (repositoryUrl.includes("gitlab.com/")) {
