@@ -11,7 +11,7 @@ vi.mock("vscode", () => ({
 }));
 
 describe("GitHistoryViewProvider notifications", () => {
-  it("posts refresh and reveal notifications to the resolved webview", () => {
+  it("posts history, working tree, and reveal notifications to the resolved webview", () => {
     const postMessage = vi.fn();
     const webviewView = createWebviewView(postMessage);
     const provider = new GitHistoryViewProvider(
@@ -30,6 +30,11 @@ describe("GitHistoryViewProvider notifications", () => {
 
     provider.resolveWebviewView(webviewView);
     provider.refresh("command");
+    provider.refresh({
+      reason: "watcher",
+      repositoryId: "/repo",
+      type: "workingTree"
+    });
     provider.revealCommit("abc1234");
 
     expect(webviewView.webview.options).toEqual({
@@ -41,18 +46,33 @@ describe("GitHistoryViewProvider notifications", () => {
       type: "history.changed"
     });
     expect(postMessage).toHaveBeenCalledWith({
+      reason: "watcher",
+      repositoryId: "/repo",
+      type: "workingTree.changed"
+    });
+    expect(postMessage).toHaveBeenCalledWith({
       hash: "abc1234",
       type: "history.revealCommit"
     });
   });
 
-  it("queues reveal notifications until the webview is resolved", () => {
+  it("queues working tree and reveal notifications until the webview is resolved", () => {
     const postMessage = vi.fn();
     const provider = new GitHistoryViewProvider({ extensionUri: { path: "/extension" } } as never);
 
+    provider.refresh({
+      reason: "watcher",
+      repositoryId: "/repo",
+      type: "workingTree"
+    });
     provider.revealCommit("abc1234");
     provider.resolveWebviewView(createWebviewView(postMessage));
 
+    expect(postMessage).toHaveBeenCalledWith({
+      reason: "watcher",
+      repositoryId: "/repo",
+      type: "workingTree.changed"
+    });
     expect(postMessage).toHaveBeenCalledWith({
       hash: "abc1234",
       type: "history.revealCommit"

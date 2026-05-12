@@ -6,36 +6,13 @@ describe("git watchers", () => {
     vi.useRealTimers();
   });
 
-  it("watches git refs and debounces refresh notifications", () => {
+  it("watches git refs and working tree files and debounces working tree notifications", () => {
     vi.useFakeTimers();
     const refresh = vi.fn();
-    const patterns: string[] = [];
-    const callbacks: Record<string, Array<() => void>> = {
-      change: [],
-      create: [],
-      delete: []
-    };
+    const harness = createWatcherHarness();
 
     registerGitWatchers({
-      createFileSystemWatcher: (pattern) => {
-        patterns.push(pattern.pattern);
-
-        return {
-          dispose: vi.fn(),
-          onDidChange: (callback) => {
-            callbacks.change.push(callback);
-            return { dispose: vi.fn() };
-          },
-          onDidCreate: (callback) => {
-            callbacks.create.push(callback);
-            return { dispose: vi.fn() };
-          },
-          onDidDelete: (callback) => {
-            callbacks.delete.push(callback);
-            return { dispose: vi.fn() };
-          }
-        };
-      },
+      createFileSystemWatcher: harness.createFileSystemWatcher,
       createRelativePattern: (_folder, pattern) => ({ pattern }),
       git: {
         onDidOpenRepository: vi.fn(),
@@ -49,7 +26,8 @@ describe("git watchers", () => {
       workspaceFolders: [{ name: "repo", uri: { fsPath: "/workspace/repo" } }]
     });
 
-    expect(patterns).toEqual([
+    expect(harness.patterns()).toEqual([
+      "**",
       ".git/HEAD",
       ".git/refs/heads/**",
       ".git/refs/tags/**",
@@ -57,14 +35,19 @@ describe("git watchers", () => {
       ".git/packed-refs"
     ]);
 
-    callbacks.change[0]!();
-    callbacks.change[0]!();
+    harness.trigger("**", "change", "/workspace/repo/src/file.ts");
+    harness.trigger("**", "create", "/workspace/repo/src/created.ts");
+    harness.trigger("**", "delete", "/workspace/repo/src/deleted.ts");
     vi.advanceTimersByTime(499);
     expect(refresh).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(1);
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(refresh).toHaveBeenCalledWith("watcher");
+    expect(refresh).toHaveBeenCalledWith({
+      reason: "watcher",
+      repositoryId: "/workspace/repo",
+      type: "workingTree"
+    });
   });
 
   it("refreshes for git repository state only when the head commit changes", () => {
@@ -115,7 +98,66 @@ describe("git watchers", () => {
     repositoryStateChanged?.();
     vi.advanceTimersByTime(500);
 
-    expect(refresh).toHaveBeenCalledWith("watcher");
+    expect(refresh).toHaveBeenCalledWith({
+      reason: "watcher",
+      type: "history"
+    });
+  });
+
+  it("keeps git ref history refreshes separate from working tree bursts", () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    const harness = createWatcherHarness();
+
+    registerGitWatchers({
+      createFileSystemWatcher: harness.createFileSystemWatcher,
+      createRelativePattern: (_folder, pattern) => ({ pattern }),
+      logger: {
+        debug: vi.fn()
+      },
+      onDidChangeActiveTextEditor: vi.fn(),
+      refresh,
+      workspaceFolders: [{ name: "repo", uri: { fsPath: "/workspace/repo" } }]
+    });
+
+    harness.trigger("**", "change", "/workspace/repo/src/file.ts");
+    harness.trigger(".git/refs/heads/**", "change", "/workspace/repo/.git/refs/heads/main");
+    harness.trigger(".git/refs/heads/**", "delete", "/workspace/repo/.git/refs/heads/old-branch");
+    vi.advanceTimersByTime(500);
+
+    expect(refresh.mock.calls).toEqual([
+      [{ reason: "watcher", type: "history" }],
+      [{
+        reason: "watcher",
+        repositoryId: "/workspace/repo",
+        type: "workingTree"
+      }]
+    ]);
+  });
+
+  it("ignores git internals for working tree change notifications", () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    const harness = createWatcherHarness();
+
+    registerGitWatchers({
+      createFileSystemWatcher: harness.createFileSystemWatcher,
+      createRelativePattern: (_folder, pattern) => ({ pattern }),
+      logger: {
+        debug: vi.fn()
+      },
+      onDidChangeActiveTextEditor: vi.fn(),
+      refresh,
+      workspaceFolders: [{ name: "repo", uri: { fsPath: "/workspace/repo" } }]
+    });
+
+    harness.trigger("**", "change", "/workspace/repo/.git/HEAD");
+    harness.trigger(".git/HEAD", "change", "/workspace/repo/.git/HEAD");
+    vi.advanceTimersByTime(500);
+
+    expect(refresh.mock.calls).toEqual([
+      [{ reason: "watcher", type: "history" }]
+    ]);
   });
 
   it("ignores active editor changes for diff and virtual documents", () => {
@@ -151,7 +193,11 @@ describe("git watchers", () => {
     activeEditorChanged?.({ document: { uri: { fsPath: "/workspace/repo/src/file.ts", scheme: "file" } } });
     vi.advanceTimersByTime(500);
 
-    expect(refresh).toHaveBeenCalledWith("watcher");
+    expect(refresh).toHaveBeenCalledWith({
+      reason: "watcher",
+      repositoryId: "/workspace/repo",
+      type: "workingTree"
+    });
   });
 
   it("ignores active editor changes that stay inside the same workspace folder", () => {
@@ -186,7 +232,7 @@ describe("git watchers", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("refreshes when the active editor moves to a different workspace folder", () => {
+  it("emits a working tree change when the active editor moves to a different workspace folder", () => {
     vi.useFakeTimers();
     const refresh = vi.fn();
     let activeEditorChanged: ((editor: unknown) => void) | undefined;
@@ -217,6 +263,50 @@ describe("git watchers", () => {
     activeEditorChanged?.({ document: { uri: { fsPath: "/workspace/repo-b/src/current.ts", scheme: "file" } } });
     vi.advanceTimersByTime(500);
 
-    expect(refresh).toHaveBeenCalledWith("watcher");
+    expect(refresh).toHaveBeenCalledWith({
+      reason: "watcher",
+      repositoryId: "/workspace/repo-b",
+      type: "workingTree"
+    });
   });
 });
+
+type WatchEvent = "change" | "create" | "delete";
+type WatchCallback = (uri: { fsPath: string }) => void;
+
+function createWatcherHarness() {
+  const watchers = new Map<string, Record<WatchEvent, WatchCallback[]>>();
+
+  return {
+    createFileSystemWatcher: (pattern: { pattern: string }) => {
+      const callbacks: Record<WatchEvent, WatchCallback[]> = {
+        change: [],
+        create: [],
+        delete: []
+      };
+      watchers.set(pattern.pattern, callbacks);
+
+      return {
+        dispose: vi.fn(),
+        onDidChange: (callback: WatchCallback) => {
+          callbacks.change.push(callback);
+          return { dispose: vi.fn() };
+        },
+        onDidCreate: (callback: WatchCallback) => {
+          callbacks.create.push(callback);
+          return { dispose: vi.fn() };
+        },
+        onDidDelete: (callback: WatchCallback) => {
+          callbacks.delete.push(callback);
+          return { dispose: vi.fn() };
+        }
+      };
+    },
+    patterns: () => [...watchers.keys()],
+    trigger: (pattern: string, event: WatchEvent, fsPath: string) => {
+      for (const callback of watchers.get(pattern)?.[event] ?? []) {
+        callback({ fsPath });
+      }
+    }
+  };
+}

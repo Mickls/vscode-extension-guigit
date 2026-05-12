@@ -1,5 +1,5 @@
 import type { Disposable } from "vscode";
-import { isAbsolute, relative } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import type { Logger } from "../logging/LoggerService";
 
 export interface RelativePatternLike {
@@ -14,9 +14,9 @@ export interface WorkspaceFolderLike {
 }
 
 export interface FileSystemWatcherLike extends Disposable {
-  onDidChange(callback: () => void): Disposable;
-  onDidCreate(callback: () => void): Disposable;
-  onDidDelete(callback: () => void): Disposable;
+  onDidChange(callback: (uri: { fsPath: string }) => void): Disposable;
+  onDidCreate(callback: (uri: { fsPath: string }) => void): Disposable;
+  onDidDelete(callback: (uri: { fsPath: string }) => void): Disposable;
 }
 
 export interface GitRepositoryLike {
@@ -41,9 +41,20 @@ export interface GitWatchersInput {
   initialActiveTextEditor?: () => unknown;
   logger: Pick<Logger, "debug">;
   onDidChangeActiveTextEditor(callback: (editor: unknown) => void): Disposable;
-  refresh(reason: "watcher"): void;
+  refresh(request: WatcherRefreshRequest): void;
   workspaceFolders: readonly WorkspaceFolderLike[];
 }
+
+export type WatcherRefreshRequest =
+  | {
+      reason: "watcher";
+      type: "history";
+    }
+  | {
+      reason: "watcher";
+      repositoryId?: string;
+      type: "workingTree";
+    };
 
 interface ActiveEditorLike {
   document: {
@@ -59,6 +70,38 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
   let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
   const debounceMs = input.debounceMs ?? 500;
   let activeWorkspaceRoot = workspaceRootForEditor(input, input.initialActiveTextEditor?.());
+  let pendingHistoryRefresh = false;
+  let pendingWorkingTreeRefresh = false;
+  let pendingWorkingTreeHasUnscopedChange = false;
+  const pendingWorkingTreeRepositoryIds = new Set<string>();
+
+  const flushRefreshes = () => {
+    refreshTimeout = undefined;
+
+    if (pendingHistoryRefresh) {
+      input.refresh({
+        reason: "watcher",
+        type: "history"
+      });
+    }
+
+    if (pendingWorkingTreeRefresh) {
+      const nextRepositoryId = pendingWorkingTreeRepositoryIds.values().next();
+      input.refresh({
+        reason: "watcher",
+        repositoryId:
+          pendingWorkingTreeHasUnscopedChange || pendingWorkingTreeRepositoryIds.size !== 1 || nextRepositoryId.done
+            ? undefined
+            : nextRepositoryId.value,
+        type: "workingTree"
+      });
+    }
+
+    pendingHistoryRefresh = false;
+    pendingWorkingTreeRefresh = false;
+    pendingWorkingTreeHasUnscopedChange = false;
+    pendingWorkingTreeRepositoryIds.clear();
+  };
 
   const scheduleRefresh = (reason: string) => {
     input.logger.debug("watcher.refreshScheduled", { reason });
@@ -67,8 +110,23 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
     }
 
     refreshTimeout = setTimeout(() => {
-      input.refresh("watcher");
+      flushRefreshes();
     }, debounceMs);
+  };
+
+  const scheduleHistoryRefresh = (reason: string) => {
+    pendingHistoryRefresh = true;
+    scheduleRefresh(reason);
+  };
+
+  const scheduleWorkingTreeRefresh = (reason: string, repositoryId?: string) => {
+    pendingWorkingTreeRefresh = true;
+    if (repositoryId) {
+      pendingWorkingTreeRepositoryIds.add(repositoryId);
+    } else {
+      pendingWorkingTreeHasUnscopedChange = true;
+    }
+    scheduleRefresh(reason);
   };
 
   disposables.push(
@@ -76,28 +134,41 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
       const workspaceRoot = workspaceRootForEditor(input, editor);
       if (workspaceRoot && workspaceRoot !== activeWorkspaceRoot) {
         activeWorkspaceRoot = workspaceRoot;
-        scheduleRefresh("active editor changed");
+        scheduleWorkingTreeRefresh("active editor changed", workspaceRoot);
       }
     })
   );
 
   for (const folder of input.workspaceFolders) {
+    const workingTreeWatcher = input.createFileSystemWatcher(input.createRelativePattern(folder, "**"));
+    const onWorkingTreeFileEvent = (uri: { fsPath: string }) => {
+      if (isPathInside(uri.fsPath, join(folder.uri.fsPath, ".git"))) {
+        return;
+      }
+
+      scheduleWorkingTreeRefresh("working tree changed", folder.uri.fsPath);
+    };
+    workingTreeWatcher.onDidChange(onWorkingTreeFileEvent);
+    workingTreeWatcher.onDidCreate(onWorkingTreeFileEvent);
+    workingTreeWatcher.onDidDelete(onWorkingTreeFileEvent);
+    disposables.push(workingTreeWatcher);
+
     const headWatcher = input.createFileSystemWatcher(input.createRelativePattern(folder, ".git/HEAD"));
-    headWatcher.onDidChange(() => scheduleRefresh("HEAD changed"));
+    headWatcher.onDidChange(() => scheduleHistoryRefresh("HEAD changed"));
     disposables.push(headWatcher);
 
     for (const pattern of [".git/refs/heads/**", ".git/refs/tags/**", ".git/refs/remotes/**"]) {
       const refsWatcher = input.createFileSystemWatcher(input.createRelativePattern(folder, pattern));
-      refsWatcher.onDidChange(() => scheduleRefresh(`${pattern} changed`));
-      refsWatcher.onDidCreate(() => scheduleRefresh(`${pattern} created`));
-      refsWatcher.onDidDelete(() => scheduleRefresh(`${pattern} deleted`));
+      refsWatcher.onDidChange(() => scheduleHistoryRefresh(`${pattern} changed`));
+      refsWatcher.onDidCreate(() => scheduleHistoryRefresh(`${pattern} created`));
+      refsWatcher.onDidDelete(() => scheduleHistoryRefresh(`${pattern} deleted`));
       disposables.push(refsWatcher);
     }
 
     const packedRefsWatcher = input.createFileSystemWatcher(input.createRelativePattern(folder, ".git/packed-refs"));
-    packedRefsWatcher.onDidChange(() => scheduleRefresh("packed refs changed"));
-    packedRefsWatcher.onDidCreate(() => scheduleRefresh("packed refs created"));
-    packedRefsWatcher.onDidDelete(() => scheduleRefresh("packed refs deleted"));
+    packedRefsWatcher.onDidChange(() => scheduleHistoryRefresh("packed refs changed"));
+    packedRefsWatcher.onDidCreate(() => scheduleHistoryRefresh("packed refs created"));
+    packedRefsWatcher.onDidDelete(() => scheduleHistoryRefresh("packed refs deleted"));
     disposables.push(packedRefsWatcher);
   }
 
@@ -109,7 +180,7 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
           const nextHeadCommit = repository.state.HEAD?.commit;
           if (nextHeadCommit !== headCommit) {
             headCommit = nextHeadCommit;
-            scheduleRefresh("repository HEAD changed");
+            scheduleHistoryRefresh("repository HEAD changed");
           }
         })
       );
@@ -118,7 +189,6 @@ export function registerGitWatchers(input: GitWatchersInput): readonly Disposabl
     disposables.push(
       input.git.onDidOpenRepository((repository) => {
         registerRepository(repository);
-        scheduleRefresh("repository opened");
       })
     );
     input.git.repositories.forEach(registerRepository);

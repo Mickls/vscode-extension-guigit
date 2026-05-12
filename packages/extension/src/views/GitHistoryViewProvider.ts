@@ -6,6 +6,20 @@ import { createRpcRouter, type RpcRouter } from "../backend/rpc/router";
 import type { FileHistoryPanel } from "../backend/vscode/FileHistoryPanel";
 import { createWebviewShellHtml } from "./webviewShellHtml";
 
+type HistoryRefreshReason = Extract<BackendNotification, { type: "history.changed" }>["reason"];
+type WorkingTreeChangedNotification = Extract<BackendNotification, { type: "workingTree.changed" }>;
+type RefreshRequest =
+  | HistoryRefreshReason
+  | {
+      reason: "watcher";
+      type: "history";
+    }
+  | {
+      reason: WorkingTreeChangedNotification["reason"];
+      repositoryId?: string;
+      type: "workingTree";
+    };
+
 export class GitHistoryViewProvider implements WebviewViewProvider {
   public static readonly viewType = "guigit.historyView";
   private pendingNotifications: BackendNotification[] = [];
@@ -31,7 +45,24 @@ export class GitHistoryViewProvider implements WebviewViewProvider {
     this.flushPendingNotifications();
   }
 
-  public refresh(reason: "command" | "watcher" | "operation" = "command"): void {
+  public refresh(reason: RefreshRequest = "command"): void {
+    if (typeof reason !== "string") {
+      if (reason.type === "history") {
+        void this.postNotification({
+          reason: reason.reason,
+          type: "history.changed"
+        });
+        return;
+      }
+
+      void this.postNotification({
+        reason: reason.reason,
+        repositoryId: reason.repositoryId,
+        type: "workingTree.changed"
+      });
+      return;
+    }
+
     void this.postNotification({
       reason,
       type: "history.changed"
