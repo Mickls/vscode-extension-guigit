@@ -131,6 +131,8 @@ Toggle inline blame in the editor, inspect the blamed commit from hover, open it
 | `guigit.proxy.https`                 | string                                           | HTTPS proxy URL, for example `http://127.0.0.1:7890`.                          |
 | `guigit.proxy.noProxy`               | string                                           | Comma-separated hosts that bypass the proxy.                                   |
 | `guigit.ai.provider`                 | `vscodeLanguageModel`, `openAICompatible`        | Provider used by **Generate** in the commit message box.                       |
+| `guigit.ai.commitMessagePrompt.mode` | `default`, `custom`                              | Prompt rule mode used by commit message generation.                            |
+| `guigit.ai.commitMessagePrompt.customRules` | string                                    | Custom prompt rules used when prompt mode is `custom`.                         |
 | `guigit.ai.openAICompatible.baseUrl` | string                                           | Base URL for an OpenAI-compatible chat completions endpoint.                   |
 | `guigit.ai.openAICompatible.model`   | string                                           | Model name for the OpenAI-compatible provider.                                 |
 | `guigit.blame.enabled`               | boolean                                          | Enable inline Git blame annotations.                                           |

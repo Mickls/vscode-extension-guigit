@@ -6,6 +6,8 @@ const apiKeySecretKey = "guigit.ai.openAICompatible.apiKey";
 describe("SettingsService", () => {
   it("reads GUI Git History settings from configuration", () => {
     const { configuration } = createConfiguration({
+      "ai.commitMessagePrompt.customRules": "Use imperative mood.",
+      "ai.commitMessagePrompt.mode": "custom",
       "ai.openAICompatible.baseUrl": "https://api.example.com/v1",
       "ai.openAICompatible.model": "gpt-test",
       "ai.openAICompatible.protocol": "chatCompletions",
@@ -38,6 +40,10 @@ describe("SettingsService", () => {
       },
       ai: {
         provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "Use imperative mood.",
+          mode: "custom"
+        },
         openAICompatible: {
           baseUrl: "https://api.example.com/v1",
           configured: true,
@@ -107,6 +113,10 @@ describe("SettingsService", () => {
     await service.updateSettings({
       ai: {
         provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "",
+          mode: "default"
+        },
         openAICompatible: {
           baseUrl: "https://api.example.com/v1",
           configured: true,
@@ -118,6 +128,8 @@ describe("SettingsService", () => {
 
     expect(updates).toEqual([
       { key: "ai.provider", value: "openAICompatible" },
+      { key: "ai.commitMessagePrompt.mode", value: "default" },
+      { key: "ai.commitMessagePrompt.customRules", value: "" },
       { key: "ai.openAICompatible.protocol", value: "chatCompletions" },
       { key: "ai.openAICompatible.baseUrl", value: "https://api.example.com/v1" },
       { key: "ai.openAICompatible.model", value: "gpt-test" }
@@ -139,6 +151,10 @@ describe("SettingsService", () => {
     await service.updateSettings({
       ai: {
         provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "Use imperative mood.",
+          mode: "custom"
+        },
         openAICompatible: {
           apiKey: "sk-new",
           baseUrl: "https://api.openai.com",
@@ -151,6 +167,8 @@ describe("SettingsService", () => {
 
     expect(updates).toEqual([
       { key: "ai.provider", value: "openAICompatible" },
+      { key: "ai.commitMessagePrompt.mode", value: "custom" },
+      { key: "ai.commitMessagePrompt.customRules", value: "Use imperative mood." },
       { key: "ai.openAICompatible.protocol", value: "responses" },
       { key: "ai.openAICompatible.baseUrl", value: "https://api.openai.com" },
       { key: "ai.openAICompatible.model", value: "gpt-test" }
@@ -167,6 +185,10 @@ describe("SettingsService", () => {
     await service.updateSettings({
       ai: {
         provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "",
+          mode: "default"
+        },
         openAICompatible: {
           baseUrl: "https://api.openai.com",
           configured: true,

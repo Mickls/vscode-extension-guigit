@@ -93,6 +93,7 @@ export class CommitMessageAiService {
   }
 
   private async buildPrompt(repositoryRoot: string): Promise<string> {
+    const settings = this.settingsService.getSettings();
     const [statOutput, nameStatusOutput] = await Promise.all([
       this.gitRaw(repositoryRoot, ["diff", "--cached", "--stat"]),
       this.gitRaw(repositoryRoot, ["diff", "--cached", "--name-status"])
@@ -102,10 +103,13 @@ export class CommitMessageAiService {
       .filter(Boolean)
       .map((line) => line.split("\t").at(-1)!)
       .filter(Boolean);
+    const promptRules =
+      settings.ai.commitMessagePrompt.mode === "custom"
+        ? settings.ai.commitMessagePrompt.customRules.trim()
+        : defaultCommitMessagePromptRules;
 
     return [
-      "Write one conventional commit message line.",
-      "Return exactly one line with no markdown, no code fences, and no explanation.",
+      promptRules,
       "",
       "Staged file paths:",
       ...filePaths.map((path) => `- ${path}`),
@@ -115,3 +119,8 @@ export class CommitMessageAiService {
     ].join("\n");
   }
 }
+
+const defaultCommitMessagePromptRules = [
+  "Write one conventional commit message line.",
+  "Return exactly one line with no markdown, no code fences, and no explanation."
+].join("\n");

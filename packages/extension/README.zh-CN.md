@@ -131,6 +131,8 @@ GUI Git History 的目标，是把这种实用的、接近 JetBrains 风格的�
 | `guigit.proxy.https`                 | string                                           | HTTPS 代理地址，例如 `http://127.0.0.1:7890`。            |
 | `guigit.proxy.noProxy`               | string                                           | 不走代理的主机，使用逗号分隔。                            |
 | `guigit.ai.provider`                 | `vscodeLanguageModel`, `openAICompatible`        | 提交信息输入框中 **Generate** 使用的 provider。           |
+| `guigit.ai.commitMessagePrompt.mode` | `default`, `custom`                              | 生成提交消息时使用的提示词规则模式。                      |
+| `guigit.ai.commitMessagePrompt.customRules` | string                                    | `custom` 模式下使用的自定义提示词规则。                   |
 | `guigit.ai.openAICompatible.baseUrl` | string                                           | OpenAI-compatible chat completions endpoint 的 base URL。 |
 | `guigit.ai.openAICompatible.model`   | string                                           | OpenAI-compatible provider 使用的模型名。                 |
 | `guigit.blame.enabled`               | boolean                                          | 启用行内 Git blame 标注。                                 |

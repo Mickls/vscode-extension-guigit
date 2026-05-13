@@ -22,6 +22,13 @@ describe("AiProviderPanel", () => {
     expect(screen.getByText("POST https://api.openai.com/v1/responses")).toBeInTheDocument();
   });
 
+  it("keeps the panel body scrollable so footer actions remain reachable", () => {
+    render(<AiProviderPanel open settings={settings} />);
+
+    expect(screen.getByLabelText("API protocol").closest("div")).toHaveClass("overflow-y-auto");
+    expect(screen.getByRole("button", { name: "Save" }).closest("div")).toHaveClass("shrink-0");
+  });
+
   it("sends save, test, and close intents", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -44,6 +51,8 @@ describe("AiProviderPanel", () => {
     await user.clear(screen.getByLabelText("Model"));
     await user.type(screen.getByLabelText("Model"), "claude-test");
     await user.type(screen.getByLabelText("API key"), "sk-ant-test");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Commit message prompt" }), "custom");
+    await user.type(screen.getByLabelText("Custom prompt rules"), "Use imperative mood.");
     await user.click(screen.getByRole("button", { name: "Test" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     await user.click(screen.getByRole("button", { name: "Close Configure AI Provider" }));
@@ -51,6 +60,10 @@ describe("AiProviderPanel", () => {
     expect(onTest).toHaveBeenCalledOnce();
     expect(onSave).toHaveBeenCalledWith({
       provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "Use imperative mood.",
+        mode: "custom"
+      },
       openAICompatible: {
         apiKey: "sk-ant-test",
         baseUrl: "https://api.anthropic.com",
@@ -93,6 +106,10 @@ describe("AiProviderPanel", () => {
 
 const settings = {
   provider: "openAICompatible",
+  commitMessagePrompt: {
+    customRules: "",
+    mode: "default"
+  },
   openAICompatible: {
     baseUrl: "https://api.openai.com",
     configured: true,

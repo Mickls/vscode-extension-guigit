@@ -64,6 +64,8 @@ describe("package manifest", () => {
     expect(manifest.contributes.configuration.properties).toEqual(
       expect.objectContaining({
         "guigit.ai.provider": expect.any(Object),
+        "guigit.ai.commitMessagePrompt.customRules": expect.any(Object),
+        "guigit.ai.commitMessagePrompt.mode": expect.any(Object),
         "guigit.ai.openAICompatible.baseUrl": expect.any(Object),
         "guigit.ai.openAICompatible.model": expect.any(Object),
         "guigit.ai.openAICompatible.protocol": expect.any(Object)

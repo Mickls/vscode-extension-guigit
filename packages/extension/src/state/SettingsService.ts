@@ -1,6 +1,7 @@
 import type {
   AutoStashPreference,
   AiProviderKind,
+  CommitMessagePromptMode,
   FileViewMode,
   HttpAiProviderProtocol,
   LanguagePreference,
@@ -10,6 +11,8 @@ import type {
 
 export type SettingsConfigurationKey =
   | "ai.provider"
+  | "ai.commitMessagePrompt.customRules"
+  | "ai.commitMessagePrompt.mode"
   | "ai.openAICompatible.baseUrl"
   | "ai.openAICompatible.model"
   | "ai.openAICompatible.protocol"
@@ -53,6 +56,8 @@ export class SettingsService {
 
   public getSettings(): SettingsViewModel {
     const provider = (this.configuration.get("ai.provider") ?? "vscodeLanguageModel") as AiProviderKind;
+    const commitMessagePromptMode = (this.configuration.get("ai.commitMessagePrompt.mode") ?? "default") as CommitMessagePromptMode;
+    const customCommitMessagePromptRules = (this.configuration.get("ai.commitMessagePrompt.customRules") ?? "") as string;
     const baseUrl = (this.configuration.get("ai.openAICompatible.baseUrl") ?? "") as string;
     const model = (this.configuration.get("ai.openAICompatible.model") ?? "") as string;
     const protocol = (this.configuration.get("ai.openAICompatible.protocol") ?? "chatCompletions") as HttpAiProviderProtocol;
@@ -66,6 +71,10 @@ export class SettingsService {
       language: (this.configuration.get("language") ?? "auto") as LanguagePreference,
       ai: {
         provider,
+        commitMessagePrompt: {
+          customRules: customCommitMessagePromptRules,
+          mode: commitMessagePromptMode
+        },
         openAICompatible: {
           baseUrl,
           configured: baseUrl.length > 0 && model.length > 0,
@@ -97,6 +106,8 @@ export class SettingsService {
 
     if (settings.ai !== undefined) {
       await this.configuration.update("ai.provider", settings.ai.provider);
+      await this.configuration.update("ai.commitMessagePrompt.mode", settings.ai.commitMessagePrompt.mode);
+      await this.configuration.update("ai.commitMessagePrompt.customRules", settings.ai.commitMessagePrompt.customRules);
       await this.configuration.update("ai.openAICompatible.protocol", settings.ai.openAICompatible.protocol);
       await this.configuration.update("ai.openAICompatible.baseUrl", settings.ai.openAICompatible.baseUrl);
       await this.configuration.update("ai.openAICompatible.model", settings.ai.openAICompatible.model);

@@ -60,6 +60,10 @@ const defaultFileViewMode: FileViewMode = "list";
 const emptyI18nMessages: I18nMessages = {};
 const defaultAiSettings: AiProviderSettingsViewModel = {
   provider: "openAICompatible",
+  commitMessagePrompt: {
+    customRules: "",
+    mode: "default"
+  },
   openAICompatible: {
     baseUrl: "",
     configured: false,
@@ -865,6 +869,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
     }
 
     if (action === "configureAiProvider") {
+      requestSettings(client);
       setAiProviderPanelOpen(true);
       return;
     }
@@ -1525,8 +1530,16 @@ export function App({ rpcClient }: AppProps): ReactElement {
           apiKeyPlaceholder: tx("aiProviderPanel.apiKeyPlaceholder", "Leave unchanged unless replacing the stored key"),
           cancel: tx("aiProviderPanel.cancel", "Cancel"),
           close: tx("aiProviderPanel.close", "Close Configure AI Provider"),
+          customPromptRules: tx("aiProviderPanel.customPromptRules", "Custom prompt rules"),
+          customPromptRulesPlaceholder: tx(
+            "aiProviderPanel.customPromptRulesPlaceholder",
+            "Return one concise conventional commit message line."
+          ),
           description: tx("aiProviderPanel.description", "Choose the HTTP AI API used to generate commit messages."),
           model: tx("aiProviderPanel.model", "Model"),
+          promptMode: tx("aiProviderPanel.promptMode", "Commit message prompt"),
+          promptModeCustom: tx("aiProviderPanel.promptModeCustom", "Custom"),
+          promptModeDefault: tx("aiProviderPanel.promptModeDefault", "Default"),
           protocol: tx("aiProviderPanel.protocol", "API protocol"),
           requestPreview: tx("aiProviderPanel.requestPreview", "Request preview"),
           save: tx("aiProviderPanel.save", "Save"),

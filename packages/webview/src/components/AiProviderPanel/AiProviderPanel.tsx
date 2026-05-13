@@ -1,6 +1,10 @@
 import type { FormEvent, ReactElement } from "react";
 import { useEffect, useState } from "react";
-import type { AiProviderSettingsViewModel, HttpAiProviderProtocol } from "../../app/rpcContract.generated";
+import type {
+  AiProviderSettingsViewModel,
+  CommitMessagePromptMode,
+  HttpAiProviderProtocol
+} from "../../app/rpcContract.generated";
 import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface AiProviderPanelProps {
@@ -20,8 +24,13 @@ export interface AiProviderPanelLabels {
   apiHost: string;
   cancel: string;
   close: string;
+  customPromptRules: string;
+  customPromptRulesPlaceholder: string;
   description: string;
   model: string;
+  promptMode: string;
+  promptModeCustom: string;
+  promptModeDefault: string;
   protocol: string;
   requestPreview: string;
   save: string;
@@ -52,7 +61,13 @@ export function AiProviderPanel({
   const [baseUrl, setBaseUrl] = useState(settings.openAICompatible.baseUrl);
   const [model, setModel] = useState(settings.openAICompatible.model);
   const [apiKey, setApiKey] = useState("");
+  const [promptMode, setPromptMode] = useState<CommitMessagePromptMode>(settings.commitMessagePrompt.mode);
+  const [customPromptRules, setCustomPromptRules] = useState(settings.commitMessagePrompt.customRules);
   const busy = saving || testing;
+  const localizedPromptModeLabels = {
+    custom: text.promptModeCustom,
+    default: text.promptModeDefault
+  } as const satisfies Record<CommitMessagePromptMode, string>;
 
   useEffect(() => {
     if (!open) {
@@ -63,6 +78,8 @@ export function AiProviderPanel({
     setBaseUrl(settings.openAICompatible.baseUrl);
     setModel(settings.openAICompatible.model);
     setApiKey("");
+    setPromptMode(settings.commitMessagePrompt.mode);
+    setCustomPromptRules(settings.commitMessagePrompt.customRules);
   }, [open, settings]);
 
   if (!open) {
@@ -74,6 +91,10 @@ export function AiProviderPanel({
     const trimmedApiKey = apiKey.trim();
     onSave?.({
       provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: customPromptRules.trim(),
+        mode: promptMode
+      },
       openAICompatible: {
         ...(trimmedApiKey.length > 0 ? { apiKey: trimmedApiKey } : {}),
         baseUrl: baseUrl.trim(),
@@ -93,7 +114,7 @@ export function AiProviderPanel({
         onSubmit={save}
         role="dialog"
       >
-        <div className="flex justify-between gap-4 border-b border-[var(--vscode-panel-border)] px-5 py-4">
+        <div className="flex shrink-0 justify-between gap-4 border-b border-[var(--vscode-panel-border)] px-5 py-4">
           <div>
             <h3 className="m-0 text-base" id="ai-provider-panel-title">
               {text.title}
@@ -113,7 +134,7 @@ export function AiProviderPanel({
             <IconTooltip label={text.close} placement="bottom" />
           </button>
         </div>
-        <div className="grid gap-3 px-5 py-4">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-5 py-4">
           <label className={labelClassName}>
             <span>{text.protocol}</span>
             <select
@@ -129,6 +150,33 @@ export function AiProviderPanel({
               ))}
             </select>
           </label>
+          <label className={labelClassName}>
+            <span>{text.promptMode}</span>
+            <select
+              aria-label={text.promptMode}
+              className={inputClassName}
+              onChange={(event) => setPromptMode(event.target.value as CommitMessagePromptMode)}
+              value={promptMode}
+            >
+              {Object.entries(localizedPromptModeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {promptMode === "custom" ? (
+            <label className={labelClassName}>
+              <span>{text.customPromptRules}</span>
+              <textarea
+                aria-label={text.customPromptRules}
+                className={`${inputClassName} min-h-24 resize-y`}
+                onChange={(event) => setCustomPromptRules(event.target.value)}
+                placeholder={text.customPromptRulesPlaceholder}
+                value={customPromptRules}
+              />
+            </label>
+          ) : null}
           <div className="grid grid-cols-2 gap-3">
             <label className={labelClassName}>
               <span>{text.apiHost}</span>
@@ -171,7 +219,7 @@ export function AiProviderPanel({
             </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t border-[var(--vscode-panel-border)] px-5 py-4">
+        <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--vscode-panel-border)] px-5 py-4">
           <button className={secondaryButtonClassName} disabled={busy} onClick={onClose} type="button">
             {text.cancel}
           </button>
@@ -221,8 +269,13 @@ const defaultLabels: AiProviderPanelLabels = {
   apiKeyPlaceholder: "Leave unchanged unless replacing the stored key",
   cancel: "Cancel",
   close: "Close Configure AI Provider",
+  customPromptRules: "Custom prompt rules",
+  customPromptRulesPlaceholder: "Return one concise conventional commit message line.",
   description: "Choose the HTTP AI API used to generate commit messages.",
   model: "Model",
+  promptMode: "Commit message prompt",
+  promptModeCustom: "Custom",
+  promptModeDefault: "Default",
   protocol: "API protocol",
   requestPreview: "Request preview",
   save: "Save",

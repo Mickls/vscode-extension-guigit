@@ -69,6 +69,7 @@ export type GitResetMode = "soft" | "mixed" | "hard";
 export type WorkingTreeFileArea = "staged" | "unstaged" | "untracked" | "stash";
 export type WorkingTreeDiffKind = "staged" | "unstaged";
 export type AiProviderKind = "vscodeLanguageModel" | "openAICompatible";
+export type CommitMessagePromptMode = "default" | "custom";
 export type HttpAiProviderProtocol = "chatCompletions" | "responses" | "claudeMessages";
 
 export interface RpcEnvelope {
@@ -214,6 +215,7 @@ export interface ProxySettingsViewModel {
 
 export interface AiProviderSettingsViewModel {
   provider: AiProviderKind;
+  commitMessagePrompt: CommitMessagePromptSettingsViewModel;
   openAICompatible: {
     apiKey?: string;
     baseUrl: string;
@@ -221,6 +223,11 @@ export interface AiProviderSettingsViewModel {
     configured: boolean;
     protocol: HttpAiProviderProtocol;
   };
+}
+
+export interface CommitMessagePromptSettingsViewModel {
+  customRules: string;
+  mode: CommitMessagePromptMode;
 }
 
 export interface CommitMessageSuggestionViewModel {

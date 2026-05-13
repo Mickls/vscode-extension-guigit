@@ -83,6 +83,45 @@ describe("CommitMessageAiService", () => {
     });
   });
 
+  it("uses custom prompt rules when configured", async () => {
+    const languageModelProvider = {
+      generate: vi.fn().mockResolvedValue("refactor: simplify history cache")
+    };
+    const service = new CommitMessageAiService({
+      gitRaw: vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+        if (args.join(" ") === "diff --cached --stat") {
+          return " src/cache.ts | 4 ++--";
+        }
+
+        if (args.join(" ") === "diff --cached --name-status") {
+          return "M\tsrc/cache.ts\n";
+        }
+
+        return "";
+      }),
+      languageModelProvider,
+      openAICompatibleProvider: {
+        generate: vi.fn()
+      },
+      settingsService: createSettingsService("vscodeLanguageModel", undefined, {
+        customRules: "Use refactor type and mention cache behavior.",
+        mode: "custom"
+      })
+    });
+
+    await service.generate("/repo");
+
+    expect(languageModelProvider.generate).toHaveBeenCalledWith(
+      expect.stringContaining("Use refactor type and mention cache behavior.")
+    );
+    expect(languageModelProvider.generate).toHaveBeenCalledWith(
+      expect.stringContaining("src/cache.ts")
+    );
+    expect(languageModelProvider.generate).not.toHaveBeenCalledWith(
+      expect.stringContaining("one conventional commit message line")
+    );
+  });
+
   it("returns a cancelled result when the OpenAI-compatible API key is missing", async () => {
     const service = new CommitMessageAiService({
       gitRaw: vi.fn(),
@@ -104,18 +143,26 @@ describe("CommitMessageAiService", () => {
 
 function createSettingsService(
   provider: AiProviderKind,
-  apiKey?: string
+  apiKey?: string,
+  commitMessagePrompt: SettingsViewModel["ai"]["commitMessagePrompt"] = {
+    customRules: "",
+    mode: "default"
+  }
 ): CommitMessageAiServiceInput["settingsService"] {
   return {
     getOpenAICompatibleApiKey: async () => apiKey,
-    getSettings: () => createSettings(provider)
+    getSettings: () => createSettings(provider, commitMessagePrompt)
   };
 }
 
-function createSettings(provider: AiProviderKind): SettingsViewModel {
+function createSettings(
+  provider: AiProviderKind,
+  commitMessagePrompt: SettingsViewModel["ai"]["commitMessagePrompt"]
+): SettingsViewModel {
   return {
     autoStashOnPull: "ask",
     ai: {
+      commitMessagePrompt,
       openAICompatible: {
         baseUrl: "https://api.openai.com",
         configured: provider === "openAICompatible",

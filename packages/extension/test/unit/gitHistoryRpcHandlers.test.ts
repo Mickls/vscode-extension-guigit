@@ -1318,6 +1318,10 @@ function createSettings(mode: "tree" | "list") {
     autoStashOnPull: "ask",
     ai: {
       provider: "vscodeLanguageModel",
+      commitMessagePrompt: {
+        customRules: "",
+        mode: "default"
+      },
       openAICompatible: {
         baseUrl: "",
         configured: false,

@@ -132,6 +132,10 @@ describe("App", () => {
       settings: {
         ai: {
           provider: "openAICompatible",
+          commitMessagePrompt: {
+            customRules: "",
+            mode: "default"
+          },
           openAICompatible: {
             apiKey: "sk-ant-test",
             baseUrl: "https://api.anthropic.com",
@@ -143,6 +147,55 @@ describe("App", () => {
       },
       type: "settings.update"
     }));
+  });
+
+  it("refreshes saved AI provider settings when opening the panel without exposing the API key", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    const bootstrapSettingsRequest = latestRequest(rpcClient, "settings.get");
+    dispatchSettingsResponse(bootstrapSettingsRequest.id, "tree", "settings.get", undefined, {
+      provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "",
+        mode: "default"
+      },
+      openAICompatible: {
+        baseUrl: "",
+        configured: false,
+        model: "",
+        protocol: "chatCompletions"
+      }
+    });
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configure AI Provider" }));
+
+    const panelSettingsRequest = latestRequest(rpcClient, "settings.get");
+    dispatchSettingsResponse(panelSettingsRequest.id, "tree", "settings.get", undefined, {
+      provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "Use imperative mood.",
+        mode: "custom"
+      },
+      openAICompatible: {
+        baseUrl: "https://api.anthropic.com",
+        configured: true,
+        model: "claude-test",
+        protocol: "claudeMessages"
+      }
+    });
+
+    expect(screen.getByRole("combobox", { name: "API protocol" })).toHaveDisplayValue("Anthropic Claude Messages API");
+    expect(screen.getByRole("combobox", { name: "Commit message prompt" })).toHaveDisplayValue("Custom");
+    expect(screen.getByDisplayValue("Use imperative mood.")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("https://api.anthropic.com")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("claude-test")).toBeInTheDocument();
+    expect(screen.getByLabelText("API key")).toHaveValue("");
   });
 
   it("shows AI provider test feedback in the panel while the request is pending", async () => {
@@ -2949,6 +3002,19 @@ function dispatchSettingsResponse(
   i18n: I18nBundleViewModel = {
     locale: "en",
     messages: {}
+  },
+  ai: RpcPayloadByType["settings.get"]["settings"]["ai"] = {
+    provider: "openAICompatible",
+    commitMessagePrompt: {
+      customRules: "",
+      mode: "default"
+    },
+    openAICompatible: {
+      baseUrl: "https://api.openai.com",
+      configured: true,
+      model: "gpt-test",
+      protocol: "responses"
+    }
   }
 ): void {
   act(() => {
@@ -2973,15 +3039,7 @@ function dispatchSettingsResponse(
                 https: "",
                 noProxy: ""
               },
-              ai: {
-                provider: "openAICompatible",
-                openAICompatible: {
-                  baseUrl: "https://api.openai.com",
-                  configured: true,
-                  model: "gpt-test",
-                  protocol: "responses"
-                }
-              }
+              ai
             }
           }
         } satisfies RpcResponse

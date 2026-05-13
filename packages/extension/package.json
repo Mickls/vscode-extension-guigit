@@ -140,6 +140,24 @@
           "default": "openAICompatible",
           "description": "AI provider used to generate commit messages"
         },
+        "guigit.ai.commitMessagePrompt.mode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "custom"
+          ],
+          "default": "default",
+          "description": "Prompt rule mode used when generating commit messages",
+          "enumDescriptions": [
+            "Use the built-in conventional commit message rules",
+            "Use custom prompt rules configured by the user"
+          ]
+        },
+        "guigit.ai.commitMessagePrompt.customRules": {
+          "type": "string",
+          "default": "",
+          "description": "Custom prompt rules used when commit message prompt mode is custom"
+        },
         "guigit.ai.openAICompatible.protocol": {
           "type": "string",
           "enum": [
