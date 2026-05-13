@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { FileChangeViewModel } from "../../app/rpcContract.generated";
+import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface CompareOverlayLabels {
   baseCommit: string;
@@ -59,11 +60,12 @@ export function CompareOverlay({
         <h3 className="m-0 text-sm">{text.title}</h3>
         <button
           aria-label={text.close}
-          className="flex h-6 w-6 items-center justify-center rounded bg-transparent text-lg text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+          className="guigit-icon-tooltip-host flex h-6 w-6 items-center justify-center rounded bg-transparent text-lg text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
           onClick={onClose}
           type="button"
         >
           x
+          <IconTooltip label={text.close} placement="bottom" />
         </button>
       </header>
       <div className="flex-1 overflow-y-auto p-4">

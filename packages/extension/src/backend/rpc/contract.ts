@@ -50,6 +50,7 @@ export const allRpcRequestTypes = [
   "stash.list",
   "stash.getDetails",
   "stash.openDiff",
+  "stash.create",
   "stash.apply",
   "stash.pop",
   "stash.drop",
@@ -318,6 +319,7 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "stash.list"; repositoryId: string })
   | (RpcEnvelope & { type: "stash.getDetails"; repositoryId: string; stashRef: string })
   | (RpcEnvelope & { type: "stash.openDiff"; repositoryId: string; stashRef: string; filePath: string; previousPath?: string })
+  | (RpcEnvelope & { type: "stash.create"; repositoryId: string })
   | (RpcEnvelope & { type: "stash.apply"; repositoryId: string; stashRef: string })
   | (RpcEnvelope & { type: "stash.pop"; repositoryId: string; stashRef: string })
   | (RpcEnvelope & { type: "stash.drop"; repositoryId: string; stashRef: string })
@@ -383,6 +385,7 @@ export interface RpcPayloadByType {
   "stash.list": { stashes: readonly StashEntryViewModel[] };
   "stash.getDetails": { stash: StashEntryViewModel };
   "stash.openDiff": OperationResultViewModel;
+  "stash.create": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
   "stash.apply": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
   "stash.pop": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };
   "stash.drop": { workingTree: WorkingTreeViewModel; result: OperationResultViewModel };

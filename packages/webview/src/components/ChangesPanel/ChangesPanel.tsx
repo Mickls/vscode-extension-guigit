@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { ArchiveRestore, Check, ChevronDown, ChevronRight, FileText, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, FileText, RefreshCw, RotateCcw, X } from "lucide-react";
 import type {
   FileViewMode,
   RepositoryViewModel,
-  StashEntryViewModel,
   WorkingTreeDiffKind,
   WorkingTreeFileChangeViewModel,
   WorkingTreeViewModel
 } from "../../app/rpcContract.generated";
 import { FileViewModeControls } from "../FileChanges/FileChanges";
+import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface ChangesPanelLabels {
   binary: string;
@@ -21,20 +21,14 @@ export interface ChangesPanelLabels {
   generate: string;
   list: string;
   listView: string;
-  noStashes: string;
   openDiff: string;
   openFile: string;
-  applyStash: string;
   discard: string;
-  dropStash: string;
-  expandStash: string;
-  popStash: string;
   refreshChanges: string;
   repository: string;
   stage: string;
   stageAll: string;
   stagedChanges: string;
-  stash: string;
   tree: string;
   treeView: string;
   unstage: string;
@@ -52,20 +46,14 @@ const defaultLabels: ChangesPanelLabels = {
   generate: "Generate",
   list: "List",
   listView: "List view",
-  noStashes: "No stashes",
   openDiff: "Open diff for {0}",
   openFile: "Open file {0}",
-  applyStash: "Apply stash",
   discard: "Discard {0}",
-  dropStash: "Drop stash",
-  expandStash: "Expand stash {0}",
-  popStash: "Pop stash",
   refreshChanges: "Refresh Changes",
   repository: "Repository",
   stage: "Stage {0}",
   stageAll: "Stage All",
   stagedChanges: "Staged Changes",
-  stash: "Stash",
   tree: "Tree",
   treeView: "Tree view",
   unstage: "Unstage {0}",
@@ -84,14 +72,9 @@ export interface ChangesPanelProps {
   onCommit?: (message: string) => void;
   onFileViewModeChange?: (mode: FileViewMode) => void;
   onGenerateCommitMessage?: () => string | undefined;
-  onApplyStash?: (stashRef: string) => void;
   onDiscardFile?: (path: string) => void;
-  onDropStash?: (stashRef: string) => void;
-  onExpandStash?: (stashRef: string) => void;
   onOpenFile?: (path: string) => void;
   onOpenFileDiff?: (path: string, kind: WorkingTreeDiffKind, previousPath?: string) => void;
-  onOpenStashDiff?: (stashRef: string, path: string, previousPath?: string) => void;
-  onPopStash?: (stashRef: string) => void;
   onRefresh?: () => void;
   onStageAll?: () => void;
   onStageFile?: (path: string) => void;
@@ -120,16 +103,11 @@ export function ChangesPanel({
   operationStatus,
   repository,
   onCommit,
-  onApplyStash,
   onDiscardFile,
-  onDropStash,
-  onExpandStash,
   onFileViewModeChange,
   onGenerateCommitMessage,
   onOpenFile,
   onOpenFileDiff,
-  onOpenStashDiff,
-  onPopStash,
   onRefresh,
   onStageAll,
   onStageFile,
@@ -144,7 +122,6 @@ export function ChangesPanel({
   const generateRequestEditSequencesRef = useRef(new Map<string, number>());
   const staged = workingTree?.staged ?? [];
   const unstaged = workingTree?.unstaged ?? [];
-  const stashes = workingTree?.stashes ?? [];
   const workingTreeBlocksCommit = workingTree?.operationState?.status === "conflict";
   const canCommit = !operationBusy && !workingTreeBlocksCommit && staged.length > 0 && commitMessage.trim().length > 0;
   const status = operationStatus ?? workingTreeOperationStatus(workingTree);
@@ -206,12 +183,13 @@ export function ChangesPanel({
         </div>
         <button
           aria-label={text.refreshChanges}
-          className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+          className="guigit-icon-tooltip-host flex h-6 min-w-6 shrink-0 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
           onClick={onRefresh}
           title={text.refreshChanges}
           type="button"
         >
           <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
+          <IconTooltip label={text.refreshChanges} placement="bottom" />
         </button>
       </div>
       <div className="flex justify-end">
@@ -285,23 +263,6 @@ export function ChangesPanel({
         onOpenFileDiff={(path, previousPath) => onOpenFileDiff?.(path, "unstaged", previousPath)}
         onBulkAction={onStageAll}
         onPrimaryAction={onStageFile}
-      />
-      <StashSection
-        labels={{
-          applyStash: text.applyStash,
-          dropStash: text.dropStash,
-          expandStash: text.expandStash,
-          noStashes: text.noStashes,
-          openDiff: text.openDiff,
-          popStash: text.popStash,
-          title: text.stash
-        }}
-        onApplyStash={onApplyStash}
-        onDropStash={onDropStash}
-        onExpandStash={onExpandStash}
-        onOpenStashDiff={onOpenStashDiff}
-        onPopStash={onPopStash}
-        stashes={stashes}
       />
     </div>
   );
@@ -478,7 +439,7 @@ function renderWorkingTree(input: {
       <button
         aria-expanded={!collapsed}
         aria-label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directoryPath)}
-        className="flex w-full items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-[11px] text-[var(--vscode-descriptionForeground)] last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
+        className="guigit-icon-tooltip-host flex w-full items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-[11px] text-[var(--vscode-descriptionForeground)] last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
         key={`directory-${input.depth}-${directoryPath}`}
         onClick={() => input.toggleDirectory(directoryPath)}
         style={{ paddingLeft: `${8 + input.depth * 14}px` }}
@@ -487,6 +448,10 @@ function renderWorkingTree(input: {
         <span className="w-3 text-center">{collapsed ? "+" : "-"}</span>
         <span className="truncate">{name}</span>
         <span className="ml-auto text-[10px]">{countFiles(child)}</span>
+        <IconTooltip
+          label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directoryPath)}
+          placement="bottom"
+        />
       </button>,
       ...(collapsed
         ? []
@@ -526,7 +491,7 @@ function WorkingTreeFileRow({
 }): ReactElement {
   return (
     <div
-      className="grid w-full grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-xs last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
+      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-xs last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
       style={{ paddingLeft: `${8 + depth * 14}px` }}
     >
       <span className="rounded-[2px] bg-[var(--vscode-badge-background)] px-1 py-0.5 text-[10px] text-[var(--vscode-badge-foreground)]">
@@ -544,19 +509,21 @@ function WorkingTreeFileRow({
         <span className="text-[#28a745]">+{file.insertions}</span>{" "}
         <span className="text-[#dc3545]">-{file.deletions}</span>
       </span>
-      <WorkingTreeActionButton
-        icon={action}
-        label={formatLabel(labels.primaryAction, file.path)}
-        onClick={() => onPrimaryAction?.(file.path)}
-      />
-      {labels.secondaryAction ? (
+      <div className="flex shrink-0 items-center gap-1">
         <WorkingTreeActionButton
-          icon="discard"
-          label={formatLabel(labels.secondaryAction, file.path)}
-          onClick={() => onSecondaryAction?.(file.path)}
+          icon={action}
+          label={formatLabel(labels.primaryAction, file.path)}
+          onClick={() => onPrimaryAction?.(file.path)}
         />
-      ) : null}
-      <WorkingTreeActionButton icon="openFile" label={formatLabel(labels.openFile, file.path)} onClick={() => onOpenFile?.(file.path)} />
+        {labels.secondaryAction ? (
+          <WorkingTreeActionButton
+            icon="discard"
+            label={formatLabel(labels.secondaryAction, file.path)}
+            onClick={() => onSecondaryAction?.(file.path)}
+          />
+        ) : null}
+        <WorkingTreeActionButton icon="openFile" label={formatLabel(labels.openFile, file.path)} onClick={() => onOpenFile?.(file.path)} />
+      </div>
     </div>
   );
 }
@@ -573,7 +540,7 @@ function WorkingTreeActionButton({
   return (
     <button
       aria-label={label}
-      className="flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[10px] text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+      className="guigit-icon-tooltip-host flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[10px] text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
       onClick={onClick}
       title={label}
       type="button"
@@ -582,122 +549,7 @@ function WorkingTreeActionButton({
       {icon === "unstage" ? <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> : null}
       {icon === "openFile" ? <FileText aria-hidden="true" className="h-3.5 w-3.5" /> : null}
       {icon === "discard" ? <X aria-hidden="true" className="h-3.5 w-3.5" /> : null}
-    </button>
-  );
-}
-
-function StashSection({
-  labels,
-  onApplyStash,
-  onDropStash,
-  onExpandStash,
-  onOpenStashDiff,
-  onPopStash,
-  stashes
-}: {
-  labels: {
-    applyStash: string;
-    dropStash: string;
-    expandStash: string;
-    noStashes: string;
-    openDiff: string;
-    popStash: string;
-    title: string;
-  };
-  onApplyStash?: (stashRef: string) => void;
-  onDropStash?: (stashRef: string) => void;
-  onExpandStash?: (stashRef: string) => void;
-  onOpenStashDiff?: (stashRef: string, path: string, previousPath?: string) => void;
-  onPopStash?: (stashRef: string) => void;
-  stashes: readonly StashEntryViewModel[];
-}): ReactElement {
-  const [expandedRefs, setExpandedRefs] = useState<readonly string[]>([]);
-
-  const toggleStash = (stashRef: string) => {
-    setExpandedRefs((current) => current.includes(stashRef) ? current.filter((ref) => ref !== stashRef) : [...current, stashRef]);
-    onExpandStash?.(stashRef);
-  };
-
-  return (
-    <section aria-label={labels.title} className="space-y-2">
-      <h3 className="text-xs font-semibold">
-        {labels.title} ({stashes.length})
-      </h3>
-      <div className="rounded-[3px] border border-[var(--vscode-panel-border)]">
-        {stashes.length > 0 ? (
-          stashes.map((stash) => {
-            const expanded = expandedRefs.includes(stash.ref);
-            return (
-              <div className="border-b border-[var(--vscode-panel-border)] px-2 py-1.5 text-xs last:border-b-0" key={stash.ref}>
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2">
-                  <button
-                    aria-label={formatLabel(labels.expandStash, stash.message)}
-                    className="flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
-                    onClick={() => toggleStash(stash.ref)}
-                    type="button"
-                  >
-                    {expanded ? <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" /> : <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />}
-                  </button>
-                  <div className="min-w-0">
-                    <div className="truncate text-[var(--vscode-foreground)]">{stash.message}</div>
-                  </div>
-                  <StashActionButton icon="apply" label={labels.applyStash} onClick={() => onApplyStash?.(stash.ref)} />
-                  <StashActionButton icon="pop" label={labels.popStash} onClick={() => onPopStash?.(stash.ref)} />
-                  <StashActionButton icon="drop" label={labels.dropStash} onClick={() => onDropStash?.(stash.ref)} />
-                </div>
-                {expanded && stash.files ? (
-                  <div className="mt-1 border-t border-[var(--vscode-panel-border)] pt-1">
-                    {stash.files.map((file) => (
-                      <button
-                        aria-label={formatLabel(labels.openDiff, file.path)}
-                        className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[3px] px-1 py-1 text-left hover:bg-[var(--vscode-list-hoverBackground)]"
-                        key={file.path}
-                        onClick={() => onOpenStashDiff?.(stash.ref, file.path, file.previousPath)}
-                        type="button"
-                      >
-                        <span className="rounded-[2px] bg-[var(--vscode-badge-background)] px-1 py-0.5 text-[10px] text-[var(--vscode-badge-foreground)]">
-                          {file.binary ? "binary" : file.status}
-                        </span>
-                        <span className="min-w-0 truncate">{file.path}</span>
-                        <span className="text-[11px]">
-                          <span className="text-[#28a745]">+{file.insertions}</span>{" "}
-                          <span className="text-[#dc3545]">-{file.deletions}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })
-        ) : (
-          <div className="px-2 py-1.5 text-xs text-[var(--vscode-descriptionForeground)]">{labels.noStashes}</div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function StashActionButton({
-  icon,
-  label,
-  onClick
-}: {
-  icon: "apply" | "drop" | "pop";
-  label: string;
-  onClick: () => void;
-}): ReactElement {
-  return (
-    <button
-      aria-label={label}
-      className="flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[10px] text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
-      onClick={onClick}
-      title={label}
-      type="button"
-    >
-      {icon === "apply" ? <ArchiveRestore aria-hidden="true" className="h-3.5 w-3.5" /> : null}
-      {icon === "pop" ? <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> : null}
-      {icon === "drop" ? <Trash2 aria-hidden="true" className="h-3.5 w-3.5" /> : null}
+      <IconTooltip label={label} placement="left" />
     </button>
   );
 }

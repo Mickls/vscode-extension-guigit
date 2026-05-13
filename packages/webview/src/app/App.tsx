@@ -37,6 +37,7 @@ import { OperationToast } from "../components/OperationToast/OperationToast";
 import { PanelTabs, type RightPanelTab } from "../components/PanelTabs/PanelTabs";
 import { RemoteManager } from "../components/RemoteManager/RemoteManager";
 import { SettingsMenu, type SettingsMenuAction } from "../components/SettingsMenu/SettingsMenu";
+import { StashPanel } from "../components/StashPanel/StashPanel";
 
 const emptyGraph: GraphLayoutViewModel = {
   edges: [],
@@ -77,6 +78,7 @@ type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStas
 type ProxyOperationType = "proxy.configure" | "proxy.refresh";
 type FileOperationType = "diff.openCommitFile" | "diff.openCompareFile" | "files.openHistory" | "files.openWorkingFile";
 type WorkingTreeActionType =
+  | "stash.create"
   | "stash.apply"
   | "stash.drop"
   | "stash.pop"
@@ -365,7 +367,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   }, [conflictOperation]);
 
   useEffect(() => {
-    if (rightPanelTab === "changes" && selectedRepositoryId) {
+    if ((rightPanelTab === "changes" || rightPanelTab === "stash") && selectedRepositoryId) {
       loadWorkingTree(selectedRepositoryId);
     }
   }, [client, rightPanelTab, selectedRepositoryId]);
@@ -382,7 +384,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           const selectedRepository = selectedRepositoryIdRef.current;
           const notificationRepository = response.type === "workingTree.changed" ? response.repositoryId : undefined;
           if (
-            rightPanelTabRef.current === "changes" &&
+            (rightPanelTabRef.current === "changes" || rightPanelTabRef.current === "stash") &&
             selectedRepository &&
             (!notificationRepository || notificationRepository === selectedRepository)
           ) {
@@ -1014,6 +1016,20 @@ export function App({ rpcClient }: AppProps): ReactElement {
     trackWorkingTreeAction(id, selectedRepositoryIdRef.current, type);
   };
 
+  const createStash = () => {
+    if (!selectedRepositoryIdRef.current || activeGitOperation || activeWorkingTreeOperation || conflictOperation) {
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    client?.post({
+      id,
+      repositoryId: selectedRepositoryIdRef.current,
+      type: "stash.create"
+    });
+    trackWorkingTreeAction(id, selectedRepositoryIdRef.current, "stash.create");
+  };
+
   const commitWorkingTree = (message: string) => {
     if (!selectedRepositoryIdRef.current || activeGitOperation || activeWorkingTreeOperation || conflictOperation) {
       return;
@@ -1325,7 +1341,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
               active={rightPanelTab}
               labels={{
                 changes: tx("rightPanel.changes", "Changes"),
-                details: tx("rightPanel.details", "Details")
+                details: tx("rightPanel.details", "Details"),
+                stash: tx("rightPanel.stash", "Stash")
               }}
               onChange={changeRightPanelTab}
             />
@@ -1354,7 +1371,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
                 onOpenFileDiff={openCommitFileDiff}
                 onOpenFileHistory={openFileHistory}
               />
-            ) : (
+            ) : rightPanelTab === "changes" ? (
               <ChangesPanel
                 commitMessageResetKey={commitMessageResetKey}
                 commitMessageSuggestion={commitMessageSuggestion}
@@ -1368,23 +1385,17 @@ export function App({ rpcClient }: AppProps): ReactElement {
                   commit: tx("changes.commit", "Commit"),
                   commitMessage: tx("changes.commitMessage", "Commit message"),
                   discard: `${tx("changes.discard", "Discard")} {0}`,
-                  dropStash: tx("changes.dropStash", "Drop stash"),
                   expandDirectory: tx("files.expandDirectory", "Expand {0}"),
-                  expandStash: tx("changes.expandStash", "Expand stash {0}"),
                   generate: tx("changes.generateCommitMessage", "Generate"),
                   list: tx("files.list", "List"),
                   listView: tx("files.listView", "List view"),
-                  noStashes: tx("changes.noStashes", "No stashes"),
                   openDiff: tx("files.openDiff", "Open diff for {0}"),
                   openFile: tx("files.openFile", "Open file {0}"),
-                  applyStash: tx("changes.applyStash", "Apply stash"),
-                  popStash: tx("changes.popStash", "Pop stash"),
                   refreshChanges: tx("changes.refresh", "Refresh Changes"),
                   repository: tx("header.repository", "Repository"),
                   stage: `${tx("changes.stage", "Stage")} {0}`,
                   stageAll: tx("changes.stageAll", "Stage All"),
                   stagedChanges: tx("changes.staged", "Staged Changes"),
-                  stash: tx("changes.stash", "Stash"),
                   tree: tx("files.tree", "Tree"),
                   treeView: tx("files.treeView", "Tree view"),
                   unstage: `${tx("changes.unstage", "Unstage")} {0}`,
@@ -1394,21 +1405,44 @@ export function App({ rpcClient }: AppProps): ReactElement {
                 operationStatus={changesOperationStatus}
                 repository={selectedRepository}
                 onCommit={commitWorkingTree}
-                onApplyStash={(stashRef) => runStashAction("stash.apply", stashRef)}
                 onDiscardFile={discardWorkingTreeFile}
-                onDropStash={(stashRef) => runStashAction("stash.drop", stashRef)}
-                onExpandStash={loadStashDetails}
                 onFileViewModeChange={updateFileViewMode}
                 onGenerateCommitMessage={generateCommitMessage}
                 onOpenFile={openWorkingTreeFile}
                 onOpenFileDiff={openWorkingTreeFileDiff}
-                onOpenStashDiff={openStashDiff}
-                onPopStash={(stashRef) => runStashAction("stash.pop", stashRef)}
                 onRefresh={refreshWorkingTree}
                 onStageAll={stageAllWorkingTreeChanges}
                 onStageFile={stageWorkingTreeFile}
                 onUnstageAll={unstageAllWorkingTreeChanges}
                 onUnstageFile={unstageWorkingTreeFile}
+                workingTree={workingTree}
+              />
+            ) : (
+              <StashPanel
+                labels={{
+                  applyStash: tx("changes.applyStash", "Apply stash"),
+                  binary: tx("files.binary", "binary"),
+                  branch: tx("header.branch", "Branch"),
+                  createStash: tx("changes.createStash", "Stash All Changes"),
+                  dropStash: tx("changes.dropStash", "Drop stash"),
+                  expandStash: tx("changes.expandStash", "Expand stash {0}"),
+                  noStashes: tx("changes.noStashes", "No stashes"),
+                  openDiff: tx("files.openDiff", "Open diff for {0}"),
+                  popStash: tx("changes.popStash", "Pop stash"),
+                  refreshStashes: tx("changes.refresh", "Refresh Stashes"),
+                  repository: tx("header.repository", "Repository"),
+                  stash: tx("changes.stash", "Stash")
+                }}
+                operationBusy={gitOperationBusy}
+                operationStatus={changesOperationStatus}
+                repository={selectedRepository}
+                onApplyStash={(stashRef) => runStashAction("stash.apply", stashRef)}
+                onCreateStash={createStash}
+                onDropStash={(stashRef) => runStashAction("stash.drop", stashRef)}
+                onExpandStash={loadStashDetails}
+                onOpenStashDiff={openStashDiff}
+                onPopStash={(stashRef) => runStashAction("stash.pop", stashRef)}
+                onRefresh={refreshWorkingTree}
                 workingTree={workingTree}
               />
             )}
@@ -1550,7 +1584,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         open={compareOverlayOpen}
         toHash={compareHashes?.[1] ?? ""}
       />
-      {operationNotification && rightPanelTab !== "changes" ? (
+      {operationNotification && rightPanelTab === "details" ? (
         <OperationToast message={operationNotification.message} state={operationNotification.state} />
       ) : null}
     </main>
@@ -1872,6 +1906,7 @@ function isWorkingTreeActionType(type: string): type is WorkingTreeActionType {
     type === "workingTree.stageFile" ||
     type === "workingTree.unstageAll" ||
     type === "workingTree.unstageFile" ||
+    type === "stash.create" ||
     type === "stash.apply" ||
     type === "stash.drop" ||
     type === "stash.pop"

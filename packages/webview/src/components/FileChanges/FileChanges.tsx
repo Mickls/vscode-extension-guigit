@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactElement } from "react";
 import { FileText, History } from "lucide-react";
 import type { FileChangeViewModel, FileViewMode } from "../../app/rpcContract.generated";
+import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface FileChangesLabels {
   binary: string;
@@ -237,7 +238,7 @@ function renderTree(input: {
       <button
         aria-expanded={!collapsed}
         aria-label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directoryPath)}
-        className="flex w-full items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-[11px] text-[var(--vscode-descriptionForeground)] last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
+        className="guigit-icon-tooltip-host flex w-full items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-[11px] text-[var(--vscode-descriptionForeground)] last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
         key={`directory-${input.depth}-${directoryPath}`}
         onClick={() => input.toggleDirectory(directoryPath)}
         style={{ paddingLeft: `${8 + input.depth * 14}px` }}
@@ -246,6 +247,10 @@ function renderTree(input: {
         <span className="w-3 text-center">{collapsed ? "+" : "-"}</span>
         <span className="truncate">{name}</span>
         <span className="ml-auto text-[10px]">{countFiles(child)}</span>
+        <IconTooltip
+          label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directoryPath)}
+          placement="bottom"
+        />
       </button>,
       ...(collapsed
         ? []
@@ -314,12 +319,13 @@ function FileActionButton({
   return (
     <button
       aria-label={label}
-      className="flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[10px] text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+      className="guigit-icon-tooltip-host flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[10px] text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
       onClick={onClick}
       title={label}
       type="button"
     >
       <FileActionIcon icon={icon} />
+      <IconTooltip label={label} placement="left" />
     </button>
   );
 }

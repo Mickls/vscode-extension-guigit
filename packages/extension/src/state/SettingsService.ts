@@ -117,11 +117,11 @@ export class SettingsService {
     await this.configuration.update("autoStashOnPull", "ask");
   }
 
-  public async configureAiProvider(): Promise<OperationResultViewModel> {
-    return {
+  public configureAiProvider(): Promise<OperationResultViewModel> {
+    return Promise.resolve({
       message: "AI provider configuration is available in the Webview",
       status: "cancelled"
-    };
+    });
   }
 
   public async getOpenAICompatibleApiKey(): Promise<string | undefined> {

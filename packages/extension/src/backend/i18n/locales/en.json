@@ -54,12 +54,17 @@
       "applyStash": "Apply Stash",
       "popStash": "Pop Stash",
       "dropStash": "Drop Stash",
+      "createStash": "Stash All Changes",
+      "expandStash": "Expand stash {0}",
+      "noStashes": "No stashes",
       "commitMessage": "Commit message",
       "generateCommitMessage": "Generate Commit Message",
       "commit": "Commit"
     },
     "workingTree": {
       "appliedStash": "Applied stash",
+      "createdStash": "Stashed changes",
+      "manualStashMessage": "GUI Git History manual stash",
       "popStashConfirmation": "Pop this stash?",
       "popStashCancelled": "Pop stash cancelled",
       "poppedStash": "Popped stash",
@@ -320,7 +325,8 @@
     },
     "rightPanel": {
       "changes": "Changes",
-      "details": "Details"
+      "details": "Details",
+      "stash": "Stash"
     }
   }
 }

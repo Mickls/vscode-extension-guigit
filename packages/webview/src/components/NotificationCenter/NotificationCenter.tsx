@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactElement } from "react";
 import { Clipboard, Trash2, X } from "lucide-react";
+import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export type NotificationState = "error" | "running" | "success" | "warning";
 
@@ -86,22 +87,24 @@ export function NotificationCenter({
         </label>
         <button
           aria-label={labels.clear}
-          className="flex h-7 w-7 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+          className="guigit-icon-tooltip-host flex h-7 w-7 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
           disabled={notifications.length === 0}
           onClick={onClear}
           title={labels.clear}
           type="button"
         >
           <Trash2 aria-hidden="true" className="h-4 w-4" />
+          <IconTooltip label={labels.clear} placement="bottom" />
         </button>
         <button
           aria-label={labels.close}
-          className="flex h-7 w-7 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+          className="guigit-icon-tooltip-host flex h-7 w-7 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
           onClick={onClose}
           title={labels.close}
           type="button"
         >
           <X aria-hidden="true" className="h-4 w-4" />
+          <IconTooltip label={labels.close} placement="bottom" />
         </button>
       </div>
       {notifications.length === 0 ? (
@@ -122,12 +125,13 @@ export function NotificationCenter({
               </div>
               <button
                 aria-label={labels.copy}
-                className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+                className="guigit-icon-tooltip-host mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
                 onClick={() => onCopyNotification(notification)}
                 title={labels.copy}
                 type="button"
               >
                 <Clipboard aria-hidden="true" className="h-4 w-4" />
+                <IconTooltip label={labels.copy} placement="left" />
               </button>
             </li>
           ))}

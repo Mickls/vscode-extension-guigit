@@ -1,6 +1,7 @@
 import type { FormEvent, ReactElement } from "react";
 import { useEffect, useState } from "react";
 import type { AiProviderSettingsViewModel, HttpAiProviderProtocol } from "../../app/rpcContract.generated";
+import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface AiProviderPanelProps {
   labels?: Partial<AiProviderPanelLabels>;
@@ -103,12 +104,13 @@ export function AiProviderPanel({
           </div>
           <button
             aria-label={text.close}
-            className="h-6 w-6 rounded bg-transparent text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+            className="guigit-icon-tooltip-host h-6 w-6 rounded bg-transparent text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={busy}
             onClick={onClose}
             type="button"
           >
             x
+            <IconTooltip label={text.close} placement="bottom" />
           </button>
         </div>
         <div className="grid gap-3 px-5 py-4">

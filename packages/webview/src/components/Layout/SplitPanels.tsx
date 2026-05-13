@@ -1,5 +1,6 @@
 import type { MouseEvent, ReactElement, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface SplitPanelsProps {
   graphHeaderVisible?: boolean;
@@ -167,11 +168,12 @@ export function SplitPanels({
           ) : null}
           <button
             aria-label={leftCollapsed ? text.expandCommitList : text.collapseCommitList}
-            className="flex h-6 min-w-6 items-center justify-center rounded-[3px] border border-[var(--vscode-button-border)] bg-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+            className="guigit-icon-tooltip-host flex h-6 min-w-6 items-center justify-center rounded-[3px] border border-[var(--vscode-button-border)] bg-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             onClick={toggleLeftPanel}
             type="button"
           >
             {leftCollapsed ? ">" : "<"}
+            <IconTooltip label={leftCollapsed ? text.expandCommitList : text.collapseCommitList} placement="right" />
           </button>
         </div>
         {!leftCollapsed ? left : null}
@@ -200,11 +202,12 @@ export function SplitPanels({
         <div className="sticky top-0 z-10 flex h-10 shrink-0 items-center border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)] p-0.5 data-[collapsed=true]:justify-center data-[collapsed=true]:border-b-0">
           <button
             aria-label={rightCollapsed ? text.expandCommitDetails : text.collapseCommitDetails}
-            className="flex h-6 min-w-6 items-center justify-center rounded-[3px] border border-[var(--vscode-button-border)] bg-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+            className="guigit-icon-tooltip-host flex h-6 min-w-6 items-center justify-center rounded-[3px] border border-[var(--vscode-button-border)] bg-transparent px-1.5 text-xs text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             onClick={toggleRightPanel}
             type="button"
           >
             {rightCollapsed ? "<" : ">"}
+            <IconTooltip label={rightCollapsed ? text.expandCommitDetails : text.collapseCommitDetails} placement="left" />
           </button>
         </div>
         {!rightCollapsed ? right : null}

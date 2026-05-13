@@ -33,6 +33,7 @@ const changesWorkflowRequestTypes = [
   "stash.list",
   "stash.getDetails",
   "stash.openDiff",
+  "stash.create",
   "stash.apply",
   "stash.pop",
   "stash.drop",

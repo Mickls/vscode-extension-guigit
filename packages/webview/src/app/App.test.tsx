@@ -216,6 +216,31 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Staged Changes (1)" })).toBeInTheDocument();
   });
 
+  it("loads working tree stashes when the stash tab opens", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("tab", { name: "Stash" }));
+
+    const loadRequest = latestRequest(rpcClient, "workingTree.load");
+    expect(loadRequest).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      type: "workingTree.load"
+    }));
+
+    dispatchWorkingTreeResponse(loadRequest.id, {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: abc1234 message", ref: "stash@{0}" }]
+    });
+
+    expect(await screen.findByRole("heading", { name: "Stash (1)" })).toBeInTheDocument();
+  });
+
   it("posts working tree file action intents and updates changes after stage responses", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -696,7 +721,7 @@ describe("App", () => {
     }));
   });
 
-  it("posts discard and stash action intents from the changes panel", async () => {
+  it("posts discard and stash action intents from their panels", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
 
@@ -728,6 +753,27 @@ describe("App", () => {
     });
     expect(await screen.findByRole("heading", { name: "Changes (0)" })).toBeInTheDocument();
 
+    await user.click(screen.getByRole("tab", { name: "Stash" }));
+    const stashLoadRequest = latestRequest(rpcClient, "workingTree.load");
+    dispatchWorkingTreeResponse(stashLoadRequest.id, {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: abc1234 message", ref: "stash@{0}" }],
+      unstaged: [
+        { area: "unstaged", binary: false, deletions: 1, insertions: 0, path: "src/unstaged.ts", status: "modified" }
+      ]
+    });
+
+    await user.click(screen.getByRole("button", { name: "Stash All Changes" }));
+    const createRequest = latestRequest(rpcClient, "stash.create");
+    expect(createRequest).toEqual(expect.objectContaining({
+      repositoryId: "/repo",
+      type: "stash.create"
+    }));
+    dispatchWorkingTreeActionResponse(createRequest.id, "stash.create", {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: abc1234 message", ref: "stash@{0}" }]
+    });
+
     await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: abc1234 message" }));
     const detailsRequest = latestRequest(rpcClient, "stash.getDetails");
     expect(detailsRequest).toEqual(expect.objectContaining({
@@ -747,17 +793,27 @@ describe("App", () => {
     }));
 
     await user.click(screen.getByRole("button", { name: "Apply stash" }));
-    expect(latestRequest(rpcClient, "stash.apply")).toEqual(expect.objectContaining({
+    const applyRequest = latestRequest(rpcClient, "stash.apply");
+    expect(applyRequest).toEqual(expect.objectContaining({
       repositoryId: "/repo",
       stashRef: "stash@{0}",
       type: "stash.apply"
     }));
+    dispatchWorkingTreeActionResponse(applyRequest.id, "stash.apply", {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: abc1234 message", ref: "stash@{0}" }]
+    });
     await user.click(screen.getByRole("button", { name: "Pop stash" }));
-    expect(latestRequest(rpcClient, "stash.pop")).toEqual(expect.objectContaining({
+    const popRequest = latestRequest(rpcClient, "stash.pop");
+    expect(popRequest).toEqual(expect.objectContaining({
       repositoryId: "/repo",
       stashRef: "stash@{0}",
       type: "stash.pop"
     }));
+    dispatchWorkingTreeActionResponse(popRequest.id, "stash.pop", {
+      ...defaultWorkingTree,
+      stashes: [{ branch: "main", date: "", message: "WIP on main: abc1234 message", ref: "stash@{0}" }]
+    });
     await user.click(screen.getByRole("button", { name: "Drop stash" }));
     expect(latestRequest(rpcClient, "stash.drop")).toEqual(expect.objectContaining({
       repositoryId: "/repo",
@@ -777,7 +833,7 @@ describe("App", () => {
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient, { repositories });
     await waitForCommitRows();
-    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    await user.click(screen.getByRole("tab", { name: "Stash" }));
     const repoOneLoadRequest = latestRequest(rpcClient, "workingTree.load");
     dispatchWorkingTreeResponse(repoOneLoadRequest.id, {
       ...createWorkingTree("/repo", "src/repo-one.ts"),
@@ -815,7 +871,7 @@ describe("App", () => {
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
     await waitForCommitRows();
-    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    await user.click(screen.getByRole("tab", { name: "Stash" }));
     const loadRequest = latestRequest(rpcClient, "workingTree.load");
     dispatchWorkingTreeResponse(loadRequest.id, {
       ...defaultWorkingTree,
@@ -909,7 +965,7 @@ describe("App", () => {
     render(<App rpcClient={rpcClient} />);
     dispatchHistoryResponse(rpcClient);
     await waitForCommitRows();
-    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    await user.click(screen.getByRole("tab", { name: "Stash" }));
     const loadRequest = latestRequest(rpcClient, "workingTree.load");
     dispatchWorkingTreeResponse(loadRequest.id, {
       ...defaultWorkingTree,
@@ -2776,6 +2832,7 @@ function dispatchWorkingTreeResponse(id: string, workingTree: WorkingTreeViewMod
 function dispatchWorkingTreeActionResponse(
   id: string,
   type:
+    | "stash.create"
     | "stash.apply"
     | "stash.drop"
     | "stash.pop"

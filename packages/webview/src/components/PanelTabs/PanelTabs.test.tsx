@@ -14,12 +14,13 @@ describe("PanelTabs", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
-    render(<PanelTabs active="details" labels={{ changes: "Changes", details: "Details" }} onChange={onChange} />);
+    render(<PanelTabs active="details" labels={{ changes: "Changes", details: "Details", stash: "Stash" }} onChange={onChange} />);
 
     expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
 
     await user.click(screen.getByRole("tab", { name: "Changes" }));
 
     expect(onChange).toHaveBeenCalledWith("changes");
+    expect(screen.getByRole("tab", { name: "Stash" })).toBeInTheDocument();
   });
 });

@@ -54,12 +54,17 @@
       "applyStash": "Aplicar stash",
       "popStash": "Aplicar y quitar stash",
       "dropStash": "Eliminar stash",
+      "createStash": "Guardar todos los cambios en stash",
+      "expandStash": "Expandir stash {0}",
+      "noStashes": "No hay stashes",
       "commitMessage": "Mensaje de commit",
       "generateCommitMessage": "Generar mensaje de commit",
       "commit": "Hacer commit"
     },
     "workingTree": {
       "appliedStash": "Stash aplicado",
+      "createdStash": "Cambios guardados en stash",
+      "manualStashMessage": "GUI Git History stash manual",
       "popStashConfirmation": "¿Aplicar y quitar este stash?",
       "popStashCancelled": "Aplicación y eliminación del stash cancelada",
       "poppedStash": "Stash aplicado y eliminado",
@@ -320,7 +325,8 @@
     },
     "rightPanel": {
       "changes": "Cambios",
-      "details": "Detalles"
+      "details": "Detalles",
+      "stash": "Stash"
     }
   }
 }

@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 
-export type RightPanelTab = "details" | "changes";
+export type RightPanelTab = "details" | "changes" | "stash";
 
 export interface PanelTabsProps {
   active: RightPanelTab;
@@ -8,7 +8,7 @@ export interface PanelTabsProps {
   onChange?: (tab: RightPanelTab) => void;
 }
 
-const tabs: readonly RightPanelTab[] = ["details", "changes"];
+const tabs: readonly RightPanelTab[] = ["details", "changes", "stash"];
 
 export function PanelTabs({ active, labels, onChange }: PanelTabsProps): ReactElement {
   return (

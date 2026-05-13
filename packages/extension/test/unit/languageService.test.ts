@@ -28,7 +28,8 @@ describe("LanguageService", () => {
     for (const language of ["de", "en", "es", "fr", "ja", "ru", "zh"] as const) {
       expect(createService({ language }).getBundle().messages.rightPanel).toEqual({
         changes: expect.any(String),
-        details: expect.any(String)
+        details: expect.any(String),
+        stash: expect.any(String)
       });
     }
   });

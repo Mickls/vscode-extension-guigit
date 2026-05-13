@@ -1,6 +1,7 @@
 import type { FormEvent, ReactElement } from "react";
 import { useState } from "react";
 import type { RemoteViewModel } from "../../app/rpcContract.generated";
+import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface RemoteManagerStatus {
   kind: "info" | "success" | "error";
@@ -97,11 +98,12 @@ export function RemoteManager({
           </div>
           <button
             aria-label={labels.close}
-            className="h-6 w-6 rounded bg-transparent text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+            className="guigit-icon-tooltip-host h-6 w-6 rounded bg-transparent text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
             onClick={onClose}
             type="button"
           >
             x
+            <IconTooltip label={labels.close} placement="bottom" />
           </button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-5 pt-4">

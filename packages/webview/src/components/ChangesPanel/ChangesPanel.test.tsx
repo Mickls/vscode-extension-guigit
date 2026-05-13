@@ -11,20 +11,36 @@ import type { WorkingTreeViewModel } from "../../app/rpcContract.generated";
 describe("ChangesPanel", () => {
   afterEach(cleanup);
 
-  it("renders commit composer before staged changes, changes, and stash", () => {
+  it("renders commit composer before staged changes and changes", () => {
     render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
 
     const commitComposer = screen.getByRole("textbox", { name: "Commit message" });
     expect(screen.getByRole("heading", { name: "Staged Changes (1)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Changes (1)" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Stash (1)" })).toBeInTheDocument();
     expect(screen.getByText("src/staged.ts")).toBeInTheDocument();
     expect(screen.getByText("src/unstaged.ts")).toBeInTheDocument();
-    expect(screen.getByText("WIP on main: abc1234 message")).toBeInTheDocument();
+    expect(screen.queryByText("WIP on main: abc1234 message")).not.toBeInTheDocument();
     expect(commitComposer.compareDocumentPosition(screen.getByRole("heading", { name: "Staged Changes (1)" }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
     expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+  });
+
+  it("shows added file names in the changes list", () => {
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        workingTree={{
+          ...workingTree,
+          unstaged: [
+            { area: "untracked", binary: false, deletions: 0, insertions: 0, path: "src/new-file.ts", status: "added" }
+          ]
+        }}
+      />
+    );
+
+    expect(screen.getByText("src/new-file.ts")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open file src/new-file.ts" })).toBeInTheDocument();
   });
 
   it("keeps the commit button disabled when the message is empty", () => {
@@ -312,6 +328,21 @@ describe("ChangesPanel", () => {
     expect(onOpenFile).toHaveBeenCalledWith("src/unstaged.ts");
   });
 
+  it("adds hover tooltip labels to icon-only working tree buttons", () => {
+    render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
+
+    expect(screen.getByRole("button", { name: "Refresh Changes" }).querySelector("[data-tooltip='Refresh Changes']")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unstage src/staged.ts" }).querySelector("[data-tooltip='Unstage src/staged.ts']")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open file src/unstaged.ts" }).querySelector("[data-tooltip='Open file src/unstaged.ts']")).toBeInTheDocument();
+  });
+
+  it("keeps all unstaged row action buttons in the same row", () => {
+    render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
+
+    expect(screen.getByText("src/unstaged.ts").closest(".grid")).toHaveClass("grid-cols-[auto_minmax(0,1fr)_auto_auto]");
+    expect(screen.getByRole("button", { name: "Open file src/unstaged.ts" }).parentElement).toHaveClass("flex");
+  });
+
   it("sends discard actions only for unstaged file rows", async () => {
     const user = userEvent.setup();
     const onDiscardFile = vi.fn();
@@ -322,41 +353,6 @@ describe("ChangesPanel", () => {
 
     expect(onDiscardFile).toHaveBeenCalledWith("src/unstaged.ts");
     expect(screen.queryByRole("button", { name: "Discard src/staged.ts" })).not.toBeInTheDocument();
-  });
-
-  it("expands stash entries and sends stash actions", async () => {
-    const user = userEvent.setup();
-    const onApplyStash = vi.fn();
-    const onDropStash = vi.fn();
-    const onExpandStash = vi.fn();
-    const onOpenStashDiff = vi.fn();
-    const onPopStash = vi.fn();
-
-    render(
-      <ChangesPanel
-        fileViewMode="list"
-        onApplyStash={onApplyStash}
-        onDropStash={onDropStash}
-        onExpandStash={onExpandStash}
-        onOpenStashDiff={onOpenStashDiff}
-        onPopStash={onPopStash}
-        workingTree={stashDetailsWorkingTree}
-      />
-    );
-
-    expect(screen.queryByText("stash@{0}")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: abc1234 message" }));
-    await user.click(screen.getByRole("button", { name: "Open diff for src/stashed.ts" }));
-    await user.click(screen.getByRole("button", { name: "Apply stash" }));
-    await user.click(screen.getByRole("button", { name: "Pop stash" }));
-    await user.click(screen.getByRole("button", { name: "Drop stash" }));
-
-    expect(onExpandStash).toHaveBeenCalledWith("stash@{0}");
-    expect(onOpenStashDiff).toHaveBeenCalledWith("stash@{0}", "src/stashed.ts", "src/old-stashed.ts");
-    expect(onApplyStash).toHaveBeenCalledWith("stash@{0}");
-    expect(onPopStash).toHaveBeenCalledWith("stash@{0}");
-    expect(onDropStash).toHaveBeenCalledWith("stash@{0}");
   });
 
   it("sends previous paths with renamed working tree diff actions", async () => {
@@ -438,29 +434,6 @@ const treeWorkingTree = {
       insertions: 4,
       path: "assets/styles/app.css",
       status: "modified"
-    }
-  ]
-} satisfies WorkingTreeViewModel;
-
-const stashDetailsWorkingTree = {
-  ...workingTree,
-  stashes: [
-    {
-      branch: "main",
-      date: "",
-      files: [
-        {
-          area: "stash",
-          binary: false,
-          deletions: 1,
-          insertions: 2,
-          path: "src/stashed.ts",
-          previousPath: "src/old-stashed.ts",
-          status: "renamed"
-        }
-      ],
-      message: "WIP on main: abc1234 message",
-      ref: "stash@{0}"
     }
   ]
 } satisfies WorkingTreeViewModel;

@@ -433,6 +433,10 @@ describe("Git history RPC handlers", () => {
           calls.push(["apply", repositoryId, repositoryRoot, stashRef]);
           return { result: { message: "Applied stash", status: "ok" }, workingTree };
         },
+        createStash: async (repositoryId, repositoryRoot) => {
+          calls.push(["create", repositoryId, repositoryRoot]);
+          return { result: { message: "Stashed changes", status: "ok" }, workingTree };
+        },
         discardFile: async (repositoryId, repositoryRoot, filePath) => {
           calls.push(["discard", repositoryId, repositoryRoot, filePath]);
           return { result: { message: "Discarded file", status: "ok" }, workingTree };
@@ -479,6 +483,7 @@ describe("Git history RPC handlers", () => {
         type: "stash.openDiff"
       })
     ).resolves.toEqual({ message: "stash diff opened", status: "ok" });
+    await handlers["stash.create"]!({ id: "create", repositoryId: "/repo", type: "stash.create" });
     await handlers["stash.apply"]!({ id: "apply", repositoryId: "/repo", stashRef: "stash@{0}", type: "stash.apply" });
     await handlers["stash.pop"]!({ id: "pop", repositoryId: "/repo", stashRef: "stash@{0}", type: "stash.pop" });
     await handlers["stash.drop"]!({ id: "drop", repositoryId: "/repo", stashRef: "stash@{0}", type: "stash.drop" });
@@ -487,6 +492,7 @@ describe("Git history RPC handlers", () => {
       ["discard", "/repo", "/repo", "src/a.ts"],
       ["details", "/repo", "stash@{0}"],
       ["stashDiff", "/repo", "stash@{0}", "src/a.ts", "src/old-a.ts"],
+      ["create", "/repo", "/repo"],
       ["apply", "/repo", "/repo", "stash@{0}"],
       ["pop", "/repo", "/repo", "stash@{0}"],
       ["drop", "/repo", "/repo", "stash@{0}"]

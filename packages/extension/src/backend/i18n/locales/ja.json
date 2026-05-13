@@ -54,12 +54,17 @@
       "applyStash": "スタッシュを適用",
       "popStash": "スタッシュを適用して削除",
       "dropStash": "スタッシュを削除",
+      "createStash": "すべての変更をスタッシュ",
+      "expandStash": "スタッシュ {0} を展開",
+      "noStashes": "スタッシュはありません",
       "commitMessage": "コミットメッセージ",
       "generateCommitMessage": "コミットメッセージを生成",
       "commit": "コミット"
     },
     "workingTree": {
       "appliedStash": "スタッシュを適用しました",
+      "createdStash": "変更をスタッシュしました",
+      "manualStashMessage": "GUI Git History 手動スタッシュ",
       "popStashConfirmation": "このスタッシュを適用して削除しますか？",
       "popStashCancelled": "スタッシュの適用と削除をキャンセルしました",
       "poppedStash": "スタッシュを適用して削除しました",
@@ -320,7 +325,8 @@
     },
     "rightPanel": {
       "changes": "変更",
-      "details": "詳細"
+      "details": "詳細",
+      "stash": "スタッシュ"
     }
   }
 }

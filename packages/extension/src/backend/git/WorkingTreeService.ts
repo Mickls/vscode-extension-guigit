@@ -7,6 +7,8 @@ const defaultWorkingTreeMessages: Record<string, string> = {
   "changes.dropStash": "Drop Stash",
   "changes.popStash": "Pop Stash",
   "workingTree.appliedStash": "Applied stash",
+  "workingTree.createdStash": "Stashed changes",
+  "workingTree.manualStashMessage": "GUI Git History manual stash",
   "workingTree.dropStashCancelled": "Drop stash cancelled",
   "workingTree.dropStashConfirmation": "Drop stash?",
   "workingTree.droppedStash": "Dropped stash",
@@ -14,6 +16,7 @@ const defaultWorkingTreeMessages: Record<string, string> = {
   "workingTree.popStashConfirmation": "Pop stash?",
   "workingTree.poppedStash": "Popped stash"
 };
+const workingTreeStatusArgs = ["status", "--porcelain=v1", "--untracked-files=all"] as const;
 
 export interface WorkingTreeServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
@@ -40,7 +43,7 @@ export class WorkingTreeService {
   public async load(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeViewModel> {
     const [branchOutput, statusOutput, stashOutput] = await Promise.all([
       this.gitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"]),
-      this.gitRaw(repositoryRoot, ["status", "--porcelain=v1"]),
+      this.gitRaw(repositoryRoot, workingTreeStatusArgs),
       this.gitRaw(repositoryRoot, ["stash", "list"])
     ]);
     const status = parsePorcelainStatus(statusOutput);
@@ -90,6 +93,15 @@ export class WorkingTreeService {
 
   public async applyStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
     return this.withResult(repositoryId, repositoryRoot, ["stash", "apply", stashRef], this.t("workingTree.appliedStash"));
+  }
+
+  public async createStash(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeActionResult> {
+    return this.withResult(
+      repositoryId,
+      repositoryRoot,
+      ["stash", "push", "--include-untracked", "-m", this.t("workingTree.manualStashMessage")],
+      this.t("workingTree.createdStash")
+    );
   }
 
   public async popStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {

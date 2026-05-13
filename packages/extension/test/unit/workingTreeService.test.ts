@@ -4,7 +4,7 @@ import { WorkingTreeService } from "../../src/backend/git/WorkingTreeService";
 describe("WorkingTreeService", () => {
   it("loads branch, staged files, unstaged files, and stashes", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "M  src/staged.ts\n M src/unstaged.ts\n?? src/untracked.ts\n";
       }
       if (args.join(" ") === "stash list") {
@@ -26,7 +26,7 @@ describe("WorkingTreeService", () => {
     expect(gitRaw.mock.calls).toEqual(
       expect.arrayContaining([
         ["/repo", ["rev-parse", "--abbrev-ref", "HEAD"]],
-        ["/repo", ["status", "--porcelain=v1"]],
+        ["/repo", ["status", "--porcelain=v1", "--untracked-files=all"]],
         ["/repo", ["stash", "list"]]
       ])
     );
@@ -56,7 +56,7 @@ describe("WorkingTreeService", () => {
     }
   ])("runs git $message and returns the updated working tree", async ({ action, command, message }) => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "M  src/staged.ts\n M src/unstaged.ts\n";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -86,7 +86,7 @@ describe("WorkingTreeService", () => {
 
   it("runs git commit with the message and returns the updated working tree without staging unstaged files", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "M  src/staged.ts\n M src/unstaged.ts\n";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -117,7 +117,7 @@ describe("WorkingTreeService", () => {
 
   it("logs working tree write commands and successful results", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -149,7 +149,7 @@ describe("WorkingTreeService", () => {
 
   it("does not discard a file unless the warning confirmation returns Discard", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return " M src/a.ts\n";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -172,7 +172,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 -- src/a.ts") {
         return " M src/a.ts\n";
       }
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -196,7 +196,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 -- src/new.ts") {
         return "?? src/new.ts\n";
       }
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -217,7 +217,7 @@ describe("WorkingTreeService", () => {
 
   it("does not drop a stash unless the warning confirmation returns Drop Stash", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -245,7 +245,7 @@ describe("WorkingTreeService", () => {
 
   it("runs git stash drop when drop confirmation returns Drop Stash", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -273,7 +273,7 @@ describe("WorkingTreeService", () => {
 
   it("does not pop a stash unless the warning confirmation returns Pop Stash", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -301,7 +301,7 @@ describe("WorkingTreeService", () => {
 
   it("runs git stash pop when pop confirmation returns Pop Stash", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -329,7 +329,7 @@ describe("WorkingTreeService", () => {
 
   it("applies stash without confirmation and returns the updated working tree", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
-      if (args.join(" ") === "status --porcelain=v1") {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return " M src/a.ts\n";
       }
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
@@ -344,6 +344,36 @@ describe("WorkingTreeService", () => {
     expect(gitRaw).toHaveBeenNthCalledWith(1, "/repo", ["stash", "apply", "stash@{0}"]);
     expect(result.result).toEqual({ message: "Applied stash", status: "ok" });
     expect(result.workingTree.unstaged).toMatchObject([{ path: "src/a.ts" }]);
+  });
+
+  it("creates a stash with staged, unstaged, and untracked changes", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "stash list") {
+        return "stash@{0}: On main: GUI Git History manual stash";
+      }
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
+        return "";
+      }
+      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+        return "main\n";
+      }
+      return "";
+    });
+    const service = new WorkingTreeService({ gitRaw });
+
+    const result = await service.createStash("/repo", "/repo");
+
+    expect(gitRaw).toHaveBeenNthCalledWith(1, "/repo", [
+      "stash",
+      "push",
+      "--include-untracked",
+      "-m",
+      "GUI Git History manual stash"
+    ]);
+    expect(result.result).toEqual({ message: "Stashed changes", status: "ok" });
+    expect(result.workingTree.stashes).toEqual([
+      { branch: "main", date: "", message: "On main: GUI Git History manual stash", ref: "stash@{0}" }
+    ]);
   });
 
   it("loads stash details with files", async () => {

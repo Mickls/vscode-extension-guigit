@@ -54,12 +54,17 @@
       "applyStash": "应用储藏",
       "popStash": "应用并移除储藏",
       "dropStash": "删除储藏",
+      "createStash": "储藏全部变更",
+      "expandStash": "展开储藏 {0}",
+      "noStashes": "没有储藏",
       "commitMessage": "提交消息",
       "generateCommitMessage": "生成提交消息",
       "commit": "提交"
     },
     "workingTree": {
       "appliedStash": "已应用储藏",
+      "createdStash": "已储藏变更",
+      "manualStashMessage": "GUI Git History 手动储藏",
       "popStashConfirmation": "要应用并移除这个储藏吗？",
       "popStashCancelled": "已取消应用并移除储藏",
       "poppedStash": "已应用并移除储藏",
@@ -320,7 +325,8 @@
     },
     "rightPanel": {
       "changes": "变更",
-      "details": "详情"
+      "details": "详情",
+      "stash": "储藏"
     }
   }
 }

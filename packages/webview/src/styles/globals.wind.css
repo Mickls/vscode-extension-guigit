@@ -1,1 +1,80 @@
 @import "tailwindcss";
+
+.guigit-icon-tooltip-host {
+  position: relative;
+}
+
+.guigit-icon-tooltip {
+  pointer-events: none;
+  position: absolute;
+  z-index: 80;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease, transform 120ms ease;
+}
+
+.guigit-icon-tooltip::after {
+  content: attr(data-tooltip);
+  display: block;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+  border-radius: 3px;
+  background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.28);
+  color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground));
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 3px 6px;
+}
+
+.guigit-icon-tooltip[data-placement="top"] {
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translate(-50%, 2px);
+}
+
+.guigit-icon-tooltip[data-placement="bottom"] {
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translate(-50%, -2px);
+}
+
+.guigit-icon-tooltip[data-placement="left"] {
+  right: calc(100% + 6px);
+  top: 50%;
+  transform: translate(2px, -50%);
+}
+
+.guigit-icon-tooltip[data-placement="right"] {
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translate(-2px, -50%);
+}
+
+.guigit-icon-tooltip-host:hover > .guigit-icon-tooltip,
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip,
+.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="top"],
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="top"],
+.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="top"],
+.guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="bottom"],
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="bottom"],
+.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="bottom"] {
+  transform: translate(-50%, 0);
+}
+
+.guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="left"],
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="left"],
+.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="left"],
+.guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="right"],
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="right"],
+.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="right"] {
+  transform: translate(0, -50%);
+}
