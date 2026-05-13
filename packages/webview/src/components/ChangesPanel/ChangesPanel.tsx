@@ -55,11 +55,11 @@ const defaultLabels: ChangesPanelLabels = {
   noStashes: "No stashes",
   openDiff: "Open diff for {0}",
   openFile: "Open file {0}",
-  applyStash: "Apply stash {0}",
+  applyStash: "Apply stash",
   discard: "Discard {0}",
-  dropStash: "Drop stash {0}",
+  dropStash: "Drop stash",
   expandStash: "Expand stash {0}",
-  popStash: "Pop stash {0}",
+  popStash: "Pop stash",
   refreshChanges: "Refresh Changes",
   repository: "Repository",
   stage: "Stage {0}",
@@ -217,6 +217,35 @@ export function ChangesPanel({
       <div className="flex justify-end">
         <FileViewModeControls labels={text} mode={fileViewMode} onModeChange={onFileViewModeChange} />
       </div>
+      <section className="space-y-2 rounded-[3px] border border-[var(--vscode-panel-border)] p-2">
+        <label className="flex flex-col gap-1 text-xs">
+          <span>{text.commitMessage}</span>
+          <textarea
+            aria-label={text.commitMessage}
+            className="min-h-20 resize-y rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] p-2 text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
+            onChange={(event) => changeCommitMessage(event.currentTarget.value)}
+            value={commitMessage}
+          />
+        </label>
+        <div className="flex justify-end gap-2">
+          <button
+            className="rounded-[3px] border border-[var(--vscode-button-border)] px-2 py-1 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={generatingCommitMessage}
+            onClick={generateCommitMessage}
+            type="button"
+          >
+            {text.generate}
+          </button>
+          <button
+            className="rounded-[3px] bg-[var(--vscode-button-background)] px-3 py-1 text-xs text-[var(--vscode-button-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canCommit}
+            onClick={() => onCommit?.(commitMessage)}
+            type="button"
+          >
+            {text.commit}
+          </button>
+        </div>
+      </section>
       <WorkingTreeFileSection
         action="unstage"
         files={staged}
@@ -274,35 +303,6 @@ export function ChangesPanel({
         onPopStash={onPopStash}
         stashes={stashes}
       />
-      <section className="mt-auto space-y-2 border-t border-[var(--vscode-panel-border)] pt-3">
-        <label className="flex flex-col gap-1 text-xs">
-          <span>{text.commitMessage}</span>
-          <textarea
-            aria-label={text.commitMessage}
-            className="min-h-20 resize-y rounded-[3px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-background)] p-2 text-[var(--vscode-input-foreground)] outline-none focus:border-[var(--vscode-focusBorder)]"
-            onChange={(event) => changeCommitMessage(event.currentTarget.value)}
-            value={commitMessage}
-          />
-        </label>
-        <div className="flex justify-end gap-2">
-          <button
-            className="rounded-[3px] border border-[var(--vscode-button-border)] px-2 py-1 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={generatingCommitMessage}
-            onClick={generateCommitMessage}
-            type="button"
-          >
-            {text.generate}
-          </button>
-          <button
-            className="rounded-[3px] bg-[var(--vscode-button-background)] px-3 py-1 text-xs text-[var(--vscode-button-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!canCommit}
-            onClick={() => onCommit?.(commitMessage)}
-            type="button"
-          >
-            {text.commit}
-          </button>
-        </div>
-      </section>
     </div>
   );
 }
@@ -631,7 +631,7 @@ function StashSection({
               <div className="border-b border-[var(--vscode-panel-border)] px-2 py-1.5 text-xs last:border-b-0" key={stash.ref}>
                 <div className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2">
                   <button
-                    aria-label={formatLabel(labels.expandStash, stash.ref)}
+                    aria-label={formatLabel(labels.expandStash, stash.message)}
                     className="flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
                     onClick={() => toggleStash(stash.ref)}
                     type="button"
@@ -640,11 +640,10 @@ function StashSection({
                   </button>
                   <div className="min-w-0">
                     <div className="truncate text-[var(--vscode-foreground)]">{stash.message}</div>
-                    <div className="truncate text-[11px] text-[var(--vscode-descriptionForeground)]">{stash.ref}</div>
                   </div>
-                  <StashActionButton icon="apply" label={formatLabel(labels.applyStash, stash.ref)} onClick={() => onApplyStash?.(stash.ref)} />
-                  <StashActionButton icon="pop" label={formatLabel(labels.popStash, stash.ref)} onClick={() => onPopStash?.(stash.ref)} />
-                  <StashActionButton icon="drop" label={formatLabel(labels.dropStash, stash.ref)} onClick={() => onDropStash?.(stash.ref)} />
+                  <StashActionButton icon="apply" label={labels.applyStash} onClick={() => onApplyStash?.(stash.ref)} />
+                  <StashActionButton icon="pop" label={labels.popStash} onClick={() => onPopStash?.(stash.ref)} />
+                  <StashActionButton icon="drop" label={labels.dropStash} onClick={() => onDropStash?.(stash.ref)} />
                 </div>
                 {expanded && stash.files ? (
                   <div className="mt-1 border-t border-[var(--vscode-panel-border)] pt-1">

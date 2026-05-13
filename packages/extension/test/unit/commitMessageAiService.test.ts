@@ -76,9 +76,10 @@ describe("CommitMessageAiService", () => {
 
     expect(openAICompatibleProvider.generate).toHaveBeenCalledWith({
       apiKey: "sk-test",
-      baseUrl: "https://api.example.com/v1",
+      baseUrl: "https://api.openai.com",
       model: "gpt-test",
-      prompt: expect.stringContaining("src/a.ts")
+      prompt: expect.stringContaining("src/a.ts"),
+      protocol: "responses"
     });
   });
 
@@ -116,9 +117,10 @@ function createSettings(provider: AiProviderKind): SettingsViewModel {
     autoStashOnPull: "ask",
     ai: {
       openAICompatible: {
-        baseUrl: "https://api.example.com/v1",
+        baseUrl: "https://api.openai.com",
         configured: provider === "openAICompatible",
-        model: "gpt-test"
+        model: "gpt-test",
+        protocol: "responses"
       },
       provider
     },

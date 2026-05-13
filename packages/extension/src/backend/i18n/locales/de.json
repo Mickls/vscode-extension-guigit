@@ -58,6 +58,15 @@
       "generateCommitMessage": "Commit-Nachricht generieren",
       "commit": "Committen"
     },
+    "workingTree": {
+      "appliedStash": "Stash angewendet",
+      "popStashConfirmation": "Diesen Stash anwenden und löschen?",
+      "popStashCancelled": "Anwenden und Löschen des Stashs abgebrochen",
+      "poppedStash": "Stash angewendet und gelöscht",
+      "dropStashConfirmation": "Diesen Stash löschen?",
+      "dropStashCancelled": "Löschen des Stashs abgebrochen",
+      "droppedStash": "Stash gelöscht"
+    },
     "remoteManager": {
       "title": "Remotes verwalten",
       "description": "Remote-Repositories dieses Projekts anzeigen, bearbeiten, hinzufügen oder entfernen.",
@@ -308,6 +317,10 @@
       "completed": "{0} abgeschlossen",
       "cancelled": "{0} abgebrochen",
       "running": "{0} laeuft..."
+    },
+    "rightPanel": {
+      "changes": "Änderungen",
+      "details": "Details"
     }
   }
 }

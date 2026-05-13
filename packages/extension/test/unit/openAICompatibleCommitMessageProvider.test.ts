@@ -39,9 +39,10 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
     await expect(
       provider.generate({
         apiKey: "sk-test",
-        baseUrl: "https://api.example.com/v1",
+        baseUrl: "https://api.example.com",
         model: "gpt-test",
-        prompt: "Write one line"
+        prompt: "Write one line",
+        protocol: "chatCompletions"
       })
     ).resolves.toBe("feat: add ai commit messages");
 
@@ -62,6 +63,86 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
         }
       ],
       model: "gpt-test"
+    });
+  });
+
+  it("posts the prompt to the responses endpoint when selected", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        output_text: "fix: use responses api"
+      })
+    }));
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.openai.com",
+        model: "gpt-test",
+        prompt: "Write one line",
+        protocol: "responses"
+      })
+    ).resolves.toBe("fix: use responses api");
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe("https://api.openai.com/v1/responses");
+    expect(init).toMatchObject({
+      headers: {
+        Authorization: "Bearer sk-test",
+        "Content-Type": "application/json"
+      },
+      method: "POST"
+    });
+    expect(JSON.parse(init.body as string)).toEqual({
+      input: "Write one line",
+      model: "gpt-test"
+    });
+  });
+
+  it("posts the prompt to the Claude messages endpoint when selected", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        content: [
+          {
+            text: "feat: use claude messages",
+            type: "text"
+          }
+        ]
+      })
+    }));
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-ant-test",
+        baseUrl: "https://api.anthropic.com",
+        model: "claude-test",
+        prompt: "Write one line",
+        protocol: "claudeMessages"
+      })
+    ).resolves.toBe("feat: use claude messages");
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    expect(init).toMatchObject({
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": "sk-ant-test"
+      },
+      method: "POST"
+    });
+    expect(JSON.parse(init.body as string)).toEqual({
+      max_tokens: 64,
+      messages: [
+        {
+          content: "Write one line",
+          role: "user"
+        }
+      ],
+      model: "claude-test"
     });
   });
 

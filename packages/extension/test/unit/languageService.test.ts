@@ -24,6 +24,15 @@ describe("LanguageService", () => {
     expect(createService({ language: "auto", uiLanguage: "pt-BR" }).getBundle().locale).toBe("en");
   });
 
+  it("loads right panel labels for every supported language", () => {
+    for (const language of ["de", "en", "es", "fr", "ja", "ru", "zh"] as const) {
+      expect(createService({ language }).getBundle().messages.rightPanel).toEqual({
+        changes: expect.any(String),
+        details: expect.any(String)
+      });
+    }
+  });
+
   it("changes language through the backend picker", async () => {
     const updates: unknown[] = [];
     const service = createService({

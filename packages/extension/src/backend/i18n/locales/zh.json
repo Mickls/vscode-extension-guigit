@@ -58,6 +58,15 @@
       "generateCommitMessage": "生成提交消息",
       "commit": "提交"
     },
+    "workingTree": {
+      "appliedStash": "已应用储藏",
+      "popStashConfirmation": "要应用并移除这个储藏吗？",
+      "popStashCancelled": "已取消应用并移除储藏",
+      "poppedStash": "已应用并移除储藏",
+      "dropStashConfirmation": "要删除这个储藏吗？",
+      "dropStashCancelled": "已取消删除储藏",
+      "droppedStash": "已删除储藏"
+    },
     "remoteManager": {
       "title": "管理远程",
       "description": "查看、编辑、添加或删除当前仓库的远程。",
@@ -308,6 +317,10 @@
       "completed": "{0}已完成",
       "cancelled": "{0}已取消",
       "running": "{0} 正在执行..."
+    },
+    "rightPanel": {
+      "changes": "变更",
+      "details": "详情"
     }
   }
 }

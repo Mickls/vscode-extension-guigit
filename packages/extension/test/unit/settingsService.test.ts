@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SettingsService, type SettingsConfiguration, type SettingsConfigurationKey, type SettingsSecretStorage } from "../../src/state/SettingsService";
 
 const apiKeySecretKey = "guigit.ai.openAICompatible.apiKey";
@@ -8,6 +8,7 @@ describe("SettingsService", () => {
     const { configuration } = createConfiguration({
       "ai.openAICompatible.baseUrl": "https://api.example.com/v1",
       "ai.openAICompatible.model": "gpt-test",
+      "ai.openAICompatible.protocol": "chatCompletions",
       "ai.provider": "openAICompatible",
       autoStashOnPull: "always",
       "blame.enabled": false,
@@ -40,7 +41,8 @@ describe("SettingsService", () => {
         openAICompatible: {
           baseUrl: "https://api.example.com/v1",
           configured: true,
-          model: "gpt-test"
+          model: "gpt-test",
+          protocol: "chatCompletions"
         }
       }
     });
@@ -108,54 +110,82 @@ describe("SettingsService", () => {
         openAICompatible: {
           baseUrl: "https://api.example.com/v1",
           configured: true,
-          model: "gpt-test"
+          model: "gpt-test",
+          protocol: "chatCompletions"
         }
       }
     });
 
     expect(updates).toEqual([
       { key: "ai.provider", value: "openAICompatible" },
+      { key: "ai.openAICompatible.protocol", value: "chatCompletions" },
       { key: "ai.openAICompatible.baseUrl", value: "https://api.example.com/v1" },
       { key: "ai.openAICompatible.model", value: "gpt-test" }
     ]);
     expect(service.getSettings().ai.openAICompatible).toEqual({
       baseUrl: "https://api.example.com/v1",
       configured: true,
-      model: "gpt-test"
+      model: "gpt-test",
+      protocol: "chatCompletions"
     });
     expect(await service.getOpenAICompatibleApiKey()).toBe("sk-test");
   });
 
-  it("configures the OpenAI-compatible provider with secret storage", async () => {
+  it("stores a replacement AI provider API key when provided in settings updates", async () => {
     const { configuration, updates } = createConfiguration();
-    const { secretStorage, stores } = createSecretStorage();
-    const service = createService({
-      configuration,
-      secretStorage,
-      showInputBox: vi.fn()
-        .mockResolvedValueOnce("https://api.example.com/v1")
-        .mockResolvedValueOnce("gpt-test")
-        .mockResolvedValueOnce("sk-test"),
-      showQuickPick: vi.fn().mockImplementation(async (items) => items.find((item) => item.value === "openAICompatible"))
-    });
+    const { secretStorage, stores } = createSecretStorage({ [apiKeySecretKey]: "sk-old" });
+    const service = createService({ configuration, secretStorage });
 
-    await expect(service.configureAiProvider()).resolves.toEqual({
-      message: "AI provider configured",
-      status: "ok"
+    await service.updateSettings({
+      ai: {
+        provider: "openAICompatible",
+        openAICompatible: {
+          apiKey: "sk-new",
+          baseUrl: "https://api.openai.com",
+          configured: true,
+          model: "gpt-test",
+          protocol: "responses"
+        }
+      }
     });
 
     expect(updates).toEqual([
       { key: "ai.provider", value: "openAICompatible" },
-      { key: "ai.openAICompatible.baseUrl", value: "https://api.example.com/v1" },
+      { key: "ai.openAICompatible.protocol", value: "responses" },
+      { key: "ai.openAICompatible.baseUrl", value: "https://api.openai.com" },
       { key: "ai.openAICompatible.model", value: "gpt-test" }
     ]);
-    expect(stores).toEqual([
-      { key: apiKeySecretKey, value: "sk-test" }
-    ]);
-    expect(service.getSettings().ai.openAICompatible).toEqual({
-      baseUrl: "https://api.example.com/v1",
-      configured: true,
-      model: "gpt-test"
+    expect(stores).toEqual([{ key: apiKeySecretKey, value: "sk-new" }]);
+    expect(await service.getOpenAICompatibleApiKey()).toBe("sk-new");
+  });
+
+  it("preserves the stored AI provider API key when no replacement key is provided", async () => {
+    const { configuration } = createConfiguration();
+    const { secretStorage, stores } = createSecretStorage({ [apiKeySecretKey]: "sk-existing" });
+    const service = createService({ configuration, secretStorage });
+
+    await service.updateSettings({
+      ai: {
+        provider: "openAICompatible",
+        openAICompatible: {
+          baseUrl: "https://api.openai.com",
+          configured: true,
+          model: "gpt-test",
+          protocol: "chatCompletions"
+        }
+      }
+    });
+
+    expect(stores).toEqual([]);
+    expect(await service.getOpenAICompatibleApiKey()).toBe("sk-existing");
+  });
+
+  it("keeps QuickPick AI configuration disabled for the Webview panel flow", async () => {
+    const service = createService();
+
+    await expect(service.configureAiProvider()).resolves.toEqual({
+      message: "AI provider configuration is available in the Webview",
+      status: "cancelled"
     });
   });
 });
@@ -163,17 +193,13 @@ describe("SettingsService", () => {
 function createService(input: {
   configuration?: SettingsConfiguration;
   secretStorage?: SettingsSecretStorage;
-  showInputBox?: (options: Parameters<ConstructorParameters<typeof SettingsService>[0]["showInputBox"]>[0]) => Thenable<string | undefined>;
-  showQuickPick?: ConstructorParameters<typeof SettingsService>[0]["showQuickPick"];
 } = {}): SettingsService {
   const { configuration } = createConfiguration();
   const { secretStorage } = createSecretStorage();
 
   return new SettingsService({
     configuration: input.configuration ?? configuration,
-    secretStorage: input.secretStorage ?? secretStorage,
-    showInputBox: input.showInputBox ?? (async () => undefined),
-    showQuickPick: input.showQuickPick ?? (async () => undefined)
+    secretStorage: input.secretStorage ?? secretStorage
   });
 }
 

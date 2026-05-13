@@ -55,7 +55,8 @@ export class CommitMessageAiService {
         apiKey,
         baseUrl: settings.ai.openAICompatible.baseUrl,
         model: settings.ai.openAICompatible.model,
-        prompt
+        prompt,
+        protocol: settings.ai.openAICompatible.protocol
       });
       return {
         message: "OpenAI-compatible provider tested",
@@ -83,7 +84,8 @@ export class CommitMessageAiService {
         apiKey,
         baseUrl: settings.ai.openAICompatible.baseUrl,
         model: settings.ai.openAICompatible.model,
-        prompt
+        prompt,
+        protocol: settings.ai.openAICompatible.protocol
       });
     }
 

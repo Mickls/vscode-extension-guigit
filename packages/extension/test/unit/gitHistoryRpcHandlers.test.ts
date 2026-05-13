@@ -1315,7 +1315,8 @@ function createSettings(mode: "tree" | "list") {
       openAICompatible: {
         baseUrl: "",
         configured: false,
-        model: ""
+        model: "",
+        protocol: "chatCompletions"
       }
     },
     blameEnabled: true,

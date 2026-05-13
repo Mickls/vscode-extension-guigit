@@ -95,15 +95,77 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByRole("menuitem", { name: "Configure AI Provider" }));
-    expect(latestRequest(rpcClient, "settings.configureAiProvider")).toEqual(expect.objectContaining({
-      type: "settings.configureAiProvider"
-    }));
+    expect(screen.getByRole("dialog", { name: "Configure AI Provider" })).toBeInTheDocument();
+  });
+
+  it("does not show a separate AI provider test action in the settings menu", async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
-    await user.click(screen.getByRole("menuitem", { name: "Test AI Provider" }));
-    expect(latestRequest(rpcClient, "settings.testAiProvider")).toEqual(expect.objectContaining({
-      type: "settings.testAiProvider"
+
+    expect(screen.queryByRole("menuitem", { name: "Test AI Provider" })).not.toBeInTheDocument();
+  });
+
+  it("posts AI provider panel updates to the backend", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchSettingsResponse("settings-get", "tree");
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configure AI Provider" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "API protocol" }), "claudeMessages");
+    await user.clear(screen.getByLabelText("API host"));
+    await user.type(screen.getByLabelText("API host"), "https://api.anthropic.com");
+    await user.clear(screen.getByLabelText("Model"));
+    await user.type(screen.getByLabelText("Model"), "claude-test");
+    await user.type(screen.getByLabelText("API key"), "sk-ant-test");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(latestRequest(rpcClient, "settings.update")).toEqual(expect.objectContaining({
+      settings: {
+        ai: {
+          provider: "openAICompatible",
+          openAICompatible: {
+            apiKey: "sk-ant-test",
+            baseUrl: "https://api.anthropic.com",
+            configured: true,
+            model: "claude-test",
+            protocol: "claudeMessages"
+          }
+        }
+      },
+      type: "settings.update"
     }));
+  });
+
+  it("shows AI provider test feedback in the panel while the request is pending", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchSettingsResponse("settings-get", "tree");
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configure AI Provider" }));
+    await user.click(screen.getByRole("button", { name: "Test" }));
+
+    const request = latestRequest(rpcClient, "settings.testAiProvider");
+    expect(request).toEqual(expect.objectContaining({ type: "settings.testAiProvider" }));
+    expect(screen.getByRole("button", { name: "Testing..." })).toBeDisabled();
+
+    dispatchAiProviderTestResponse(request.id);
+
+    expect(screen.getByRole("button", { name: "Test" })).toBeEnabled();
   });
 
   it("posts checkout and clone actions from the header", async () => {
@@ -666,7 +728,7 @@ describe("App", () => {
     });
     expect(await screen.findByRole("heading", { name: "Changes (0)" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: abc1234 message" }));
     const detailsRequest = latestRequest(rpcClient, "stash.getDetails");
     expect(detailsRequest).toEqual(expect.objectContaining({
       repositoryId: "/repo",
@@ -684,19 +746,19 @@ describe("App", () => {
       type: "stash.openDiff"
     }));
 
-    await user.click(screen.getByRole("button", { name: "Apply stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Apply stash" }));
     expect(latestRequest(rpcClient, "stash.apply")).toEqual(expect.objectContaining({
       repositoryId: "/repo",
       stashRef: "stash@{0}",
       type: "stash.apply"
     }));
-    await user.click(screen.getByRole("button", { name: "Pop stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Pop stash" }));
     expect(latestRequest(rpcClient, "stash.pop")).toEqual(expect.objectContaining({
       repositoryId: "/repo",
       stashRef: "stash@{0}",
       type: "stash.pop"
     }));
-    await user.click(screen.getByRole("button", { name: "Drop stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Drop stash" }));
     expect(latestRequest(rpcClient, "stash.drop")).toEqual(expect.objectContaining({
       repositoryId: "/repo",
       stashRef: "stash@{0}",
@@ -722,7 +784,7 @@ describe("App", () => {
       stashes: [{ branch: "main", date: "", message: "WIP on main: stale", ref: "stash@{0}" }]
     });
 
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: stale" }));
     const staleDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Repository" }), "/repo-two");
@@ -760,10 +822,10 @@ describe("App", () => {
       stashes: [{ branch: "main", date: "", message: "WIP on main: current", ref: "stash@{0}" }]
     });
 
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: current" }));
     const staleDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: current" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: current" }));
     const currentDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
 
     dispatchStashDetailsResponse(staleDetailsRequest.id, {
@@ -854,10 +916,10 @@ describe("App", () => {
       stashes: [{ branch: "main", date: "", message: "WIP on main: current", ref: "stash@{0}" }]
     });
 
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: current" }));
     const staleDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: current" }));
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: current" }));
     const currentDetailsRequest = latestRequest(rpcClient, "stash.getDetails");
     dispatchStashDetailsResponse(currentDetailsRequest.id, {
       files: [{ area: "stash", binary: false, deletions: 1, insertions: 1, path: "src/current-stashed.ts", status: "modified" }]
@@ -2855,11 +2917,12 @@ function dispatchSettingsResponse(
                 noProxy: ""
               },
               ai: {
-                provider: "vscodeLanguageModel",
+                provider: "openAICompatible",
                 openAICompatible: {
-                  baseUrl: "",
-                  model: "",
-                  configured: false
+                  baseUrl: "https://api.openai.com",
+                  configured: true,
+                  model: "gpt-test",
+                  protocol: "responses"
                 }
               }
             }
@@ -2953,6 +3016,24 @@ function dispatchOperationResponse(
           ok: true,
           type,
           payload: result
+        } satisfies RpcResponse
+      })
+    );
+  });
+}
+
+function dispatchAiProviderTestResponse(id: string): void {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          id,
+          ok: true,
+          type: "settings.testAiProvider",
+          payload: {
+            message: "AI provider tested",
+            status: "ok"
+          }
         } satisfies RpcResponse
       })
     );

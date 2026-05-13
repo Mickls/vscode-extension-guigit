@@ -65,7 +65,8 @@ describe("package manifest", () => {
       expect.objectContaining({
         "guigit.ai.provider": expect.any(Object),
         "guigit.ai.openAICompatible.baseUrl": expect.any(Object),
-        "guigit.ai.openAICompatible.model": expect.any(Object)
+        "guigit.ai.openAICompatible.model": expect.any(Object),
+        "guigit.ai.openAICompatible.protocol": expect.any(Object)
       })
     );
     expect(manifest.contributes.configuration.properties).not.toHaveProperty("guigit.ai.openAICompatible.apiKey");

@@ -24,7 +24,6 @@ describe("SettingsMenu", () => {
       "refreshProxy",
       "manageRemotes",
       "configureAiProvider",
-      "testAiProvider",
       "changeLanguage"
     ]);
     expect(within(menu).getAllByRole("separator")).toHaveLength(3);

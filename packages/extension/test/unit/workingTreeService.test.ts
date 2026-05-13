@@ -226,13 +226,21 @@ describe("WorkingTreeService", () => {
       return "";
     });
     const showWarningMessage = vi.fn(async () => undefined);
-    const service = new WorkingTreeService({ gitRaw, showWarningMessage });
+    const t = vi.fn((key: string) => {
+      const messages: Record<string, string> = {
+        "changes.dropStash": "删除储藏",
+        "workingTree.dropStashCancelled": "已取消删除储藏",
+        "workingTree.dropStashConfirmation": "要删除这个储藏吗？"
+      };
+      return messages[key];
+    });
+    const service = new WorkingTreeService({ gitRaw, showWarningMessage, t });
 
     const result = await service.dropStash("/repo", "/repo", "stash@{0}");
 
-    expect(showWarningMessage).toHaveBeenCalledWith("Drop stash stash@{0}?", { modal: true }, "Drop Stash");
+    expect(showWarningMessage).toHaveBeenCalledWith("要删除这个储藏吗？", { modal: true }, "删除储藏");
     expect(gitRaw).not.toHaveBeenCalledWith("/repo", ["stash", "drop", "stash@{0}"]);
-    expect(result.result).toEqual({ message: "Drop stash cancelled", status: "cancelled" });
+    expect(result.result).toEqual({ message: "已取消删除储藏", status: "cancelled" });
   });
 
   it("runs git stash drop when drop confirmation returns Drop Stash", async () => {
@@ -247,13 +255,20 @@ describe("WorkingTreeService", () => {
     });
     const service = new WorkingTreeService({
       gitRaw,
-      showWarningMessage: async () => "Drop Stash"
+      t: (key: string) => {
+        const messages: Record<string, string> = {
+          "changes.dropStash": "删除储藏",
+          "workingTree.droppedStash": "已删除储藏"
+        };
+        return messages[key];
+      },
+      showWarningMessage: async () => "删除储藏"
     });
 
     const result = await service.dropStash("/repo", "/repo", "stash@{0}");
 
     expect(gitRaw).toHaveBeenNthCalledWith(1, "/repo", ["stash", "drop", "stash@{0}"]);
-    expect(result.result).toEqual({ message: "Dropped stash", status: "ok" });
+    expect(result.result).toEqual({ message: "已删除储藏", status: "ok" });
   });
 
   it("does not pop a stash unless the warning confirmation returns Pop Stash", async () => {
@@ -267,13 +282,21 @@ describe("WorkingTreeService", () => {
       return "";
     });
     const showWarningMessage = vi.fn(async () => undefined);
-    const service = new WorkingTreeService({ gitRaw, showWarningMessage });
+    const t = vi.fn((key: string) => {
+      const messages: Record<string, string> = {
+        "changes.popStash": "应用并移除储藏",
+        "workingTree.popStashCancelled": "已取消应用并移除储藏",
+        "workingTree.popStashConfirmation": "要应用并移除这个储藏吗？"
+      };
+      return messages[key];
+    });
+    const service = new WorkingTreeService({ gitRaw, showWarningMessage, t });
 
     const result = await service.popStash("/repo", "/repo", "stash@{0}");
 
-    expect(showWarningMessage).toHaveBeenCalledWith("Pop stash stash@{0}?", { modal: true }, "Pop Stash");
+    expect(showWarningMessage).toHaveBeenCalledWith("要应用并移除这个储藏吗？", { modal: true }, "应用并移除储藏");
     expect(gitRaw).not.toHaveBeenCalledWith("/repo", ["stash", "pop", "stash@{0}"]);
-    expect(result.result).toEqual({ message: "Pop stash cancelled", status: "cancelled" });
+    expect(result.result).toEqual({ message: "已取消应用并移除储藏", status: "cancelled" });
   });
 
   it("runs git stash pop when pop confirmation returns Pop Stash", async () => {
@@ -288,13 +311,20 @@ describe("WorkingTreeService", () => {
     });
     const service = new WorkingTreeService({
       gitRaw,
-      showWarningMessage: async () => "Pop Stash"
+      t: (key: string) => {
+        const messages: Record<string, string> = {
+          "changes.popStash": "应用并移除储藏",
+          "workingTree.poppedStash": "已应用并移除储藏"
+        };
+        return messages[key];
+      },
+      showWarningMessage: async () => "应用并移除储藏"
     });
 
     const result = await service.popStash("/repo", "/repo", "stash@{0}");
 
     expect(gitRaw).toHaveBeenNthCalledWith(1, "/repo", ["stash", "pop", "stash@{0}"]);
-    expect(result.result).toEqual({ message: "Popped stash", status: "ok" });
+    expect(result.result).toEqual({ message: "已应用并移除储藏", status: "ok" });
   });
 
   it("applies stash without confirmation and returns the updated working tree", async () => {

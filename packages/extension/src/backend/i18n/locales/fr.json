@@ -58,6 +58,15 @@
       "generateCommitMessage": "Générer le message de commit",
       "commit": "Valider"
     },
+    "workingTree": {
+      "appliedStash": "Stash appliqué",
+      "popStashConfirmation": "Appliquer et supprimer ce stash ?",
+      "popStashCancelled": "Application et suppression du stash annulées",
+      "poppedStash": "Stash appliqué et supprimé",
+      "dropStashConfirmation": "Supprimer ce stash ?",
+      "dropStashCancelled": "Suppression du stash annulée",
+      "droppedStash": "Stash supprimé"
+    },
     "remoteManager": {
       "title": "Gérer les remotes",
       "description": "Afficher, modifier, ajouter ou supprimer les remotes du dépôt actuel.",
@@ -308,6 +317,10 @@
       "completed": "{0} termine",
       "cancelled": "{0} annule",
       "running": "{0} en cours..."
+    },
+    "rightPanel": {
+      "changes": "Modifications",
+      "details": "Détails"
     }
   }
 }

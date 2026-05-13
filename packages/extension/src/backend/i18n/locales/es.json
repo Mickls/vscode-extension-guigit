@@ -58,6 +58,15 @@
       "generateCommitMessage": "Generar mensaje de commit",
       "commit": "Hacer commit"
     },
+    "workingTree": {
+      "appliedStash": "Stash aplicado",
+      "popStashConfirmation": "¿Aplicar y quitar este stash?",
+      "popStashCancelled": "Aplicación y eliminación del stash cancelada",
+      "poppedStash": "Stash aplicado y eliminado",
+      "dropStashConfirmation": "¿Eliminar este stash?",
+      "dropStashCancelled": "Eliminación del stash cancelada",
+      "droppedStash": "Stash eliminado"
+    },
     "remoteManager": {
       "title": "Gestionar remotos",
       "description": "Consulta, edita, añade o elimina los remotos del repositorio actual.",
@@ -308,6 +317,10 @@
       "completed": "{0} completado",
       "cancelled": "{0} cancelado",
       "running": "{0} en ejecucion..."
+    },
+    "rightPanel": {
+      "changes": "Cambios",
+      "details": "Detalles"
     }
   }
 }

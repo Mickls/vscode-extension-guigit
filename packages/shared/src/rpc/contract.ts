@@ -68,6 +68,7 @@ export type GitResetMode = "soft" | "mixed" | "hard";
 export type WorkingTreeFileArea = "staged" | "unstaged" | "untracked" | "stash";
 export type WorkingTreeDiffKind = "staged" | "unstaged";
 export type AiProviderKind = "vscodeLanguageModel" | "openAICompatible";
+export type HttpAiProviderProtocol = "chatCompletions" | "responses" | "claudeMessages";
 
 export interface RpcEnvelope {
   id: string;
@@ -213,9 +214,11 @@ export interface ProxySettingsViewModel {
 export interface AiProviderSettingsViewModel {
   provider: AiProviderKind;
   openAICompatible: {
+    apiKey?: string;
     baseUrl: string;
     model: string;
     configured: boolean;
+    protocol: HttpAiProviderProtocol;
   };
 }
 

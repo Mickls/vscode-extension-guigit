@@ -93,9 +93,7 @@ export function activate(context: ExtensionContext): void {
       store: async (key, value) => {
         await context.secrets.store(key, value);
       }
-    },
-    showInputBox: (options) => window.showInputBox(options),
-    showQuickPick: (items, options) => window.showQuickPick([...items], options)
+    }
   });
   const languageModelProvider = new LanguageModelCommitMessageProvider({
     selectChatModels: async () => {
@@ -153,7 +151,8 @@ export function activate(context: ExtensionContext): void {
   const workingTreeService = new WorkingTreeService({
     gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
     logger,
-    showWarningMessage: (message, options, ...items) => window.showWarningMessage(message, options, ...items)
+    showWarningMessage: (message, options, ...items) => window.showWarningMessage(message, options, ...items),
+    t: (key, ...args) => languageService.t(key, ...args)
   });
   const diffService = new DiffService({ logger });
   const safetyService = new SafetyService({ logger });

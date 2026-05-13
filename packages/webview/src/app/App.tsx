@@ -10,6 +10,7 @@ import type {
   FileViewMode,
   GitResetMode,
   GraphLayoutViewModel,
+  AiProviderSettingsViewModel,
   I18nMessages,
   OperationResultViewModel,
   RepositoryViewModel,
@@ -26,6 +27,7 @@ import { CompareOverlay } from "../components/CompareOverlay/CompareOverlay";
 import { CommitDetails } from "../components/CommitDetails/CommitDetails";
 import { CommitList, type CommitSelectionIntent } from "../components/CommitList/CommitList";
 import { ChangesPanel, type ChangesPanelOperationStatus } from "../components/ChangesPanel/ChangesPanel";
+import { AiProviderPanel } from "../components/AiProviderPanel/AiProviderPanel";
 import { ConflictBanner } from "../components/ConflictBanner/ConflictBanner";
 import { ContextMenu, type ContextMenuAction } from "../components/ContextMenu/ContextMenu";
 import { Header } from "../components/Header/Header";
@@ -55,6 +57,15 @@ const minimumGraphViewportWidth = 120;
 const maximumGraphViewportWidth = 240;
 const defaultFileViewMode: FileViewMode = "list";
 const emptyI18nMessages: I18nMessages = {};
+const defaultAiSettings: AiProviderSettingsViewModel = {
+  provider: "openAICompatible",
+  openAICompatible: {
+    baseUrl: "",
+    configured: false,
+    model: "",
+    protocol: "chatCompletions"
+  }
+};
 const notificationHistoryStorageKey = "guigit.notificationHistory";
 const notificationCountVisibilityStorageKey = "guigit.notificationCountVisible";
 const notificationRetentionMs = 7 * 24 * 60 * 60 * 1000;
@@ -65,7 +76,6 @@ type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
 type ProxyOperationType = "proxy.configure" | "proxy.refresh";
 type FileOperationType = "diff.openCommitFile" | "diff.openCompareFile" | "files.openHistory" | "files.openWorkingFile";
-type AiSettingsOperationType = "settings.configureAiProvider" | "settings.testAiProvider";
 type WorkingTreeActionType =
   | "stash.apply"
   | "stash.drop"
@@ -91,12 +101,10 @@ type ContextGitOperationRequest = DistributiveOmit<Extract<RpcRequest, { type: C
 
 const settingsMenuRequests = {
   changeLanguage: "settings.changeLanguage",
-  configureAiProvider: "settings.configureAiProvider",
   configureProxy: "proxy.configure",
   refreshProxy: "proxy.refresh",
-  resetStash: "settings.resetAutoStash",
-  testAiProvider: "settings.testAiProvider"
-} as const satisfies Partial<Record<SettingsMenuAction, AiSettingsOperationType | SettingsOperationType | ProxyOperationType>>;
+  resetStash: "settings.resetAutoStash"
+} as const satisfies Partial<Record<SettingsMenuAction, SettingsOperationType | ProxyOperationType>>;
 
 export interface AppProps {
   rpcClient?: RpcClient;
@@ -127,6 +135,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
     y: 44
   });
   const [remoteManagerOpen, setRemoteManagerOpen] = useState(false);
+  const [aiProviderPanelOpen, setAiProviderPanelOpen] = useState(false);
+  const [testingAiProvider, setTestingAiProvider] = useState(false);
   const [compareOverlayOpen, setCompareOverlayOpen] = useState(false);
   const [commits, setCommits] = useState<readonly CommitListItemViewModel[]>([]);
   const [branches, setBranches] = useState<BranchesViewModel>(emptyBranches);
@@ -147,6 +157,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [generatingCommitMessage, setGeneratingCommitMessage] = useState(false);
   const [commitMessageResetKey, setCommitMessageResetKey] = useState(0);
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(defaultFileViewMode);
+  const [aiSettings, setAiSettings] = useState<AiProviderSettingsViewModel>(defaultAiSettings);
   const [i18nMessages, setI18nMessages] = useState<I18nMessages>(emptyI18nMessages);
   const [compareFiles, setCompareFiles] = useState<readonly FileChangeViewModel[]>(emptyCompareFiles);
   const [compareHashes, setCompareHashes] = useState<readonly [string, string] | undefined>();
@@ -589,6 +600,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       if (response.type === "settings.get" || response.type === "settings.update") {
         setFileViewMode(response.payload.settings.fileViewMode);
         setI18nMessages(response.payload.i18n.messages);
+        setAiSettings(response.payload.settings.ai);
       }
 
       if (response.type === "remotes.list") {
@@ -623,16 +635,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
         });
       }
 
-      if (response.type === "settings.configureAiProvider") {
-        setFileViewMode(response.payload.settings.fileViewMode);
-        setI18nMessages(response.payload.i18n.messages);
-        notify({
-          message: response.payload.result.message,
-          state: response.payload.result.status === "ok" ? "success" : "warning"
-        });
-      }
-
       if (response.type === "settings.testAiProvider") {
+        setTestingAiProvider(false);
         notify({
           message: response.payload.message,
           state: response.payload.status === "ok" ? "success" : "warning"
@@ -858,6 +862,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
       return;
     }
 
+    if (action === "configureAiProvider") {
+      setAiProviderPanelOpen(true);
+      return;
+    }
+
     const type = settingsMenuRequests[action];
     if (type) {
       client?.post({
@@ -1076,6 +1085,26 @@ export function App({ rpcClient }: AppProps): ReactElement {
         fileViewMode: mode
       },
       type: "settings.update"
+    });
+  };
+
+  const updateAiProvider = (ai: AiProviderSettingsViewModel) => {
+    setAiSettings(ai);
+    client?.post({
+      id: crypto.randomUUID(),
+      settings: {
+        ai
+      },
+      type: "settings.update"
+    });
+    setAiProviderPanelOpen(false);
+  };
+
+  const testAiProvider = () => {
+    setTestingAiProvider(true);
+    client?.post({
+      id: crypto.randomUUID(),
+      type: "settings.testAiProvider"
     });
   };
 
@@ -1339,7 +1368,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
                   commit: tx("changes.commit", "Commit"),
                   commitMessage: tx("changes.commitMessage", "Commit message"),
                   discard: `${tx("changes.discard", "Discard")} {0}`,
-                  dropStash: `${tx("changes.dropStash", "Drop stash")} {0}`,
+                  dropStash: tx("changes.dropStash", "Drop stash"),
                   expandDirectory: tx("files.expandDirectory", "Expand {0}"),
                   expandStash: tx("changes.expandStash", "Expand stash {0}"),
                   generate: tx("changes.generateCommitMessage", "Generate"),
@@ -1348,8 +1377,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
                   noStashes: tx("changes.noStashes", "No stashes"),
                   openDiff: tx("files.openDiff", "Open diff for {0}"),
                   openFile: tx("files.openFile", "Open file {0}"),
-                  applyStash: `${tx("changes.applyStash", "Apply stash")} {0}`,
-                  popStash: `${tx("changes.popStash", "Pop stash")} {0}`,
+                  applyStash: tx("changes.applyStash", "Apply stash"),
+                  popStash: tx("changes.popStash", "Pop stash"),
                   refreshChanges: tx("changes.refresh", "Refresh Changes"),
                   repository: tx("header.repository", "Repository"),
                   stage: `${tx("changes.stage", "Stage")} {0}`,
@@ -1420,7 +1449,6 @@ export function App({ rpcClient }: AppProps): ReactElement {
           manageRemotes: tx("settingsMenu.manageRemotes", "Manage Remotes"),
           refreshProxy: tx("settingsMenu.refreshProxy", "Refresh Proxy"),
           resetStash: tx("settingsMenu.resetStash", "Reset Auto Stash Preference"),
-          testAiProvider: tx("settingsMenu.testAiProvider", "Test AI Provider")
         }}
         onAction={handleSettingsMenuAction}
         onClose={() => setSettingsMenu((current) => ({ ...current, visible: false }))}
@@ -1455,6 +1483,30 @@ export function App({ rpcClient }: AppProps): ReactElement {
         open={remoteManagerOpen}
         remotes={remotes}
         status={remoteStatus ? { kind: remoteStatusKind(remoteStatus.state), message: remoteStatus.message } : undefined}
+      />
+      <AiProviderPanel
+        labels={{
+          apiHost: tx("aiProviderPanel.apiHost", "API host"),
+          apiKey: tx("aiProviderPanel.apiKey", "API key"),
+          apiKeyPlaceholder: tx("aiProviderPanel.apiKeyPlaceholder", "Leave unchanged unless replacing the stored key"),
+          cancel: tx("aiProviderPanel.cancel", "Cancel"),
+          close: tx("aiProviderPanel.close", "Close Configure AI Provider"),
+          description: tx("aiProviderPanel.description", "Choose the HTTP AI API used to generate commit messages."),
+          model: tx("aiProviderPanel.model", "Model"),
+          protocol: tx("aiProviderPanel.protocol", "API protocol"),
+          requestPreview: tx("aiProviderPanel.requestPreview", "Request preview"),
+          save: tx("aiProviderPanel.save", "Save"),
+          saving: tx("aiProviderPanel.saving", "Saving..."),
+          test: tx("aiProviderPanel.test", "Test"),
+          testing: tx("aiProviderPanel.testing", "Testing..."),
+          title: tx("aiProviderPanel.title", "Configure AI Provider")
+        }}
+        onClose={() => setAiProviderPanelOpen(false)}
+        onSave={updateAiProvider}
+        onTest={testAiProvider}
+        open={aiProviderPanelOpen}
+        settings={aiSettings}
+        testing={testingAiProvider}
       />
       <NotificationCenter
         labels={{

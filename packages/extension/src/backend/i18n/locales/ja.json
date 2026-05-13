@@ -58,6 +58,15 @@
       "generateCommitMessage": "コミットメッセージを生成",
       "commit": "コミット"
     },
+    "workingTree": {
+      "appliedStash": "スタッシュを適用しました",
+      "popStashConfirmation": "このスタッシュを適用して削除しますか？",
+      "popStashCancelled": "スタッシュの適用と削除をキャンセルしました",
+      "poppedStash": "スタッシュを適用して削除しました",
+      "dropStashConfirmation": "このスタッシュを削除しますか？",
+      "dropStashCancelled": "スタッシュの削除をキャンセルしました",
+      "droppedStash": "スタッシュを削除しました"
+    },
     "remoteManager": {
       "title": "リモートを管理",
       "description": "現在のリポジトリのリモートを表示・編集・追加・削除します。",
@@ -308,6 +317,10 @@
       "completed": "{0} が完了しました",
       "cancelled": "{0} をキャンセルしました",
       "running": "{0} を実行中..."
+    },
+    "rightPanel": {
+      "changes": "変更",
+      "details": "詳細"
     }
   }
 }

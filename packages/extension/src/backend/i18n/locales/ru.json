@@ -58,6 +58,15 @@
       "generateCommitMessage": "Сгенерировать сообщение коммита",
       "commit": "Создать коммит"
     },
+    "workingTree": {
+      "appliedStash": "Stash применён",
+      "popStashConfirmation": "Применить и удалить этот stash?",
+      "popStashCancelled": "Применение и удаление stash отменено",
+      "poppedStash": "Stash применён и удалён",
+      "dropStashConfirmation": "Удалить этот stash?",
+      "dropStashCancelled": "Удаление stash отменено",
+      "droppedStash": "Stash удалён"
+    },
     "remoteManager": {
       "title": "Управление удалёнными",
       "description": "Просматривайте, изменяйте, добавляйте или удаляйте удалённые репозитории текущего проекта.",
@@ -308,6 +317,10 @@
       "completed": "{0} завершено",
       "cancelled": "{0} отменено",
       "running": "{0} выполняется..."
+    },
+    "rightPanel": {
+      "changes": "Изменения",
+      "details": "Подробности"
     }
   }
 }

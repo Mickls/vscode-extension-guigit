@@ -3,16 +3,30 @@ import type { OperationResultViewModel, StashEntryViewModel, WorkingTreeViewMode
 import type { Logger } from "../../logging/LoggerService";
 import { parsePorcelainStatus, parseStashFiles, parseStashList } from "./WorkingTreeParser";
 
+const defaultWorkingTreeMessages: Record<string, string> = {
+  "changes.dropStash": "Drop Stash",
+  "changes.popStash": "Pop Stash",
+  "workingTree.appliedStash": "Applied stash",
+  "workingTree.dropStashCancelled": "Drop stash cancelled",
+  "workingTree.dropStashConfirmation": "Drop stash?",
+  "workingTree.droppedStash": "Dropped stash",
+  "workingTree.popStashCancelled": "Pop stash cancelled",
+  "workingTree.popStashConfirmation": "Pop stash?",
+  "workingTree.poppedStash": "Popped stash"
+};
+
 export interface WorkingTreeServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Logger;
   showWarningMessage?: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
+  t?: (key: string, ...args: readonly unknown[]) => string;
 }
 
 export class WorkingTreeService {
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger?: Logger;
   private readonly showWarningMessage: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
+  private readonly t: (key: string, ...args: readonly unknown[]) => string;
 
   public constructor(input: WorkingTreeServiceInput = {}) {
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
@@ -20,6 +34,7 @@ export class WorkingTreeService {
     this.showWarningMessage =
       input.showWarningMessage ??
       (() => Promise.resolve(undefined));
+    this.t = input.t ?? defaultTranslate;
   }
 
   public async load(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeViewModel> {
@@ -74,25 +89,27 @@ export class WorkingTreeService {
   }
 
   public async applyStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
-    return this.withResult(repositoryId, repositoryRoot, ["stash", "apply", stashRef], "Applied stash");
+    return this.withResult(repositoryId, repositoryRoot, ["stash", "apply", stashRef], this.t("workingTree.appliedStash"));
   }
 
   public async popStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
-    const confirmation = await this.showWarningMessage(`Pop stash ${stashRef}?`, { modal: true }, "Pop Stash");
-    if (confirmation !== "Pop Stash") {
-      return this.cancelledResult(repositoryId, repositoryRoot, "Pop stash cancelled");
+    const confirmLabel = this.t("changes.popStash");
+    const confirmation = await this.showWarningMessage(this.t("workingTree.popStashConfirmation"), { modal: true }, confirmLabel);
+    if (confirmation !== confirmLabel) {
+      return this.cancelledResult(repositoryId, repositoryRoot, this.t("workingTree.popStashCancelled"));
     }
 
-    return this.withResult(repositoryId, repositoryRoot, ["stash", "pop", stashRef], "Popped stash");
+    return this.withResult(repositoryId, repositoryRoot, ["stash", "pop", stashRef], this.t("workingTree.poppedStash"));
   }
 
   public async dropStash(repositoryId: string, repositoryRoot: string, stashRef: string): Promise<WorkingTreeActionResult> {
-    const confirmation = await this.showWarningMessage(`Drop stash ${stashRef}?`, { modal: true }, "Drop Stash");
-    if (confirmation !== "Drop Stash") {
-      return this.cancelledResult(repositoryId, repositoryRoot, "Drop stash cancelled");
+    const confirmLabel = this.t("changes.dropStash");
+    const confirmation = await this.showWarningMessage(this.t("workingTree.dropStashConfirmation"), { modal: true }, confirmLabel);
+    if (confirmation !== confirmLabel) {
+      return this.cancelledResult(repositoryId, repositoryRoot, this.t("workingTree.dropStashCancelled"));
     }
 
-    return this.withResult(repositoryId, repositoryRoot, ["stash", "drop", stashRef], "Dropped stash");
+    return this.withResult(repositoryId, repositoryRoot, ["stash", "drop", stashRef], this.t("workingTree.droppedStash"));
   }
 
   public async getStashDetails(repositoryRoot: string, stashRef: string): Promise<StashEntryViewModel> {
@@ -166,4 +183,8 @@ export interface WorkingTreeActionResult {
 
 function formatGitCommand(repositoryRoot: string, args: readonly string[]): string {
   return `git -C ${repositoryRoot} ${args.join(" ")}`;
+}
+
+function defaultTranslate(key: string): string {
+  return defaultWorkingTreeMessages[key] ?? key;
 }

@@ -58,6 +58,15 @@
       "generateCommitMessage": "Generate Commit Message",
       "commit": "Commit"
     },
+    "workingTree": {
+      "appliedStash": "Applied stash",
+      "popStashConfirmation": "Pop this stash?",
+      "popStashCancelled": "Pop stash cancelled",
+      "poppedStash": "Popped stash",
+      "dropStashConfirmation": "Drop this stash?",
+      "dropStashCancelled": "Drop stash cancelled",
+      "droppedStash": "Dropped stash"
+    },
     "remoteManager": {
       "title": "Manage Remotes",
       "description": "View, edit, add, or remove remotes in the current repository.",
@@ -308,6 +317,10 @@
       "completed": "{0} completed",
       "cancelled": "{0} cancelled",
       "running": "{0} is running..."
+    },
+    "rightPanel": {
+      "changes": "Changes",
+      "details": "Details"
     }
   }
 }

@@ -1,32 +1,40 @@
 # GUI Git History
 
-TypeScript rewrite and maintenance workspace for the VS Code extension published as **GUI Git History**.
+[中文说明](./README.zh-CN.md)
 
-This repository is named `gui-git-history`, but the packaged extension must stay compatible with the existing Marketplace identity:
+The published VS Code extension is **GUI Git History**. It is available from the VS Code Marketplace and can be installed in VS Code by searching for that name.
 
-- publisher: `Mickls`
-- package name: `vscode-extension-guigit`
-- extension id: `Mickls.vscode-extension-guigit`
-- command, configuration, and view ids: `guigit.*`, `guigit.historyView`
+GUI Git History gives VS Code a visual Git workspace for browsing commit graphs, reviewing changes, comparing commits, managing working tree changes, running common Git operations, and using inline blame from the editor.
 
-The extension itself is a visual Git history tool for VS Code. It provides an interactive commit graph, multi-repository history browsing, commit details, file diffs, commit comparison, common Git operations, remote and proxy management, inline blame annotations, and localized webview UI.
+## Why This Project Exists
 
-## Extension Capabilities
+This project started from a very practical itch: JetBrains IDEs have a comfortable visual Git workflow, especially for browsing history, reading commit details, comparing revisions, and acting on commits. After switching to VS Code, the built-in Git experience felt too minimal for that style of work, and richer Git history extensions often placed comparable functionality behind paid tiers.
 
-- Browse discovered Git repositories in the current workspace and switch between them from the header.
-- Filter history by branch, multiple selected branches, commit message/hash search, and author.
-- Load commit history incrementally and keep graph, list, and details selection in sync.
-- View an interactive Git graph with colored lanes, edges, hover states, and selectable commits.
-- Inspect commit metadata, refs/tags, author details, commit body, changed files, and insertion/deletion counts.
-- Switch file changes between tree and list view, open file diffs, open working files or commit snapshots, and open per-file history panels.
-- Compare exactly two selected commits in a full-screen compare view and open file-level diffs from the comparison.
-- Run Git operations from the UI: pull, advanced pull, push, advanced push, fetch, clone, checkout, cherry-pick, revert, reset, squash, create branch from commit, push commits to a selected point, edit the HEAD commit message, and copy commit hashes.
-- Handle pull/squash safety with configurable auto-stash preference and conflict continue/abort actions.
-- Manage remotes: list, add, update, and delete remote URLs with VS Code confirmation for destructive changes.
-- Configure or refresh Git proxy settings. Proxy discovery checks custom settings, VS Code proxy, environment variables, system proxy, and common local proxy ports.
-- Show inline Git blame annotations with hover actions for opening a commit in the history view and copying its hash.
-- Support localized UI bundles for English, Chinese, Spanish, French, German, Japanese, and Russian, with an automatic VS Code language mode.
-- Log diagnostics to the **GUI Git History** output channel with configurable verbosity.
+GUI Git History is the attempt to bring that familiar visual workflow into VS Code: dense, fast to scan, keyboard-and-mouse friendly, and useful without leaving the editor.
+
+## User-Facing Features
+
+- Browse Git history across one or more repositories in the current workspace.
+- Switch between all branches, selected branches, local branches, and remote branches.
+- Search by commit message or hash, filter by author, and quickly filter to the current Git user.
+- View an interactive commit graph with colored lanes, refs, tags, authors, dates, and synchronized selection.
+- Inspect commit metadata, commit body, changed files, insertion/deletion counts, and file-level actions.
+- Open file diffs, working files, historical snapshots, and file history views.
+- Compare exactly two selected commits and open per-file diffs from the comparison view.
+- Manage working tree changes: view staged and unstaged files, stage, unstage, discard, inspect stashes, and commit.
+- Generate commit messages with a VS Code language model or an OpenAI-compatible provider.
+- Run common Git operations from the UI: pull, advanced pull, push, advanced push, fetch, clone, checkout, cherry-pick, revert, reset, squash, create branch from commit, push commits to a selected point, edit the HEAD commit message, and copy hashes.
+- Continue or abort interrupted Git operations when manual conflict resolution is required.
+- List, add, update, and delete Git remotes.
+- Configure Git proxy settings or refresh automatic proxy detection.
+- Show inline Git blame annotations with hover actions for opening the commit in history and copying the hash.
+- Use localized UI bundles for English, Chinese, Spanish, French, German, Japanese, and Russian.
+- Inspect diagnostics in the **GUI Git History** output channel with configurable log level.
+
+The Marketplace/VSIX README files live in `packages/extension`:
+
+- [packages/extension/README.md](packages/extension/README.md)
+- [packages/extension/README.zh-CN.md](packages/extension/README.zh-CN.md)
 
 ## Repository Map
 
@@ -37,27 +45,28 @@ packages/
       Source of truth for typed RPC requests, responses, notifications, and ViewModels.
   extension/
     package.json
-      VS Code extension manifest, Marketplace identity, commands, settings, views, menus, and packaging scripts.
+      VS Code extension manifest, commands, settings, views, menus, and packaging scripts.
     src/extension/
-      Activation, command registration, and Git watcher wiring.
+      Activation, command registration, Git watcher wiring, and VS Code integration.
     src/backend/
-      Git services, repository discovery, branch/history/detail loading, graph layout, operations,
-      safety handling, proxy, remotes, i18n, RPC handlers, diff, file history, and blame.
+      Git services, repository discovery, branch/history/detail loading, graph layout,
+      operations, working tree, stash, AI commit messages, proxy, remotes, i18n, RPC,
+      diff, file history, and blame.
     src/backend/rpc/contract.ts
       Generated runtime contract copied from `packages/shared`; do not edit by hand.
     src/views/
-      Webview provider shell. It owns HTML creation, script/style wiring, and message delegation.
+      Webview provider shell. It owns HTML creation, script/style wiring, and message routing.
   webview/
     src/app/
-      React app shell, UI-only state, i18n lookup, and typed RPC client.
+      React app shell, UI state, i18n lookup, and typed RPC client.
     src/components/
-      Commit list, graph, details, file changes, compare overlay, settings menu,
-      remote manager, notifications, and layout components.
+      Header, commit list, graph, commit details, file changes, working tree panel,
+      compare overlay, settings menu, remote manager, notifications, and layout components.
     src/app/rpcContract.generated.d.ts
       Generated declaration copied from `packages/shared`; do not edit by hand.
 ```
 
-Backend code owns Git, VS Code APIs, configuration, persistence, graph layout, filtering/search, diff, blame, proxy detection, and operation workflows. The webview renders ViewModels and sends typed user-intent RPC messages only.
+Backend code owns Git, VS Code APIs, configuration, persistence, graph layout, filtering/search, diff, blame, proxy detection, AI commit messages, and operation workflows. The webview renders ViewModels and sends typed user-intent RPC messages only.
 
 ## Requirements
 
@@ -168,8 +177,6 @@ pnpm package
 packages/extension/vscode-extension-guigit-<version>.vsix
 ```
 
-The packaged extension id must remain `Mickls.vscode-extension-guigit`.
-
 ## Verification
 
 Run these before claiming implementation work is complete:
@@ -188,7 +195,7 @@ Current test policy:
 
 - Unit tests live under `packages/*/test` or alongside package source as `*.test.ts(x)`.
 - RPC contract tests must prove every request type has a backend handler marker.
-- Backend behavior tests should cover Git, router, state, and VS Code service boundaries.
+- Backend behavior tests should cover Git, router, state, VS Code services, and operation boundaries.
 - Webview tests should verify UI state and rendering, not Git behavior.
 
 ## Packaging Notes
@@ -200,6 +207,7 @@ Important packaging files:
 - `packages/extension/package.json`
 - `packages/extension/.vscodeignore`
 - `packages/extension/assets/gui-git-history-high-resolution-logo-transparent.png`
+- `packages/extension/assets/screenshots`
 - `packages/extension/webview-dist`
 - `packages/extension/README.md`
 - `packages/extension/README.zh-CN.md`
@@ -212,7 +220,7 @@ Generated build outputs, VSIX files, and TypeScript build info are ignored by Gi
 - [docs/migration-requirements.md](docs/migration-requirements.md)
 - [docs/implementation-plan.md](docs/implementation-plan.md)
 
-Read these before changing behavior or release identity.
+Read these before changing behavior or extension identity.
 
 ## Development Rules
 

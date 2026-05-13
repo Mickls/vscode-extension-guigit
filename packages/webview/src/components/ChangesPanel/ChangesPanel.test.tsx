@@ -11,16 +11,19 @@ import type { WorkingTreeViewModel } from "../../app/rpcContract.generated";
 describe("ChangesPanel", () => {
   afterEach(cleanup);
 
-  it("renders staged changes, changes, stash, and commit composer", () => {
+  it("renders commit composer before staged changes, changes, and stash", () => {
     render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
 
+    const commitComposer = screen.getByRole("textbox", { name: "Commit message" });
     expect(screen.getByRole("heading", { name: "Staged Changes (1)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Changes (1)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Stash (1)" })).toBeInTheDocument();
     expect(screen.getByText("src/staged.ts")).toBeInTheDocument();
     expect(screen.getByText("src/unstaged.ts")).toBeInTheDocument();
     expect(screen.getByText("WIP on main: abc1234 message")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Commit message" })).toBeInTheDocument();
+    expect(commitComposer.compareDocumentPosition(screen.getByRole("heading", { name: "Staged Changes (1)" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
     expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
   });
 
@@ -341,11 +344,13 @@ describe("ChangesPanel", () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Expand stash stash@{0}" }));
+    expect(screen.queryByText("stash@{0}")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Expand stash WIP on main: abc1234 message" }));
     await user.click(screen.getByRole("button", { name: "Open diff for src/stashed.ts" }));
-    await user.click(screen.getByRole("button", { name: "Apply stash stash@{0}" }));
-    await user.click(screen.getByRole("button", { name: "Pop stash stash@{0}" }));
-    await user.click(screen.getByRole("button", { name: "Drop stash stash@{0}" }));
+    await user.click(screen.getByRole("button", { name: "Apply stash" }));
+    await user.click(screen.getByRole("button", { name: "Pop stash" }));
+    await user.click(screen.getByRole("button", { name: "Drop stash" }));
 
     expect(onExpandStash).toHaveBeenCalledWith("stash@{0}");
     expect(onOpenStashDiff).toHaveBeenCalledWith("stash@{0}", "src/stashed.ts", "src/old-stashed.ts");
