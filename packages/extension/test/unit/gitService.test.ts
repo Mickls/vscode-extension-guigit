@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { window } from "vscode";
 import { GitService } from "../../src/backend/git/GitService";
 import type { OperationResultViewModel } from "../../src/backend/rpc/contract";
 
@@ -12,6 +13,7 @@ vi.mock("vscode", () => ({
     file: (fsPath: string) => ({ fsPath })
   },
   window: {
+    createQuickPick: vi.fn(),
     showInformationMessage: vi.fn(),
     showInputBox: vi.fn(),
     showOpenDialog: vi.fn(),
@@ -624,11 +626,77 @@ describe("GitService", () => {
         { label: "origin/main", value: "origin/main" },
         { label: "+ Create new remote branch", value: "__create__" }
       ],
-      { createRemote: "origin", placeHolder: "Select remote branch to push" }
+      { createRemote: "origin", placeHolder: "Select remote branch to push", remotes: ["origin"] }
     );
     expect(calls).toEqual([
       "branch -r",
       "push origin HEAD:feature/new-branch",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
+  });
+
+  it("preserves an explicit remote when advanced push input has no branch match", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "upstream/feature/new-branch",
+      value: "upstream/feature/new-branch"
+    });
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "Normal", value: "normal" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n  upstream/main\n";
+        }
+
+        return "";
+      },
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+
+    expect(calls).toEqual([
+      "branch -r",
+      "push upstream HEAD:feature/new-branch",
+      "rev-parse --abbrev-ref HEAD"
+    ]);
+  });
+
+  it("preserves an explicit remote typed into the advanced push picker", async () => {
+    const calls: string[] = [];
+    let accept: () => void;
+    vi.mocked(window.createQuickPick).mockReturnValueOnce({
+      activeItems: [],
+      dispose: vi.fn(),
+      items: [],
+      onDidAccept: (listener: () => void) => {
+        accept = listener;
+        return { dispose: vi.fn() };
+      },
+      onDidHide: () => ({ dispose: vi.fn() }),
+      selectedItems: [],
+      show: () => accept(),
+      value: "upstream/feature/new-branch"
+    } as never);
+    vi.mocked(window.showQuickPick).mockResolvedValueOnce({ label: "Normal", value: "normal" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n  upstream/main\n";
+        }
+
+        return "";
+      }
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+
+    expect(calls).toEqual([
+      "branch -r",
+      "push upstream HEAD:feature/new-branch",
       "rev-parse --abbrev-ref HEAD"
     ]);
   });
@@ -888,6 +956,69 @@ describe("GitService", () => {
       { placeHolder: "Push commits up to abc123 to origin/review?" }
     );
     expect(showWarningMessage).toHaveBeenCalledTimes(4);
+  });
+
+  it("pushes all commits to a typed default-remote branch target", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "origin/review/topic",
+      value: "origin/review/topic"
+    });
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "Push Commits", value: "confirm" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        return "";
+      },
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).resolves.toEqual({
+      message: "Pushed commits to origin/review/topic",
+      status: "ok"
+    });
+
+    expect(showQuickPickWithInput).toHaveBeenCalledWith(
+      [
+        { label: "origin/main", value: "origin/main" },
+        { label: "+ Create new remote branch", value: "__create__" }
+      ],
+      { createRemote: "origin", placeHolder: "Select target remote branch", remotes: ["origin"] }
+    );
+    expect(calls).toEqual(["branch -r", "push origin abc123:refs/heads/review/topic"]);
+  });
+
+  it("pushes all commits to a typed explicit remote branch target", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "upstream/review/topic",
+      value: "upstream/review/topic"
+    });
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "Push Commits", value: "confirm" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n  upstream/main\n";
+        }
+
+        return "";
+      },
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).resolves.toEqual({
+      message: "Pushed commits to upstream/review/topic",
+      status: "ok"
+    });
+
+    expect(calls).toEqual(["branch -r", "push upstream abc123:refs/heads/review/topic"]);
   });
 
   it("offers to checkout a branch after creating it", async () => {

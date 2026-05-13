@@ -19,6 +19,7 @@ interface QuickPickItem {
 interface QuickPickWithInputOptions {
   createRemote: string;
   placeHolder: string;
+  remotes?: readonly string[];
 }
 
 interface SquashPlan {
@@ -586,13 +587,14 @@ export class GitService {
   private async pickAdvancedPushTarget(repositoryRoot: string): Promise<QuickPickItem | undefined> {
     const remoteBranches = parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"]));
     const createRemote = await this.getDefaultCreateRemote(repositoryRoot, remoteBranches);
+    const remotes = remoteNamesFromBranches(remoteBranches);
     const lastSelection = this.stateService.getAdvancedGitSelection(repositoryRoot, "advancedPushBranch");
     const target = await this.showQuickPickWithInput(
       [
         ...advancedPushTargets(remoteBranches, lastSelection),
         { label: "+ Create new remote branch", value: "__create__" }
       ],
-      { createRemote, placeHolder: "Select remote branch to push" }
+      { createRemote, placeHolder: "Select remote branch to push", remotes }
     );
     if (!target || target.value !== "__create__") {
       return target;
@@ -608,10 +610,7 @@ export class GitService {
     }
 
     const trimmedBranch = branch.trim();
-    const remotePrefix = `${createRemote}/`;
-    const remoteBranch = trimmedBranch.startsWith(remotePrefix)
-      ? trimmedBranch
-      : `${createRemote}/${trimmedBranch}`;
+    const remoteBranch = createRemoteBranchItem(createRemote, trimmedBranch, remotes).value;
     return {
       label: remoteBranch,
       value: remoteBranch
@@ -734,12 +733,14 @@ export class GitService {
 
   private async pickPushAllCommitsTarget(repositoryRoot: string): Promise<string | undefined> {
     const remoteBranches = preferMainBranches(parseRemoteBranches(await this.runGitRaw(repositoryRoot, ["branch", "-r"])));
-    const target = await this.showQuickPick(
+    const createRemote = await this.getDefaultCreateRemote(repositoryRoot, remoteBranches);
+    const remotes = remoteNamesFromBranches(remoteBranches);
+    const target = await this.showQuickPickWithInput(
       [
         ...remoteBranches.map((branch) => ({ label: branch, value: branch })),
         { label: "+ Create new remote branch", value: "__create__" }
       ],
-      { placeHolder: "Select target remote branch" }
+      { createRemote, placeHolder: "Select target remote branch", remotes }
     );
     if (!target) {
       return undefined;
@@ -749,10 +750,15 @@ export class GitService {
       return target.value;
     }
 
-    return this.showInputBox({
-      placeHolder: "origin/feature-branch",
+    const branch = await this.showInputBox({
+      placeHolder: `${createRemote}/feature-branch`,
       prompt: "Enter new remote branch name"
     });
+    if (!branch) {
+      return undefined;
+    }
+
+    return createRemoteBranchItem(createRemote, branch.trim(), remotes).value;
   }
 
   private async promptPullRequestForCurrentBranch(repositoryRoot: string, pushArgs: readonly string[]): Promise<void> {
@@ -827,7 +833,7 @@ function showQuickPickWithInput(
         const input = quickPick.value.trim();
         const existingItem = items.find((item) => itemMatchesInput(item.value, input));
         const typedBranch = input
-          ? existingItem ?? createRemoteBranchItem(options.createRemote, input)
+          ? existingItem ?? createRemoteBranchItem(options.createRemote, input, options.remotes ?? [options.createRemote])
           : quickPick.selectedItems[0] ?? quickPick.activeItems[0];
         settle(typedBranch);
       }),
@@ -876,6 +882,10 @@ function advancedPushTargets(remoteBranches: readonly string[], lastSelection: s
   ];
 }
 
+function remoteNamesFromBranches(remoteBranches: readonly string[]): readonly string[] {
+  return [...new Set(remoteBranches.map((branch) => splitRemoteBranch(branch).remote))];
+}
+
 function preferMainBranches(branches: readonly string[]): readonly string[] {
   return [...branches].sort((left, right) => primaryBranchRank(left) - primaryBranchRank(right));
 }
@@ -894,9 +904,13 @@ function itemMatchesInput(value: string, input: string): boolean {
   return value === input || remoteTarget.branch === input;
 }
 
-function createRemoteBranchItem(remote: string, input: string): QuickPickItem {
+function createRemoteBranchItem(remote: string, input: string, remotes: readonly string[]): QuickPickItem {
   const remotePrefix = `${remote}/`;
-  const branch = input.startsWith(remotePrefix) ? input : `${remote}/${input}`;
+  const separatorIndex = input.indexOf("/");
+  const inputRemote = separatorIndex > 0 ? input.slice(0, separatorIndex) : "";
+  const branch = input.startsWith(remotePrefix) || remotes.includes(inputRemote)
+    ? input
+    : `${remote}/${input}`;
   return {
     label: branch,
     value: branch
