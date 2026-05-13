@@ -846,6 +846,7 @@ describe("GitService", () => {
     const showQuickPick = vi
       .fn()
       .mockResolvedValueOnce({ label: "+ Create new remote branch", value: "__create__" })
+      .mockResolvedValueOnce({ label: "Normal", value: "normal" })
       .mockResolvedValueOnce({ label: "Push Commits", value: "confirm" });
     const showInformationMessage = vi.fn().mockResolvedValue(undefined);
     const showWarningMessage = vi.fn().mockResolvedValue("Continue");
@@ -950,6 +951,13 @@ describe("GitService", () => {
     ]);
     expect(showQuickPick).toHaveBeenCalledWith(
       [
+        { label: "Normal", value: "normal" },
+        { label: "Force with lease", value: "force-with-lease" }
+      ],
+      { placeHolder: "Select push mode" }
+    );
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
         { label: "Push Commits", value: "confirm" },
         { label: "Cancel", value: "cancel" }
       ],
@@ -964,7 +972,10 @@ describe("GitService", () => {
       label: "origin/review/topic",
       value: "origin/review/topic"
     });
-    const showQuickPick = vi.fn().mockResolvedValue({ label: "Push Commits", value: "confirm" });
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Normal", value: "normal" })
+      .mockResolvedValueOnce({ label: "Push Commits", value: "confirm" });
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -999,7 +1010,10 @@ describe("GitService", () => {
       label: "upstream/review/topic",
       value: "upstream/review/topic"
     });
-    const showQuickPick = vi.fn().mockResolvedValue({ label: "Push Commits", value: "confirm" });
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Normal", value: "normal" })
+      .mockResolvedValueOnce({ label: "Push Commits", value: "confirm" });
     const service = createService({
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -1019,6 +1033,72 @@ describe("GitService", () => {
     });
 
     expect(calls).toEqual(["branch -r", "push upstream abc123:refs/heads/review/topic"]);
+  });
+
+  it("force pushes all commits to a selected target with lease", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "origin/review/topic",
+      value: "origin/review/topic"
+    });
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" })
+      .mockResolvedValueOnce({ label: "Force Push", value: "confirm" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        return "";
+      },
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).resolves.toEqual({
+      message: "Force pushed commits to origin/review/topic",
+      status: "ok"
+    });
+
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "Force Push", value: "confirm" },
+        { label: "Cancel", value: "cancel" }
+      ],
+      { placeHolder: "Force push commits up to abc123 to origin/review/topic with lease?" }
+    );
+    expect(calls).toEqual(["branch -r", "push --force-with-lease origin abc123:refs/heads/review/topic"]);
+  });
+
+  it("cancels push all commits when push mode is dismissed", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "origin/review/topic",
+      value: "origin/review/topic"
+    });
+    const showQuickPick = vi.fn().mockResolvedValue(undefined);
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        return "";
+      },
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).resolves.toEqual({
+      message: "Push commits cancelled",
+      status: "cancelled"
+    });
+
+    expect(calls).toEqual(["branch -r"]);
   });
 
   it("offers to checkout a branch after creating it", async () => {

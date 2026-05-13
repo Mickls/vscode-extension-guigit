@@ -167,13 +167,7 @@ export class GitService {
     }
     await this.stateService.setAdvancedGitSelection(repositoryRoot, "advancedPushBranch", branch.value);
 
-    const forceModeItems = preferLastSelection(
-      [
-        { label: "Normal", value: "normal" },
-        { label: "Force with lease", value: "force-with-lease" }
-      ],
-      this.stateService.getAdvancedGitSelection(repositoryRoot, "advancedPushMode")
-    );
+    const forceModeItems = pushModeItems(this.stateService.getAdvancedGitSelection(repositoryRoot, "advancedPushMode"));
     const forceMode = await this.showQuickPick(
       forceModeItems,
       { placeHolder: "Select push mode" }
@@ -372,14 +366,28 @@ export class GitService {
       return { message: "Push commits cancelled", status: "cancelled" };
     }
 
-    if (!(await this.confirmWithQuickPick(`Push commits up to ${hash.slice(0, 8)} to ${target}?`, "Push Commits"))) {
+    const mode = await this.showQuickPick(pushModeItems(), { placeHolder: "Select push mode" });
+    if (!mode) {
+      return { message: "Push commits cancelled", status: "cancelled" };
+    }
+
+    const forceWithLease = mode.value === "force-with-lease";
+    const shortHash = hash.slice(0, 8);
+    const confirmMessage = forceWithLease
+      ? `Force push commits up to ${shortHash} to ${target} with lease?`
+      : `Push commits up to ${shortHash} to ${target}?`;
+    const confirmLabel = forceWithLease ? "Force Push" : "Push Commits";
+    if (!(await this.confirmWithQuickPick(confirmMessage, confirmLabel))) {
       return { message: "Push commits cancelled", status: "cancelled" };
     }
 
     const remoteTarget = splitRemoteBranch(target);
-    await this.runGitRaw(repositoryRoot, ["push", remoteTarget.remote, `${hash}:refs/heads/${remoteTarget.branch}`]);
+    const args = forceWithLease
+      ? ["push", "--force-with-lease", remoteTarget.remote, `${hash}:refs/heads/${remoteTarget.branch}`]
+      : ["push", remoteTarget.remote, `${hash}:refs/heads/${remoteTarget.branch}`];
+    await this.runGitRaw(repositoryRoot, args);
     return {
-      message: `Pushed commits to ${target}`,
+      message: forceWithLease ? `Force pushed commits to ${target}` : `Pushed commits to ${target}`,
       status: "ok"
     };
   }
@@ -880,6 +888,16 @@ function advancedPushTargets(remoteBranches: readonly string[], lastSelection: s
     { label: lastSelection, value: lastSelection },
     ...items
   ];
+}
+
+function pushModeItems(lastSelection?: string): readonly QuickPickItem[] {
+  return preferLastSelection(
+    [
+      { label: "Normal", value: "normal" },
+      { label: "Force with lease", value: "force-with-lease" }
+    ],
+    lastSelection
+  );
 }
 
 function remoteNamesFromBranches(remoteBranches: readonly string[]): readonly string[] {
