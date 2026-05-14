@@ -188,7 +188,8 @@
       "proxyConfigFailed": "プロキシの設定に失敗しました",
       "proxyStatusFailed": "プロキシ状況の取得に失敗しました",
       "commitDetailsFailed": "コミットの詳細を読み込めませんでした",
-      "headCommitFailed": "HEAD コミットを取得できませんでした"
+      "headCommitFailed": "HEAD コミットを取得できませんでした",
+      "settingsUpdateFailed": "設定を保存できませんでした。拡張機能を再読み込みしてもう一度お試しください。"
     },
     "success": {
       "proxyConfigured": "プロキシ設定を保存し適用しました",

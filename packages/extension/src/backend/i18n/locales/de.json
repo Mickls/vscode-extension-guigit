@@ -188,7 +188,8 @@
       "proxyConfigFailed": "Proxy-Konfiguration fehlgeschlagen",
       "proxyStatusFailed": "Proxy-Status konnte nicht geladen werden",
       "commitDetailsFailed": "Commit-Details konnten nicht geladen werden",
-      "headCommitFailed": "HEAD-Commit konnte nicht ermittelt werden"
+      "headCommitFailed": "HEAD-Commit konnte nicht ermittelt werden",
+      "settingsUpdateFailed": "Einstellungen konnten nicht gespeichert werden. Lade die Erweiterung neu und versuche es erneut."
     },
     "success": {
       "proxyConfigured": "Proxy-Konfiguration gespeichert und angewendet",

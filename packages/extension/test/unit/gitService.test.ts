@@ -199,6 +199,58 @@ describe("GitService", () => {
     expect(cloneCalls).toEqual([["/target/repo", "https://example.com/repo.git"]]);
   });
 
+  it("initializes git in the workspace folder", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (repositoryRoot, args) => {
+        calls.push(`${repositoryRoot}:${args.join(" ")}`);
+        return "";
+      },
+      workspaceFolders: ["/workspace"]
+    });
+
+    await expect(service.init()).resolves.toEqual({
+      message: "Initialized Git repository in workspace",
+      status: "ok"
+    });
+    expect(calls).toEqual(["/workspace:init"]);
+  });
+
+  it("asks which workspace folder to initialize when multiple folders are open", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi.fn().mockResolvedValue({ label: "api", value: "/workspace/api" });
+    const service = createService({
+      gitRaw: async (repositoryRoot, args) => {
+        calls.push(`${repositoryRoot}:${args.join(" ")}`);
+        return "";
+      },
+      showQuickPick,
+      workspaceFolders: ["/workspace/app", "/workspace/api"]
+    });
+
+    await expect(service.init()).resolves.toEqual({
+      message: "Initialized Git repository in api",
+      status: "ok"
+    });
+    expect(showQuickPick).toHaveBeenCalledWith(
+      [
+        { label: "app", value: "/workspace/app" },
+        { label: "api", value: "/workspace/api" }
+      ],
+      { placeHolder: "Select workspace folder to initialize" }
+    );
+    expect(calls).toEqual(["/workspace/api:init"]);
+  });
+
+  it("cancels initialize when no workspace folder is open", async () => {
+    const service = createService({});
+
+    await expect(service.init()).resolves.toEqual({
+      message: "No workspace folder found",
+      status: "cancelled"
+    });
+  });
+
   it("completes push without waiting for the pull request prompt", async () => {
     const calls: string[] = [];
     const showQuickPick = vi.fn(() => new Promise<{ label: string; value: string } | undefined>(() => undefined));
@@ -1419,6 +1471,7 @@ function createService(input: {
     debug(message: string, context?: unknown): void;
     info(message: string, context?: unknown): void;
   };
+  workspaceFolders?: readonly string[];
 }): GitService {
   return new GitService({
     gitClone: input.gitClone,
@@ -1448,6 +1501,7 @@ function createService(input: {
         ? (items) => input.showQuickPick!(items, { placeHolder: "Select remote branch to push" })
         : undefined
     ),
-    showWarningMessage: input.showWarningMessage
+    showWarningMessage: input.showWarningMessage,
+    workspaceFolders: input.workspaceFolders
   });
 }

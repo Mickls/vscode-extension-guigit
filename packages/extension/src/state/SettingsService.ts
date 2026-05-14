@@ -38,29 +38,38 @@ export interface SettingsSecretStorage {
   store(key: string, value: string): Promise<void>;
 }
 
+export interface SettingsStateStorage {
+  get<T>(key: string): T | undefined;
+  update(key: string, value: unknown): PromiseLike<void>;
+}
+
 export interface SettingsServiceInput {
   configuration: SettingsConfiguration;
   secretStorage: SettingsSecretStorage;
+  stateStorage?: SettingsStateStorage;
 }
 
 const openAICompatibleApiKeySecretKey = "guigit.ai.openAICompatible.apiKey";
+const aiProviderStateKeyPrefix = "guigit.";
 
 export class SettingsService {
   private readonly configuration: SettingsConfiguration;
   private readonly secretStorage: SettingsSecretStorage;
+  private readonly stateStorage: SettingsStateStorage | undefined;
 
   public constructor(input: SettingsServiceInput) {
     this.configuration = input.configuration;
     this.secretStorage = input.secretStorage;
+    this.stateStorage = input.stateStorage;
   }
 
   public getSettings(): SettingsViewModel {
-    const provider = (this.configuration.get("ai.provider") ?? "vscodeLanguageModel") as AiProviderKind;
-    const commitMessagePromptMode = (this.configuration.get("ai.commitMessagePrompt.mode") ?? "default") as CommitMessagePromptMode;
-    const customCommitMessagePromptRules = (this.configuration.get("ai.commitMessagePrompt.customRules") ?? "") as string;
-    const baseUrl = (this.configuration.get("ai.openAICompatible.baseUrl") ?? "") as string;
-    const model = (this.configuration.get("ai.openAICompatible.model") ?? "") as string;
-    const protocol = (this.configuration.get("ai.openAICompatible.protocol") ?? "chatCompletions") as HttpAiProviderProtocol;
+    const provider = (this.getAiSetting("ai.provider") ?? "vscodeLanguageModel") as AiProviderKind;
+    const commitMessagePromptMode = (this.getAiSetting("ai.commitMessagePrompt.mode") ?? "default") as CommitMessagePromptMode;
+    const customCommitMessagePromptRules = (this.getAiSetting("ai.commitMessagePrompt.customRules") ?? "") as string;
+    const baseUrl = (this.getAiSetting("ai.openAICompatible.baseUrl") ?? "") as string;
+    const model = (this.getAiSetting("ai.openAICompatible.model") ?? "") as string;
+    const protocol = (this.getAiSetting("ai.openAICompatible.protocol") ?? "chatCompletions") as HttpAiProviderProtocol;
 
     return {
       autoStashOnPull: (this.configuration.get("autoStashOnPull") ?? "ask") as AutoStashPreference,
@@ -105,12 +114,12 @@ export class SettingsService {
     }
 
     if (settings.ai !== undefined) {
-      await this.configuration.update("ai.provider", settings.ai.provider);
-      await this.configuration.update("ai.commitMessagePrompt.mode", settings.ai.commitMessagePrompt.mode);
-      await this.configuration.update("ai.commitMessagePrompt.customRules", settings.ai.commitMessagePrompt.customRules);
-      await this.configuration.update("ai.openAICompatible.protocol", settings.ai.openAICompatible.protocol);
-      await this.configuration.update("ai.openAICompatible.baseUrl", settings.ai.openAICompatible.baseUrl);
-      await this.configuration.update("ai.openAICompatible.model", settings.ai.openAICompatible.model);
+      await this.updateAiSetting("ai.provider", settings.ai.provider);
+      await this.updateAiSetting("ai.commitMessagePrompt.mode", settings.ai.commitMessagePrompt.mode);
+      await this.updateAiSetting("ai.commitMessagePrompt.customRules", settings.ai.commitMessagePrompt.customRules);
+      await this.updateAiSetting("ai.openAICompatible.protocol", settings.ai.openAICompatible.protocol);
+      await this.updateAiSetting("ai.openAICompatible.baseUrl", settings.ai.openAICompatible.baseUrl);
+      await this.updateAiSetting("ai.openAICompatible.model", settings.ai.openAICompatible.model);
       if (settings.ai.openAICompatible.apiKey !== undefined) {
         await this.secretStorage.store(openAICompatibleApiKeySecretKey, settings.ai.openAICompatible.apiKey);
       }
@@ -137,5 +146,19 @@ export class SettingsService {
 
   public async getOpenAICompatibleApiKey(): Promise<string | undefined> {
     return this.secretStorage.get(openAICompatibleApiKeySecretKey);
+  }
+
+  private getAiSetting(key: Extract<SettingsConfigurationKey, `ai.${string}`>): unknown {
+    const stateKey = `${aiProviderStateKeyPrefix}${key}`;
+    return this.stateStorage?.get(stateKey) ?? this.configuration.get(key);
+  }
+
+  private async updateAiSetting(key: Extract<SettingsConfigurationKey, `ai.${string}`>, value: unknown): Promise<void> {
+    if (this.stateStorage) {
+      await this.stateStorage.update(`${aiProviderStateKeyPrefix}${key}`, value);
+      return;
+    }
+
+    await this.configuration.update(key, value);
   }
 }

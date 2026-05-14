@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { simpleGit } from "simple-git";
 import { env, Uri, window } from "vscode";
 import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
@@ -45,6 +45,7 @@ export interface GitServiceInput {
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   showQuickPickWithInput?: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
+  workspaceFolders?: readonly string[];
 }
 
 export class GitService {
@@ -62,6 +63,7 @@ export class GitService {
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   private readonly showQuickPickWithInput: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
+  private readonly workspaceFolders: readonly string[];
 
   public constructor(input: GitServiceInput) {
     this.clipboardWrite = input.clipboardWrite ?? ((text) => env.clipboard.writeText(text));
@@ -94,6 +96,7 @@ export class GitService {
     this.showWarningMessage =
       input.showWarningMessage ??
       ((message, ...items) => window.showWarningMessage(message, ...items));
+    this.workspaceFolders = input.workspaceFolders ?? [];
   }
 
   public async pull(repositoryRoot: string): Promise<OperationResultViewModel> {
@@ -248,6 +251,25 @@ export class GitService {
     };
   }
 
+  public async init(): Promise<OperationResultViewModel> {
+    if (this.workspaceFolders.length === 0) {
+      return { message: "No workspace folder found", status: "cancelled" };
+    }
+
+    const repositoryRoot = await this.pickWorkspaceFolderForInit();
+    if (!repositoryRoot) {
+      return { message: "Initialize repository cancelled", status: "cancelled" };
+    }
+
+    this.logger?.debug("git.init", { repositoryRoot });
+    await this.runGitRaw(repositoryRoot, ["init"]);
+
+    return {
+      message: `Initialized Git repository in ${basename(repositoryRoot)}`,
+      status: "ok"
+    };
+  }
+
   public async checkout(repositoryRoot: string): Promise<OperationResultViewModel> {
     const branch = await this.pickCheckoutBranch(repositoryRoot);
     if (!branch) {
@@ -261,6 +283,22 @@ export class GitService {
       message: `Checked out ${branch.value}`,
       status: "ok"
     };
+  }
+
+  private async pickWorkspaceFolderForInit(): Promise<string | undefined> {
+    if (this.workspaceFolders.length === 1) {
+      return this.workspaceFolders[0];
+    }
+
+    const workspaceFolder = await this.showQuickPick(
+      this.workspaceFolders.map((folder) => ({
+        label: basename(folder),
+        value: folder
+      })),
+      { placeHolder: "Select workspace folder to initialize" }
+    );
+
+    return workspaceFolder?.value;
   }
 
   public async copyHash(hash: string): Promise<OperationResultViewModel> {

@@ -188,7 +188,8 @@
       "proxyConfigFailed": "Échec de la configuration du proxy",
       "proxyStatusFailed": "Échec de la récupération de l'état du proxy",
       "commitDetailsFailed": "Échec du chargement des détails du commit",
-      "headCommitFailed": "Échec de l'obtention du commit HEAD"
+      "headCommitFailed": "Échec de l'obtention du commit HEAD",
+      "settingsUpdateFailed": "Échec de l'enregistrement des paramètres. Rechargez l'extension puis réessayez."
     },
     "success": {
       "proxyConfigured": "Configuration du proxy enregistrée et appliquée",

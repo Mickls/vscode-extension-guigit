@@ -129,7 +129,7 @@ export class CommitService {
         args,
         repositoryRoot: input.repositoryRoot
       });
-      const hashMatches = parseCommitLog(await this.gitRaw(input.repositoryRoot, args)).filter((commit) =>
+      const hashMatches = parseCommitLog(await this.loadCommitLog(input.repositoryRoot, args)).filter((commit) =>
         commit.hash.toLowerCase().startsWith(input.search!.toLowerCase())
       );
 
@@ -145,9 +145,21 @@ export class CommitService {
       args,
       repositoryRoot: input.repositoryRoot
     });
-    const commits = parseCommitLog(await this.gitRaw(input.repositoryRoot, args));
+    const commits = parseCommitLog(await this.loadCommitLog(input.repositoryRoot, args));
     this.logHistoryLoaded(input.repositoryRoot, commits.length, commits.length > input.pageSize);
     return commits;
+  }
+
+  private async loadCommitLog(repositoryRoot: string, args: readonly string[]): Promise<string> {
+    try {
+      return await this.gitRaw(repositoryRoot, args);
+    } catch (error) {
+      if (isEmptyRepositoryLogError(error)) {
+        return "";
+      }
+
+      throw error;
+    }
   }
 
   private logHistoryLoaded(repositoryRoot: string, commitCount: number, hasMore: boolean): void {
@@ -175,6 +187,10 @@ export class CommitService {
       return undefined;
     }
   }
+}
+
+function isEmptyRepositoryLogError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("does not have any commits yet");
 }
 
 function buildLogArgs(

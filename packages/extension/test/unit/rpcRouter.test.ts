@@ -73,6 +73,36 @@ describe("RPC router", () => {
     ]);
   });
 
+  it("uses formatted backend error messages when provided", async () => {
+    const router = createRpcRouter(
+      {
+        "settings.update": async () => {
+          throw new Error("没有注册配置 guigit.ai.provider，因此无法写入 工作区设置。");
+        }
+      },
+      undefined,
+      () => "Failed to save settings. Please reload the extension and try again."
+    );
+
+    await expect(
+      router.dispatch({
+        id: "settings-1",
+        settings: {
+          fileViewMode: "list"
+        },
+        type: "settings.update"
+      })
+    ).resolves.toEqual({
+      id: "settings-1",
+      ok: false,
+      type: "settings.update",
+      error: {
+        code: "BACKEND_ERROR",
+        message: "Failed to save settings. Please reload the extension and try again."
+      }
+    });
+  });
+
   it("returns an unknown request error for an unregistered request type", async () => {
     const router = createRpcRouter({});
 

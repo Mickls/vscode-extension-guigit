@@ -2,7 +2,7 @@
   "name": "vscode-extension-guigit",
   "displayName": "GUI Git History",
   "description": "A visual Git history viewer with advanced commit operations",
-  "version": "0.1.15",
+  "version": "0.1.21",
   "publisher": "Mickls",
   "license": "MIT",
   "icon": "assets/gui-git-history-high-resolution-logo-transparent.png",
@@ -282,13 +282,14 @@
   "dependencies": {
     "@vscode/codicons": "^0.0.38",
     "simple-git": "^3.29.0",
+    "undici": "^5.29.0",
     "vscode-nls-i18n": "^0.2.4"
   },
   "devDependencies": {
     "@types/node": "^24.10.2",
     "@types/vscode": "^1.75.0",
-    "esbuild": "^0.27.7",
     "@vscode/vsce": "^3.6.3",
+    "esbuild": "^0.27.7",
     "vitest": "^4.0.15"
   }
 }

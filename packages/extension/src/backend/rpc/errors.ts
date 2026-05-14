@@ -14,7 +14,8 @@ export function unknownRequestResponse(request: Pick<RpcRequest, "id" | "type">)
 
 export function backendErrorResponse(
   request: Pick<RpcRequest, "id" | "type">,
-  error: Error
+  error: Error,
+  message = error.message
 ): RpcErrorResponse {
   return {
     id: request.id,
@@ -22,7 +23,7 @@ export function backendErrorResponse(
     type: request.type,
     error: {
       code: "BACKEND_ERROR",
-      message: error.message
+      message
     }
   };
 }

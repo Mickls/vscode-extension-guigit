@@ -42,7 +42,7 @@ export class WorkingTreeService {
 
   public async load(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeViewModel> {
     const [branchOutput, statusOutput, stashOutput] = await Promise.all([
-      this.gitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"]),
+      this.getCurrentBranch(repositoryRoot),
       this.gitRaw(repositoryRoot, workingTreeStatusArgs),
       this.gitRaw(repositoryRoot, ["stash", "list"])
     ]);
@@ -56,6 +56,14 @@ export class WorkingTreeService {
       stashes: parseStashList(stashOutput),
       unstaged: status.unstaged
     };
+  }
+
+  private async getCurrentBranch(repositoryRoot: string): Promise<string> {
+    try {
+      return await this.gitRaw(repositoryRoot, ["symbolic-ref", "--short", "HEAD"]);
+    } catch {
+      return "HEAD";
+    }
   }
 
   public async stageFile(repositoryId: string, repositoryRoot: string, filePath: string): Promise<WorkingTreeActionResult> {

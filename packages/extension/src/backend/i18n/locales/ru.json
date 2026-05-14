@@ -188,7 +188,8 @@
       "proxyConfigFailed": "Не удалось настроить прокси",
       "proxyStatusFailed": "Не удалось получить состояние прокси",
       "commitDetailsFailed": "Не удалось загрузить детали коммита",
-      "headCommitFailed": "Не удалось получить HEAD-коммит"
+      "headCommitFailed": "Не удалось получить HEAD-коммит",
+      "settingsUpdateFailed": "Не удалось сохранить настройки. Перезагрузите расширение и повторите попытку."
     },
     "success": {
       "proxyConfigured": "Настройка прокси сохранена и применена",

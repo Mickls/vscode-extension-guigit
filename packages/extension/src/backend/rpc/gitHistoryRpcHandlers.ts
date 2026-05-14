@@ -39,6 +39,7 @@ export interface GitHistoryRpcHandlerInput {
     | "createBranchFromCommit"
     | "editCommitMessage"
     | "fetch"
+    | "init"
     | "getOperationState"
     | "pull"
     | "push"
@@ -218,6 +219,7 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
 
       return input.gitService.fetch(repository.rootPath);
     },
+    "git.init": () => input.gitService.init(),
     "git.clone": () => input.gitService.clone(),
     "git.checkout": async (request) => {
       const repository = await findRepository(input.repositoryService, request.repositoryId);

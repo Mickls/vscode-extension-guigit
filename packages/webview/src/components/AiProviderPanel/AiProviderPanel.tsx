@@ -126,7 +126,7 @@ export function AiProviderPanel({
           <button
             aria-label={text.close}
             className="guigit-icon-tooltip-host h-6 w-6 rounded bg-transparent text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={busy}
+            disabled={saving}
             onClick={onClose}
             type="button"
           >
@@ -220,7 +220,7 @@ export function AiProviderPanel({
           </div>
         </div>
         <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--vscode-panel-border)] px-5 py-4">
-          <button className={secondaryButtonClassName} disabled={busy} onClick={onClose} type="button">
+          <button className={secondaryButtonClassName} disabled={saving} onClick={onClose} type="button">
             {text.cancel}
           </button>
           <button className={secondaryButtonClassName} disabled={busy} onClick={onTest} type="button">

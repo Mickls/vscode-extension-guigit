@@ -13,7 +13,8 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
           apiKey: "sk-test",
           baseUrl: "https://api.example.com/v1",
           model: "gpt-test",
-          prompt: "Write one line"
+          prompt: "Write one line",
+          protocol: "chatCompletions"
         })
       ).rejects.toThrow("OpenAI-compatible provider requires fetch support in this VS Code host");
     } finally {
@@ -21,10 +22,111 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
     }
   });
 
+  it("accepts legacy base URLs that already include /v1 or the full endpoint path", async () => {
+    const fetch = vi.fn(async () =>
+      createResponse({
+        choices: [
+          {
+            message: {
+              content: "fix: keep legacy urls"
+            }
+          }
+        ]
+      })
+    );
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+
+    await provider.generate({
+      apiKey: "sk-test",
+      baseUrl: "https://api.example.com/v1",
+      model: "gpt-test",
+      prompt: "Write one line",
+      protocol: "chatCompletions"
+    });
+    await provider.generate({
+      apiKey: "sk-test",
+      baseUrl: "https://api.example.com/v1/chat/completions",
+      model: "gpt-test",
+      prompt: "Write one line",
+      protocol: "chatCompletions"
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe("https://api.example.com/v1/chat/completions");
+    expect(fetch.mock.calls[1]![0]).toBe("https://api.example.com/v1/chat/completions");
+  });
+
+  it("uses the resolved proxy configuration for provider requests", async () => {
+    const fetch = vi.fn(async () =>
+      createResponse({
+        choices: [
+          {
+            message: {
+              content: "fix: use proxy"
+            }
+          }
+        ]
+      })
+    );
+    const provider = new OpenAICompatibleCommitMessageProvider({
+      fetch,
+      getProxyConfig: async () => ({
+        enabled: true,
+        http: "http://127.0.0.1:7890",
+        https: "http://127.0.0.1:7890",
+        source: "git"
+      })
+    });
+
+    await provider.generate({
+      apiKey: "sk-test",
+      baseUrl: "https://api.example.com",
+      model: "gpt-test",
+      prompt: "Write one line",
+      protocol: "chatCompletions"
+    });
+
+    expect(fetch.mock.calls[0]![1]).toEqual(expect.objectContaining({
+      dispatcher: expect.any(Object)
+    }));
+  });
+
+  it("skips the resolved proxy when the host matches no_proxy", async () => {
+    const fetch = vi.fn(async () =>
+      createResponse({
+        choices: [
+          {
+            message: {
+              content: "fix: respect no proxy"
+            }
+          }
+        ]
+      })
+    );
+    const provider = new OpenAICompatibleCommitMessageProvider({
+      fetch,
+      getProxyConfig: async () => ({
+        enabled: true,
+        http: "http://127.0.0.1:7890",
+        https: "http://127.0.0.1:7890",
+        noProxy: "api.example.com",
+        source: "git"
+      })
+    });
+
+    await provider.generate({
+      apiKey: "sk-test",
+      baseUrl: "https://api.example.com",
+      model: "gpt-test",
+      prompt: "Write one line",
+      protocol: "chatCompletions"
+    });
+
+    expect(fetch.mock.calls[0]![1]).not.toHaveProperty("dispatcher");
+  });
+
   it("posts the prompt to the chat completions endpoint with the configured model", async () => {
-    const fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
+    const fetch = vi.fn(async () =>
+      createResponse({
         choices: [
           {
             message: {
@@ -33,7 +135,7 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
           }
         ]
       })
-    }));
+    );
     const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
 
     await expect(
@@ -67,12 +169,11 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
   });
 
   it("posts the prompt to the responses endpoint when selected", async () => {
-    const fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
+    const fetch = vi.fn(async () =>
+      createResponse({
         output_text: "fix: use responses api"
       })
-    }));
+    );
     const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
 
     await expect(
@@ -101,9 +202,8 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
   });
 
   it("posts the prompt to the Claude messages endpoint when selected", async () => {
-    const fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
+    const fetch = vi.fn(async () =>
+      createResponse({
         content: [
           {
             text: "feat: use claude messages",
@@ -111,7 +211,7 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
           }
         ]
       })
-    }));
+    );
     const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
 
     await expect(
@@ -147,9 +247,8 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
   });
 
   it("rejects whitespace-only provider responses with a clear error", async () => {
-    const fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
+    const fetch = vi.fn(async () =>
+      createResponse({
         choices: [
           {
             message: {
@@ -158,7 +257,7 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
           }
         ]
       })
-    }));
+    );
     const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
 
     await expect(
@@ -166,8 +265,33 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
         apiKey: "sk-test",
         baseUrl: "https://api.example.com/v1",
         model: "gpt-test",
-        prompt: "Write one line"
+        prompt: "Write one line",
+        protocol: "chatCompletions"
       })
     ).rejects.toThrow("OpenAI-compatible provider returned no commit message");
   });
+
+  it("includes response body details for non-2xx provider responses", async () => {
+    const fetch = vi.fn(async () => createResponse({ error: { message: "Unsupported model" } }, 400));
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.openai.com",
+        model: "bad-model",
+        prompt: "Write one line",
+        protocol: "responses"
+      })
+    ).rejects.toThrow('OpenAI-compatible request failed with status 400: {"error":{"message":"Unsupported model"}}');
+  });
 });
+
+function createResponse(payload: unknown, status = 200): Response {
+  return {
+    json: async () => payload,
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => JSON.stringify(payload)
+  } as Response;
+}

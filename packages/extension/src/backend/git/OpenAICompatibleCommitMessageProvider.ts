@@ -1,7 +1,11 @@
+import { ProxyAgent } from "undici";
+import type { Dispatcher } from "undici";
 import type { HttpAiProviderProtocol } from "../rpc/contract";
+import type { ProxyConfig } from "./ProxyService";
 
 export interface OpenAICompatibleCommitMessageProviderInput {
   fetch?: typeof fetch;
+  getProxyConfig?: () => Promise<ProxyConfig>;
 }
 
 export interface OpenAICompatibleCommitMessageRequest {
@@ -39,9 +43,11 @@ interface ClaudeMessagesResponse {
 
 export class OpenAICompatibleCommitMessageProvider {
   private readonly fetch?: typeof fetch;
+  private readonly getProxyConfig?: () => Promise<ProxyConfig>;
 
   public constructor(input: OpenAICompatibleCommitMessageProviderInput = {}) {
     this.fetch = input.fetch;
+    this.getProxyConfig = input.getProxyConfig;
   }
 
   public async generate(input: OpenAICompatibleCommitMessageRequest): Promise<string> {
@@ -51,10 +57,16 @@ export class OpenAICompatibleCommitMessageProvider {
     }
 
     const request = createRequest(input);
-    const response = await requestFetch(request.url, request.init);
+    const proxyConfig = await this.getProxyConfig?.();
+    const dispatcher = proxyConfig ? createProxyDispatcher(request.url, proxyConfig) : undefined;
+    const response = await requestFetch(request.url, {
+      ...request.init,
+      ...(dispatcher ? { dispatcher } : {})
+    } as RequestInit & { dispatcher?: Dispatcher });
 
     if (!response.ok) {
-      throw new Error(`OpenAI-compatible request failed with status ${response.status}`);
+      const bodyText = await response.text();
+      throw new Error(formatStatusError(response.status, bodyText));
     }
 
     const payload = await response.json();
@@ -86,7 +98,7 @@ function createRequest(input: OpenAICompatibleCommitMessageRequest): ProviderHtt
         },
         method: "POST"
       },
-      url: `${trimTrailingSlash(input.baseUrl)}/v1/responses`
+      url: createEndpointUrl(input.baseUrl, "responses")
     };
   }
 
@@ -110,7 +122,7 @@ function createRequest(input: OpenAICompatibleCommitMessageRequest): ProviderHtt
         },
         method: "POST"
       },
-      url: `${trimTrailingSlash(input.baseUrl)}/v1/messages`
+      url: createEndpointUrl(input.baseUrl, "claudeMessages")
     };
   }
 
@@ -131,8 +143,51 @@ function createRequest(input: OpenAICompatibleCommitMessageRequest): ProviderHtt
       },
       method: "POST"
     },
-    url: `${trimTrailingSlash(input.baseUrl)}/v1/chat/completions`
+    url: createEndpointUrl(input.baseUrl, "chatCompletions")
   };
+}
+
+const endpointPaths = {
+  chatCompletions: "/v1/chat/completions",
+  claudeMessages: "/v1/messages",
+  responses: "/v1/responses"
+} as const satisfies Record<HttpAiProviderProtocol, string>;
+
+function createEndpointUrl(baseUrl: string, protocol: HttpAiProviderProtocol): string {
+  const url = new URL(baseUrl);
+  const endpointPath = endpointPaths[protocol];
+  const path = trimTrailingSlash(url.pathname);
+  if (path === endpointPath || path.endsWith(endpointPath)) {
+    return url.toString();
+  }
+
+  url.pathname = `${path === "/" ? "" : path}${endpointPath.startsWith("/v1/") && path.endsWith("/v1") ? endpointPath.slice(3) : endpointPath}`;
+  return url.toString();
+}
+
+function createProxyDispatcher(url: string, config: ProxyConfig): Dispatcher | undefined {
+  if (!config.enabled || isNoProxyHost(new URL(url).hostname, config.noProxy)) {
+    return undefined;
+  }
+
+  const proxy = url.startsWith("https:") ? config.https ?? config.http : config.http ?? config.https;
+  return proxy ? new ProxyAgent(normalizeProxyUrl(proxy)) : undefined;
+}
+
+function normalizeProxyUrl(proxy: string): string {
+  return proxy.includes("://") ? proxy : `http://${proxy}`;
+}
+
+function isNoProxyHost(host: string, noProxy: string | undefined): boolean {
+  if (!noProxy) {
+    return false;
+  }
+
+  return noProxy
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+    .some((pattern) => pattern === "*" || host.toLowerCase() === pattern || host.toLowerCase().endsWith(`.${pattern.replace(/^\./, "")}`));
 }
 
 function parseMessage(protocol: HttpAiProviderProtocol, payload: unknown): string | undefined {
@@ -159,4 +214,13 @@ function trimTrailingSlash(value: string): string {
 
 function firstLine(value: string): string {
   return value.split(/\r?\n/, 1)[0]!.trim();
+}
+
+function formatStatusError(statusCode: number, bodyText: string): string {
+  const details = bodyText.trim();
+  if (!details) {
+    return `OpenAI-compatible request failed with status ${statusCode}`;
+  }
+
+  return `OpenAI-compatible request failed with status ${statusCode}: ${details.slice(0, 500)}`;
 }

@@ -10,7 +10,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "stash list") {
         return "stash@{0}: WIP on main: abc1234 message";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -25,12 +25,56 @@ describe("WorkingTreeService", () => {
     expect(result.stashes).toHaveLength(1);
     expect(gitRaw.mock.calls).toEqual(
       expect.arrayContaining([
-        ["/repo", ["rev-parse", "--abbrev-ref", "HEAD"]],
+        ["/repo", ["symbolic-ref", "--short", "HEAD"]],
         ["/repo", ["status", "--porcelain=v1", "--untracked-files=all"]],
         ["/repo", ["stash", "list"]]
       ])
     );
     expect(gitRaw).toHaveBeenCalledTimes(3);
+  });
+
+  it("loads changes from an initialized repository before the first commit", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
+        return "main\n";
+      }
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
+        return "?? src/first-file.ts\n";
+      }
+      return "";
+    });
+    const service = new WorkingTreeService({ gitRaw });
+
+    const result = await service.load("/repo", "/repo");
+
+    expect(result).toEqual({
+      branch: "main",
+      repositoryId: "/repo",
+      repositoryRoot: "/repo",
+      staged: [],
+      stashes: [],
+      unstaged: [
+        expect.objectContaining({
+          area: "untracked",
+          path: "src/first-file.ts",
+          status: "added"
+        })
+      ]
+    });
+  });
+
+  it("reports HEAD when the current checkout is detached", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
+        throw new Error("fatal: ref HEAD is not a symbolic ref");
+      }
+      return "";
+    });
+    const service = new WorkingTreeService({ gitRaw });
+
+    await expect(service.load("/repo", "/repo")).resolves.toEqual(expect.objectContaining({
+      branch: "HEAD"
+    }));
   });
 
   it.each([
@@ -59,7 +103,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "M  src/staged.ts\n M src/unstaged.ts\n";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -89,7 +133,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "M  src/staged.ts\n M src/unstaged.ts\n";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -120,7 +164,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -152,7 +196,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return " M src/a.ts\n";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -175,7 +219,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -199,7 +243,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -220,7 +264,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -248,7 +292,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -276,7 +320,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -304,7 +348,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -332,7 +376,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return " M src/a.ts\n";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";
@@ -354,7 +398,7 @@ describe("WorkingTreeService", () => {
       if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
         return "";
       }
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
         return "main\n";
       }
       return "";

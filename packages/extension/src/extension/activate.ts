@@ -80,9 +80,9 @@ export function activate(context: ExtensionContext): void {
   });
   const settingsService = new SettingsService({
     configuration: {
-      get: (key) => guigitConfiguration().get(key),
+      get: (key) => workspace.getConfiguration().get(toGuigitConfigurationKey(key)),
       update: async (key: SettingsConfigurationKey, value) => {
-        await guigitConfiguration().update(key, value, ConfigurationTarget.Workspace);
+        await workspace.getConfiguration().update(toGuigitConfigurationKey(key), value, ConfigurationTarget.Workspace);
       }
     },
     secretStorage: {
@@ -93,7 +93,8 @@ export function activate(context: ExtensionContext): void {
       store: async (key, value) => {
         await context.secrets.store(key, value);
       }
-    }
+    },
+    stateStorage: context.globalState
   });
   const languageModelProvider = new LanguageModelCommitMessageProvider({
     selectChatModels: async () => {
@@ -128,7 +129,9 @@ export function activate(context: ExtensionContext): void {
       }));
     }
   });
-  const openAICompatibleProvider = new OpenAICompatibleCommitMessageProvider();
+  const openAICompatibleProvider = new OpenAICompatibleCommitMessageProvider({
+    getProxyConfig: () => proxyService.getProxyConfig()
+  });
   const commitMessageAiService = new CommitMessageAiService({
     gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
     languageModelProvider,
@@ -161,7 +164,8 @@ export function activate(context: ExtensionContext): void {
     proxyService,
     safetyService,
     settingsService,
-    stateService: repositoryState
+    stateService: repositoryState,
+    workspaceFolders: workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? []
   });
   const fileHistoryPanel = new FileHistoryPanel({
     activeEditorUri: () => window.activeTextEditor?.document.uri,
@@ -207,7 +211,8 @@ export function activate(context: ExtensionContext): void {
       settingsService,
       workingTreeService
     }),
-    logger
+    logger,
+    (error, request) => request.type === "settings.update" ? languageService.t("errors.settingsUpdateFailed") : error.message
   );
   const viewProvider = new GitHistoryViewProvider(context, router, fileHistoryPanel);
   const gitExtension = extensions.getExtension<GitExtensionExports>("vscode.git");
@@ -249,4 +254,8 @@ export function activate(context: ExtensionContext): void {
 
 export function deactivate(): void {
   // VS Code calls this during extension shutdown.
+}
+
+function toGuigitConfigurationKey(key: SettingsConfigurationKey): `guigit.${SettingsConfigurationKey}` {
+  return `guigit.${key}`;
 }

@@ -24,6 +24,13 @@ const vscodeMocks = vi.hoisted(() => {
     onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
     providerDisposable,
     registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
+    globalStateGet: vi.fn(),
+    globalStateUpdate: vi.fn(),
+    secretDelete: vi.fn(),
+    secretGet: vi.fn(),
+    secretStore: vi.fn(),
+    workspaceStateGet: vi.fn(),
+    workspaceStateUpdate: vi.fn(),
     outputChannel: {
       appendLine: vi.fn()
     },
@@ -42,11 +49,11 @@ const vscodeMocks = vi.hoisted(() => {
 
 const workspaceConfiguration = {
   get: vi.fn((key: string) => {
-    if (key === "fileViewMode") {
+    if (key === "fileViewMode" || key === "guigit.fileViewMode") {
       return "tree";
     }
 
-    if (key === "language") {
+    if (key === "language" || key === "guigit.language") {
       return "en";
     }
 
@@ -125,6 +132,13 @@ describe("activate", () => {
     vscodeMocks.onDidChangeActiveTextEditor.mockClear();
     vscodeMocks.registerCommand.mockClear();
     vscodeMocks.registerWebviewViewProvider.mockClear();
+    vscodeMocks.globalStateGet.mockClear();
+    vscodeMocks.globalStateUpdate.mockClear();
+    vscodeMocks.secretDelete.mockClear();
+    vscodeMocks.secretGet.mockClear();
+    vscodeMocks.secretStore.mockClear();
+    vscodeMocks.workspaceStateGet.mockClear();
+    vscodeMocks.workspaceStateUpdate.mockClear();
     workspaceConfiguration.get.mockClear();
     workspaceConfiguration.update.mockClear();
   });
@@ -134,6 +148,19 @@ describe("activate", () => {
     const subscriptions: Disposable[] = [];
     const context = {
       extensionUri: { path: "/extension" },
+      globalState: {
+        get: vscodeMocks.globalStateGet,
+        update: vscodeMocks.globalStateUpdate
+      },
+      secrets: {
+        delete: vscodeMocks.secretDelete,
+        get: vscodeMocks.secretGet,
+        store: vscodeMocks.secretStore
+      },
+      workspaceState: {
+        get: vscodeMocks.workspaceStateGet,
+        update: vscodeMocks.workspaceStateUpdate
+      },
       subscriptions
     } as ExtensionContext;
 
@@ -159,6 +186,19 @@ describe("activate", () => {
     const subscriptions: Disposable[] = [];
     const context = {
       extensionUri: { path: "/extension" },
+      globalState: {
+        get: vscodeMocks.globalStateGet,
+        update: vscodeMocks.globalStateUpdate
+      },
+      secrets: {
+        delete: vscodeMocks.secretDelete,
+        get: vscodeMocks.secretGet,
+        store: vscodeMocks.secretStore
+      },
+      workspaceState: {
+        get: vscodeMocks.workspaceStateGet,
+        update: vscodeMocks.workspaceStateUpdate
+      },
       subscriptions
     } as ExtensionContext;
     let onDidReceiveMessage: ((request: unknown) => void) | undefined;
@@ -185,7 +225,73 @@ describe("activate", () => {
     });
 
     await vi.waitFor(() => {
-      expect(workspaceConfiguration.update).toHaveBeenCalledWith("fileViewMode", "list", 2);
+      expect(workspaceConfiguration.update).toHaveBeenCalledWith("guigit.fileViewMode", "list", 2);
+    });
+  });
+
+  it("updates AI provider settings through global extension state", async () => {
+    const { activate } = await import("../../src/extension/activate");
+    const subscriptions: Disposable[] = [];
+    const context = {
+      extensionUri: { path: "/extension" },
+      globalState: {
+        get: vscodeMocks.globalStateGet,
+        update: vscodeMocks.globalStateUpdate
+      },
+      secrets: {
+        delete: vscodeMocks.secretDelete,
+        get: vscodeMocks.secretGet,
+        store: vscodeMocks.secretStore
+      },
+      workspaceState: {
+        get: vscodeMocks.workspaceStateGet,
+        update: vscodeMocks.workspaceStateUpdate
+      },
+      subscriptions
+    } as ExtensionContext;
+    let onDidReceiveMessage: ((request: unknown) => void) | undefined;
+
+    activate(context);
+    const provider = vscodeMocks.registerWebviewViewProvider.mock.calls[0]![1] as GitHistoryViewProvider;
+    provider.resolveWebviewView({
+      webview: {
+        asWebviewUri: (uri: { path: string }) => uri,
+        cspSource: "vscode-webview:",
+        onDidReceiveMessage: (callback: (request: unknown) => void) => {
+          onDidReceiveMessage = callback;
+        },
+        postMessage: vi.fn()
+      }
+    } as never);
+
+    onDidReceiveMessage!({
+      id: "settings-ai",
+      settings: {
+        ai: {
+          provider: "openAICompatible",
+          commitMessagePrompt: {
+            customRules: "",
+            mode: "default"
+          },
+          openAICompatible: {
+            apiKey: "sk-test",
+            baseUrl: "https://api.example.com",
+            configured: true,
+            model: "gpt-test",
+            protocol: "chatCompletions"
+          }
+        }
+      },
+      type: "settings.update"
+    });
+
+    await vi.waitFor(() => {
+      expect(vscodeMocks.globalStateUpdate).toHaveBeenCalledWith("guigit.ai.provider", "openAICompatible");
+      expect(vscodeMocks.globalStateUpdate).toHaveBeenCalledWith("guigit.ai.openAICompatible.baseUrl", "https://api.example.com");
+      expect(vscodeMocks.globalStateUpdate).toHaveBeenCalledWith("guigit.ai.openAICompatible.model", "gpt-test");
+      expect(vscodeMocks.workspaceStateUpdate).not.toHaveBeenCalledWith("guigit.ai.provider", expect.anything());
+      expect(workspaceConfiguration.update).not.toHaveBeenCalledWith("guigit.ai.provider", expect.anything(), expect.anything());
+      expect(vscodeMocks.secretStore).toHaveBeenCalledWith("guigit.ai.openAICompatible.apiKey", "sk-test");
     });
   });
 });

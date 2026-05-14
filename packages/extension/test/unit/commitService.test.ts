@@ -137,6 +137,29 @@ describe("CommitService", () => {
     expect(logCalls[0]).not.toContain("--tags");
   });
 
+  it("treats a new repository with no commits as empty history", async () => {
+    const service = new CommitService({
+      cache: new CacheService(),
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args[0] === "log") {
+          throw new Error("fatal: your current branch 'main' does not have any commits yet");
+        }
+
+        return "";
+      }
+    });
+
+    await expect(
+      service.loadHistory({
+        pageSize: 50,
+        repositoryRoot: "/workspace/repo"
+      })
+    ).resolves.toEqual({
+      commits: [],
+      hasMore: false
+    });
+  });
+
   it("loads history for multiple authors", async () => {
     const logCalls: string[][] = [];
     const service = new CommitService({

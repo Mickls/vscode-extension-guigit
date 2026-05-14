@@ -558,6 +558,64 @@ describe("Git history RPC handlers", () => {
     });
   });
 
+  it("routes repository initialization without requiring an existing repository", async () => {
+    const calls: string[] = [];
+    const handlers = createGitHistoryRpcHandlers({
+      branchService: {
+        listBranches: async () => branches
+      },
+      commitService: {
+        getCurrentUser: async () => undefined,
+        loadHistory: async () => ({
+          commits: [],
+          hasMore: false
+        })
+      },
+      fileService: {
+        getCommitDetails: async () => details,
+        getFileChanges: async () => ({
+          files: [],
+          mode: "list"
+        })
+      },
+      graphService: {
+        getLayout: async () => graph
+      },
+      diffService: {
+        openCommitFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openCompareFileDiff: async () => ({ message: "ok", status: "ok" }),
+        openWorkingTreeFileDiff: async () => ({ message: "ok", status: "ok" })
+      },
+      fileHistoryPanel: {
+        openHistory: async () => ({ message: "ok", status: "ok" }),
+        openWorkingFile: async () => ({ message: "ok", status: "ok" })
+      },
+      gitService: {
+        ...createGitService(),
+        init: async () => {
+          calls.push("init");
+          return { message: "Initialized Git repository", status: "ok" };
+        }
+      },
+      repositoryService: {
+        discoverRepositories: async () => [],
+        getCurrentRepository: () => undefined,
+        switchToActiveEditorRepository: () => undefined
+      },
+      proxyService: createProxyService(),
+      remoteService: createRemoteService(),
+      languageService: createLanguageService(),
+      settingsService: createSettingsService(),
+      workingTreeService: createWorkingTreeService()
+    });
+
+    await expect(handlers["git.init"]!({ id: "init", type: "git.init" })).resolves.toEqual({
+      message: "Initialized Git repository",
+      status: "ok"
+    });
+    expect(calls).toEqual(["init"]);
+  });
+
   it("reads and updates settings", async () => {
     let resetAutoStashPreferenceCalled = false;
     const updates: unknown[] = [];
@@ -1385,6 +1443,7 @@ function createGitService() {
     createBranchFromCommit: async () => ({ message: "ok", status: "ok" as const }),
     editCommitMessage: async () => ({ message: "ok", status: "ok" as const }),
     fetch: async () => ({ message: "ok", status: "ok" as const }),
+    init: async () => ({ message: "ok", status: "ok" as const }),
     getOperationState: async () => ({ message: "ok", status: "ok" as const }),
     pull: async () => ({ message: "ok", status: "ok" as const }),
     push: async () => ({ message: "ok", status: "ok" as const }),

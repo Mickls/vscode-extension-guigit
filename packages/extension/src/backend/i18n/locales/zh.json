@@ -5,6 +5,10 @@
     "loadingCommitDetails": "正在加载提交详情...",
     "loadingGeneric": "加载中...",
     "noGitRepository": "当前工作区中未找到Git仓库。",
+    "emptyRepository": {
+      "title": "未找到 Git 仓库",
+      "description": "是否要在当前工作区初始化一个 Git 仓库？"
+    },
     "selectCommit": "选择一个提交以查看详情",
     "placeholderCommitMessage": "搜索提交信息或哈希...",
     "noCommitsFound": "未找到提交记录",
@@ -110,6 +114,7 @@
       "pull": "拉取",
       "push": "推送",
       "fetch": "获取",
+      "initializeRepository": "初始化仓库",
       "clone": "克隆",
       "checkout": "签出",
       "settings": "设置",
@@ -188,7 +193,8 @@
       "proxyConfigFailed": "配置代理失败",
       "proxyStatusFailed": "获取代理状态失败",
       "commitDetailsFailed": "加载提交详情失败",
-      "headCommitFailed": "获取HEAD提交失败"
+      "headCommitFailed": "获取HEAD提交失败",
+      "settingsUpdateFailed": "保存设置失败。请重新加载扩展后重试。"
     },
     "success": {
       "proxyConfigured": "代理配置已保存并生效",

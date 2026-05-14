@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 import type { OperationResultViewModel } from "../rpc/contract";
 import type { SettingsService } from "../../state/SettingsService";
 
-export type ProxySource = "custom" | "environment" | "local-app" | "none" | "system" | "vscode";
+export type ProxySource = "custom" | "environment" | "git" | "local-app" | "none" | "system" | "vscode";
 
 export interface ProxyConfig {
   enabled: boolean;
@@ -79,6 +79,7 @@ export class ProxyService {
   public async getProxyConfig(): Promise<ProxyConfig> {
     const config =
       this.getCustomProxyConfig() ??
+      await this.getGitProxyConfig() ??
       this.getVSCodeProxyConfig() ??
       this.getEnvironmentProxyConfig() ??
       await this.getSystemProxyConfig() ??
@@ -249,6 +250,32 @@ export class ProxyService {
       https: proxy,
       source: "vscode"
     };
+  }
+
+  private async getGitProxyConfig(): Promise<ProxyConfig | undefined> {
+    const [http, https] = await Promise.all([
+      this.getOptionalExecOutput("git config --global --get http.proxy"),
+      this.getOptionalExecOutput("git config --global --get https.proxy")
+    ]);
+    if (!http && !https) {
+      return undefined;
+    }
+
+    return {
+      enabled: true,
+      http,
+      https: https ?? http,
+      source: "git"
+    };
+  }
+
+  private async getOptionalExecOutput(command: string): Promise<string | undefined> {
+    try {
+      const output = (await this.exec(command)).trim();
+      return output || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private getEnvironmentProxyConfig(): ProxyConfig | undefined {

@@ -36,6 +36,30 @@ describe("ProxyService", () => {
     });
   });
 
+  it("uses Git proxy settings after custom settings", async () => {
+    const service = createService({
+      exec: async (command) => {
+        if (command === "git config --global --get http.proxy") {
+          return "http://git-http.example:8080\n";
+        }
+
+        if (command === "git config --global --get https.proxy") {
+          return "http://git-https.example:8080\n";
+        }
+
+        return "";
+      },
+      vscodeProxy: "http://proxy.example:8080"
+    });
+
+    await expect(service.getProxyConfig()).resolves.toEqual({
+      enabled: true,
+      http: "http://git-http.example:8080",
+      https: "http://git-https.example:8080",
+      source: "git"
+    });
+  });
+
   it("uses environment proxy variables after VS Code settings", async () => {
     const service = createService({
       env: {
@@ -57,6 +81,10 @@ describe("ProxyService", () => {
   it("detects macOS, Windows, and Linux system proxy settings", async () => {
     await expect(createService({
       exec: async (command) => {
+        if (command.startsWith("git config")) {
+          return "";
+        }
+
         if (command === "networksetup -listallnetworkservices") {
           return "Wi-Fi\n";
         }
@@ -77,6 +105,10 @@ describe("ProxyService", () => {
 
     await expect(createService({
       exec: async (command) => {
+        if (command.startsWith("git config")) {
+          return "";
+        }
+
         if (command.includes("ProxyEnable")) {
           return "ProxyEnable    REG_DWORD    0x1";
         }
@@ -93,6 +125,10 @@ describe("ProxyService", () => {
 
     await expect(createService({
       exec: async (command) => {
+        if (command.startsWith("git config")) {
+          return "";
+        }
+
         if (command === "gsettings get org.gnome.system.proxy mode") {
           return "'manual'";
         }

@@ -188,7 +188,8 @@
       "proxyConfigFailed": "Error al configurar el proxy",
       "proxyStatusFailed": "Error al obtener el estado del proxy",
       "commitDetailsFailed": "Error al cargar los detalles del commit",
-      "headCommitFailed": "Error al obtener el commit HEAD"
+      "headCommitFailed": "Error al obtener el commit HEAD",
+      "settingsUpdateFailed": "Error al guardar la configuración. Recarga la extensión e inténtalo de nuevo."
     },
     "success": {
       "proxyConfigured": "Configuración de proxy guardada y aplicada",

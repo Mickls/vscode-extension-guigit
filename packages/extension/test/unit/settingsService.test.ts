@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SettingsService, type SettingsConfiguration, type SettingsConfigurationKey, type SettingsSecretStorage } from "../../src/state/SettingsService";
+import { SettingsService, type SettingsConfiguration, type SettingsConfigurationKey, type SettingsSecretStorage, type SettingsStateStorage } from "../../src/state/SettingsService";
 
 const apiKeySecretKey = "guigit.ai.openAICompatible.apiKey";
 
@@ -202,6 +202,60 @@ describe("SettingsService", () => {
     expect(await service.getOpenAICompatibleApiKey()).toBe("sk-existing");
   });
 
+  it("stores AI provider settings in global extension state when state storage is available", async () => {
+    const { configuration, updates } = createConfiguration({
+      "ai.openAICompatible.baseUrl": "https://settings.example.com",
+      "ai.openAICompatible.model": "settings-model",
+      "ai.provider": "vscodeLanguageModel"
+    });
+    const { stateStorage, stateUpdates } = createStateStorage({
+      "guigit.ai.openAICompatible.baseUrl": "https://state.example.com",
+      "guigit.ai.openAICompatible.model": "state-model",
+      "guigit.ai.provider": "openAICompatible"
+    });
+    const service = createService({ configuration, stateStorage });
+
+    expect(service.getSettings().ai).toEqual({
+      provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "",
+        mode: "default"
+      },
+      openAICompatible: {
+        baseUrl: "https://state.example.com",
+        configured: true,
+        model: "state-model",
+        protocol: "chatCompletions"
+      }
+    });
+
+    await service.updateSettings({
+      ai: {
+        provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "Use imperative mood.",
+          mode: "custom"
+        },
+        openAICompatible: {
+          baseUrl: "https://api.openai.com",
+          configured: true,
+          model: "gpt-test",
+          protocol: "responses"
+        }
+      }
+    });
+
+    expect(updates).toEqual([]);
+    expect(stateUpdates).toEqual([
+      { key: "guigit.ai.provider", value: "openAICompatible" },
+      { key: "guigit.ai.commitMessagePrompt.mode", value: "custom" },
+      { key: "guigit.ai.commitMessagePrompt.customRules", value: "Use imperative mood." },
+      { key: "guigit.ai.openAICompatible.protocol", value: "responses" },
+      { key: "guigit.ai.openAICompatible.baseUrl", value: "https://api.openai.com" },
+      { key: "guigit.ai.openAICompatible.model", value: "gpt-test" }
+    ]);
+  });
+
   it("keeps QuickPick AI configuration disabled for the Webview panel flow", async () => {
     const service = createService();
 
@@ -215,13 +269,15 @@ describe("SettingsService", () => {
 function createService(input: {
   configuration?: SettingsConfiguration;
   secretStorage?: SettingsSecretStorage;
+  stateStorage?: SettingsStateStorage;
 } = {}): SettingsService {
   const { configuration } = createConfiguration();
   const { secretStorage } = createSecretStorage();
 
   return new SettingsService({
     configuration: input.configuration ?? configuration,
-    secretStorage: input.secretStorage ?? secretStorage
+    secretStorage: input.secretStorage ?? secretStorage,
+    stateStorage: input.stateStorage
   });
 }
 
@@ -263,5 +319,24 @@ function createSecretStorage(initial: Record<string, string> = {}): {
       }
     },
     stores
+  };
+}
+
+function createStateStorage(initial: Record<string, unknown> = {}): {
+  stateStorage: SettingsStateStorage;
+  stateUpdates: Array<{ key: string; value: unknown }>;
+} {
+  const values = new Map(Object.entries(initial));
+  const stateUpdates: Array<{ key: string; value: unknown }> = [];
+
+  return {
+    stateStorage: {
+      get: (key) => values.get(key),
+      update: async (key, value) => {
+        values.set(key, value);
+        stateUpdates.push({ key, value });
+      }
+    },
+    stateUpdates
   };
 }

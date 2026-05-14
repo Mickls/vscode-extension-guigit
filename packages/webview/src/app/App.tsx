@@ -75,7 +75,7 @@ const notificationHistoryStorageKey = "guigit.notificationHistory";
 const notificationCountVisibilityStorageKey = "guigit.notificationCountVisible";
 const notificationRetentionMs = 7 * 24 * 60 * 60 * 1000;
 type PrimaryGitOperationType = "git.advancedPull" | "git.advancedPush" | "git.fetch" | "git.pull" | "git.push";
-type PromptGitOperationType = "git.checkout" | "git.clone";
+type PromptGitOperationType = "git.checkout" | "git.clone" | "git.init";
 type ConflictGitOperationType = "git.abortOperation" | "git.continueOperation" | "git.operationState";
 type RemoteOperationType = "remotes.add" | "remotes.delete" | "remotes.update";
 type SettingsOperationType = "settings.changeLanguage" | "settings.resetAutoStash";
@@ -149,6 +149,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const [graph, setGraph] = useState<GraphLayoutViewModel>(emptyGraph);
   const [graphVisible, setGraphVisible] = useState(true);
   const [repositories, setRepositories] = useState<readonly RepositoryViewModel[]>(emptyRepositories);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUserViewModel | undefined>();
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   const [selectedBranches, setSelectedBranches] = useState<readonly string[]>([]);
@@ -221,7 +222,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
   } as const satisfies Record<PrimaryGitOperationType, string>;
   const promptGitOperationLabels = {
     "git.checkout": tx("gitOperations.checkout", "Checkout"),
-    "git.clone": tx("gitOperations.clone", "Clone")
+    "git.clone": tx("gitOperations.clone", "Clone"),
+    "git.init": tx("gitOperations.initializeRepository", "Initialize Repository")
   } as const satisfies Record<PromptGitOperationType, string>;
   const contextGitOperationLabels = {
     "git.cherryPick": tx("contextMenu.cherryPick", "Cherry Pick"),
@@ -240,6 +242,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const graphHeaderWidth = Math.min(Math.max(graph.width, minimumGraphViewportWidth), maximumGraphViewportWidth);
   const gitOperationBusy = Boolean(activeGitOperation || activeWorkingTreeOperation || conflictOperation);
   const selectedRepository = repositories.find((repository) => repository.id === selectedRepositoryId);
+  const showRepositoryPrompt = historyLoaded && repositories.length === 0;
   const changesOperationStatus: ChangesPanelOperationStatus | undefined = operationNotification;
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
@@ -438,6 +441,9 @@ export function App({ rpcClient }: AppProps): ReactElement {
           latestCommitMessageGenerateRequestRef.current = undefined;
           setGeneratingCommitMessage(false);
         }
+        if (response.type === "settings.testAiProvider") {
+          setTestingAiProvider(false);
+        }
         if (isRemoteOperationType(response.type) || response.type === "remotes.list") {
           setRemoteStatus({ message: response.error.message, state: "error" });
         }
@@ -446,6 +452,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
       }
 
       if (response.type === "history.load") {
+        setHistoryLoaded(true);
         const historyRequest = pendingHistoryRequestsRef.current.get(response.id);
         pendingHistoryRequestsRef.current.delete(response.id);
         loadingMoreRef.current = false;
@@ -1120,6 +1127,10 @@ export function App({ rpcClient }: AppProps): ReactElement {
     });
     setAiProviderPanelOpen(false);
   };
+  const closeAiProviderPanel = () => {
+    setAiProviderPanelOpen(false);
+    setTestingAiProvider(false);
+  };
 
   const testAiProvider = () => {
     setTestingAiProvider(true);
@@ -1305,7 +1316,18 @@ export function App({ rpcClient }: AppProps): ReactElement {
           onContinue={() => sendConflictOperation("git.continueOperation")}
         />
       ) : null}
-      <SplitPanels
+      {showRepositoryPrompt ? (
+        <NoRepositoryPrompt
+          busy={activeGitOperation === "git.init"}
+          labels={{
+            description: tx("emptyRepository.description", "Initialize a Git repository in this workspace to start tracking history and changes."),
+            initialize: tx("gitOperations.initializeRepository", "Initialize Repository"),
+            title: tx("emptyRepository.title", "No Git repository found")
+          }}
+          onInitialize={() => startPromptGitOperation("git.init")}
+        />
+      ) : (
+        <SplitPanels
         graphHeaderVisible={graphVisible}
         graphHeaderWidth={graphHeaderWidth}
         labels={{
@@ -1453,7 +1475,8 @@ export function App({ rpcClient }: AppProps): ReactElement {
             )}
           </div>
         }
-      />
+        />
+      )}
       <ContextMenu
         canEditCommitMessage={commits.find((commit) => commit.hash === contextMenu.hash)?.canEditMessage ?? false}
         canSquashCommits={canSquashSelectedCommits(selectedCommitHashes)}
@@ -1548,7 +1571,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
           testing: tx("aiProviderPanel.testing", "Testing..."),
           title: tx("aiProviderPanel.title", "Configure AI Provider")
         }}
-        onClose={() => setAiProviderPanelOpen(false)}
+        onClose={closeAiProviderPanel}
         onSave={updateAiProvider}
         onTest={testAiProvider}
         open={aiProviderPanelOpen}
@@ -1959,8 +1982,39 @@ function isGitOperationType(type: string): type is ConflictGitOperationType | Co
   );
 }
 
+function NoRepositoryPrompt({
+  busy,
+  labels,
+  onInitialize
+}: {
+  busy: boolean;
+  labels: {
+    description: string;
+    initialize: string;
+    title: string;
+  };
+  onInitialize: () => void;
+}): ReactElement {
+  return (
+    <section className="flex min-h-0 flex-1 items-center justify-center px-6 py-8">
+      <div className="max-w-md text-center">
+        <h1 className="text-base font-semibold text-[var(--vscode-editor-foreground)]">{labels.title}</h1>
+        <p className="mt-2 text-sm leading-5 text-[var(--vscode-descriptionForeground)]">{labels.description}</p>
+        <button
+          className="mt-4 h-8 rounded-[3px] bg-[var(--vscode-button-background)] px-3 text-sm font-medium text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={busy}
+          onClick={onInitialize}
+          type="button"
+        >
+          {labels.initialize}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function isPromptGitOperationType(type: string): type is PromptGitOperationType {
-  return type === "git.checkout" || type === "git.clone";
+  return type === "git.checkout" || type === "git.clone" || type === "git.init";
 }
 
 function isRemoteOperationType(type: string): type is RemoteOperationType {

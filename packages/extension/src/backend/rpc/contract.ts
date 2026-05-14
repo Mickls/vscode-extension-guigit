@@ -27,6 +27,7 @@ export const allRpcRequestTypes = [
   "git.push",
   "git.advancedPush",
   "git.fetch",
+  "git.init",
   "git.clone",
   "git.checkout",
   "git.copyHash",
@@ -297,6 +298,7 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "git.push"; repositoryId: string })
   | (RpcEnvelope & { type: "git.advancedPush"; repositoryId: string })
   | (RpcEnvelope & { type: "git.fetch"; repositoryId: string })
+  | (RpcEnvelope & { type: "git.init" })
   | (RpcEnvelope & { type: "git.clone" })
   | (RpcEnvelope & { type: "git.checkout"; repositoryId: string })
   | (RpcEnvelope & { type: "git.copyHash"; repositoryId: string; hash: string })
@@ -369,6 +371,7 @@ export interface RpcPayloadByType {
   "git.push": OperationResultViewModel;
   "git.advancedPush": OperationResultViewModel;
   "git.fetch": OperationResultViewModel;
+  "git.init": OperationResultViewModel;
   "git.clone": OperationResultViewModel;
   "git.checkout": OperationResultViewModel;
   "git.copyHash": OperationResultViewModel;

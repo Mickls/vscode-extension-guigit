@@ -221,6 +221,36 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Test" })).toBeEnabled();
   });
 
+  it("unlocks the AI provider panel after test errors and allows closing while testing", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchSettingsResponse("settings-get", "tree");
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configure AI Provider" }));
+    await user.click(screen.getByRole("button", { name: "Test" }));
+
+    const request = latestRequest(rpcClient, "settings.testAiProvider");
+    expect(screen.getByRole("button", { name: "Testing..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+
+    dispatchErrorResponse(request.id, "settings.testAiProvider", "Provider test failed");
+
+    expect(screen.getByRole("button", { name: "Test" })).toBeEnabled();
+    expect(screen.getByText("Provider test failed")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Test" }));
+    expect(screen.getByRole("button", { name: "Testing..." })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Configure AI Provider" })).not.toBeInTheDocument();
+  });
+
   it("posts checkout and clone actions from the header", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -244,6 +274,36 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Clone" }));
     expect(latestRequest(rpcClient, "git.clone")).toEqual(expect.objectContaining({
       type: "git.clone"
+    }));
+  });
+
+  it("asks to initialize a repository when the workspace has no git repositories", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, {
+      commits: [],
+      repositories: []
+    });
+
+    expect(await screen.findByRole("heading", { name: "No Git repository found" })).toBeInTheDocument();
+    expect(screen.getByText("Initialize a Git repository in this workspace to start tracking history and changes.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Initialize Repository" }));
+
+    const initRequest = latestRequest(rpcClient, "git.init");
+    expect(initRequest).toEqual(expect.objectContaining({
+      type: "git.init"
+    }));
+
+    dispatchOperationResponse(initRequest.id, "git.init", {
+      message: "Initialized Git repository in workspace",
+      status: "ok"
+    });
+
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      type: "history.load"
     }));
   });
 
@@ -3111,6 +3171,7 @@ function dispatchOperationResponse(
     | "git.editCommitMessage"
     | "git.continueOperation"
     | "git.fetch"
+    | "git.init"
     | "git.operationState"
     | "git.pull"
     | "git.push"

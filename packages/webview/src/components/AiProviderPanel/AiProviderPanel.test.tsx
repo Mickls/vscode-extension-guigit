@@ -90,6 +90,8 @@ describe("AiProviderPanel", () => {
 
     expect(screen.getByRole("button", { name: "Testing..." })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Close Configure AI Provider" })).toBeEnabled();
 
     rerender(
       <AiProviderPanel

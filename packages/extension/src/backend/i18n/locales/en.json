@@ -5,6 +5,10 @@
     "loadingCommitDetails": "Loading commit details...",
     "loadingGeneric": "Loading...",
     "noGitRepository": "No Git repository found in the current workspace.",
+    "emptyRepository": {
+      "title": "No Git repository found",
+      "description": "Initialize a Git repository in this workspace to start tracking history and changes."
+    },
     "selectCommit": "Select a commit to view details",
     "placeholderCommitMessage": "Search commit messages or hashes...",
     "noCommitsFound": "No commits found",
@@ -110,6 +114,7 @@
       "pull": "Pull",
       "push": "Push",
       "fetch": "Fetch",
+      "initializeRepository": "Initialize Repository",
       "clone": "Clone",
       "checkout": "Checkout",
       "settings": "Settings",
@@ -188,7 +193,8 @@
       "proxyConfigFailed": "Failed to configure proxy",
       "proxyStatusFailed": "Failed to get proxy status",
       "commitDetailsFailed": "Failed to load commit details",
-      "headCommitFailed": "Failed to get HEAD commit"
+      "headCommitFailed": "Failed to get HEAD commit",
+      "settingsUpdateFailed": "Failed to save settings. Please reload the extension and try again."
     },
     "success": {
       "proxyConfigured": "Proxy configuration saved and applied",

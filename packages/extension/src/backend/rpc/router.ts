@@ -7,6 +7,7 @@ type MaybePromise<T> = T | Promise<T>;
 export type RpcHandler<TType extends RpcRequestType> = (
   request: Extract<RpcRequest, { type: TType }>
 ) => MaybePromise<RpcPayloadByType[TType]>;
+export type RpcErrorMessageFormatter = (error: Error, request: RpcRequest) => string;
 
 export type RpcHandlerMap = {
   [Type in RpcRequestType]?: RpcHandler<Type>;
@@ -16,7 +17,11 @@ export interface RpcRouter {
   dispatch(request: RpcRequest): Promise<RpcResponse>;
 }
 
-export function createRpcRouter(handlers: RpcHandlerMap, logger?: Pick<Logger, "debug" | "error">): RpcRouter {
+export function createRpcRouter(
+  handlers: RpcHandlerMap,
+  logger?: Pick<Logger, "debug" | "error">,
+  formatErrorMessage?: RpcErrorMessageFormatter
+): RpcRouter {
   return {
     async dispatch(request) {
       logger?.debug("rpc.request", {
@@ -56,7 +61,8 @@ export function createRpcRouter(handlers: RpcHandlerMap, logger?: Pick<Logger, "
           message: (error as Error).message,
           type: request.type
         });
-        return backendErrorResponse(request, error as Error);
+        const backendError = error as Error;
+        return backendErrorResponse(request, backendError, formatErrorMessage?.(backendError, request));
       }
     }
   };
