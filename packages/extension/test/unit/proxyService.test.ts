@@ -60,6 +60,21 @@ describe("ProxyService", () => {
     });
   });
 
+  it("uses only explicit proxy settings for provider requests", async () => {
+    const service = createService({
+      env: {
+        HTTPS_PROXY: "http://env-https:8080"
+      },
+      isPortOpen: async (_host, port) => port === 7890,
+      vscodeProxy: "http://proxy.example:8080"
+    });
+
+    await expect(service.getConfiguredProxyConfig()).resolves.toEqual({
+      enabled: false,
+      source: "none"
+    });
+  });
+
   it("uses environment proxy variables after VS Code settings", async () => {
     const service = createService({
       env: {

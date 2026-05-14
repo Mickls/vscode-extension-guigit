@@ -89,6 +89,15 @@ export class ProxyService {
     return config;
   }
 
+  public async getConfiguredProxyConfig(): Promise<ProxyConfig> {
+    const config =
+      this.getCustomProxyConfig() ??
+      await this.getGitProxyConfig() ??
+      noProxyConfig;
+    this.lastConfig = config;
+    return config;
+  }
+
   public getGitConfig(config = this.lastConfig): readonly string[] {
     if (!config.enabled) {
       return baseGitConfig;

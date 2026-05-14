@@ -130,7 +130,7 @@ export function activate(context: ExtensionContext): void {
     }
   });
   const openAICompatibleProvider = new OpenAICompatibleCommitMessageProvider({
-    getProxyConfig: () => proxyService.getProxyConfig()
+    getProxyConfig: () => proxyService.getConfiguredProxyConfig()
   });
   const commitMessageAiService = new CommitMessageAiService({
     gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
