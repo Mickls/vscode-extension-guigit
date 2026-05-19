@@ -168,11 +168,22 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
     });
   });
 
-  it("posts the prompt to the responses endpoint when selected", async () => {
+  it("posts the prompt to the streaming responses endpoint when selected", async () => {
     const fetch = vi.fn(async () =>
-      createResponse({
-        output_text: "fix: use responses api"
-      })
+      createResponsesStreamResponse([
+        {
+          delta: "fix: use ",
+          type: "response.output_text.delta"
+        },
+        {
+          delta: "streaming responses",
+          type: "response.output_text.delta"
+        },
+        {
+          text: "fix: use streaming responses",
+          type: "response.output_text.done"
+        }
+      ])
     );
     const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
 
@@ -184,7 +195,7 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
         prompt: "Write one line",
         protocol: "responses"
       })
-    ).resolves.toBe("fix: use responses api");
+    ).resolves.toBe("fix: use streaming responses");
 
     const [url, init] = fetch.mock.calls[0]!;
     expect(url).toBe("https://api.openai.com/v1/responses");
@@ -197,8 +208,28 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
     });
     expect(JSON.parse(init.body as string)).toEqual({
       input: "Write one line",
-      model: "gpt-test"
+      model: "gpt-test",
+      stream: true
     });
+  });
+
+  it("accepts JSON responses when a compatible responses provider ignores stream mode", async () => {
+    const fetch = vi.fn(async () =>
+      createResponse({
+        output_text: "fix: accept json responses fallback"
+      })
+    );
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.openai.com",
+        model: "gpt-test",
+        prompt: "Write one line",
+        protocol: "responses"
+      })
+    ).resolves.toBe("fix: accept json responses fallback");
   });
 
   it("posts the prompt to the Claude messages endpoint when selected", async () => {
@@ -271,9 +302,91 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
     ).rejects.toThrow("OpenAI-compatible provider returned no commit message");
   });
 
+  it("retries transient provider responses before returning a message", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(createResponse({ error: { message: "Upstream request failed", type: "upstream_error" } }, 502))
+      .mockResolvedValueOnce(
+        createResponse({
+          choices: [
+            {
+              message: {
+                content: "fix: retry transient ai failures"
+              }
+            }
+          ]
+        })
+      );
+    const retryDelay = vi.fn(async (_milliseconds: number) => undefined);
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch, retryDelay });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.example.com",
+        model: "gpt-test",
+        prompt: "Write one line",
+        protocol: "chatCompletions"
+      })
+    ).resolves.toBe("fix: retry transient ai failures");
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(retryDelay).toHaveBeenCalledWith(500);
+  });
+
+  it("retries fetch failures before a provider response exists", async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(
+        createResponsesStreamResponse([
+          {
+            text: "fix: retry provider transport failures",
+            type: "response.output_text.done"
+          }
+        ])
+      );
+    const retryDelay = vi.fn(async (_milliseconds: number) => undefined);
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch, retryDelay });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.openai.com",
+        model: "gpt-test",
+        prompt: "Write one line",
+        protocol: "responses"
+      })
+    ).resolves.toBe("fix: retry provider transport failures");
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(retryDelay).toHaveBeenCalledWith(500);
+  });
+
+  it("reports the final transient provider response after retry attempts are exhausted", async () => {
+    const fetch = vi.fn(async () => createResponse({ error: { message: "Upstream request failed", type: "upstream_error" } }, 502));
+    const retryDelay = vi.fn(async (_milliseconds: number) => undefined);
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch, retryDelay });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.example.com",
+        model: "gpt-test",
+        prompt: "Write one line",
+        protocol: "chatCompletions"
+      })
+    ).rejects.toThrow('OpenAI-compatible request failed with status 502: {"error":{"message":"Upstream request failed","type":"upstream_error"}}');
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(retryDelay).toHaveBeenNthCalledWith(1, 500);
+    expect(retryDelay).toHaveBeenNthCalledWith(2, 1500);
+  });
+
   it("includes response body details for non-2xx provider responses", async () => {
     const fetch = vi.fn(async () => createResponse({ error: { message: "Unsupported model" } }, 400));
-    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+    const retryDelay = vi.fn(async (_milliseconds: number) => undefined);
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch, retryDelay });
 
     await expect(
       provider.generate({
@@ -284,14 +397,29 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
         protocol: "responses"
       })
     ).rejects.toThrow('OpenAI-compatible request failed with status 400: {"error":{"message":"Unsupported model"}}');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(retryDelay).not.toHaveBeenCalled();
   });
 });
 
 function createResponse(payload: unknown, status = 200): Response {
+  return createTextResponse(JSON.stringify(payload), status);
+}
+
+function createResponsesStreamResponse(events: readonly Record<string, unknown>[], status = 200): Response {
+  return createTextResponse(
+    `${events
+      .map((event) => [`event: ${event.type}`, `data: ${JSON.stringify(event)}`].join("\n"))
+      .join("\n\n")}\n\n`,
+    status
+  );
+}
+
+function createTextResponse(bodyText: string, status = 200): Response {
   return {
-    json: async () => payload,
+    json: async () => JSON.parse(bodyText),
     ok: status >= 200 && status < 300,
     status,
-    text: async () => JSON.stringify(payload)
+    text: async () => bodyText
   } as Response;
 }

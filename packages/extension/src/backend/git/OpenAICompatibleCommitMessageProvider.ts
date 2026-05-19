@@ -6,6 +6,7 @@ import type { ProxyConfig } from "./ProxyService";
 export interface OpenAICompatibleCommitMessageProviderInput {
   fetch?: typeof fetch;
   getProxyConfig?: () => Promise<ProxyConfig>;
+  retryDelay?: (milliseconds: number) => Promise<void>;
 }
 
 export interface OpenAICompatibleCommitMessageRequest {
@@ -34,6 +35,22 @@ interface OpenAIResponsesResponse {
   }[];
 }
 
+interface OpenAIResponsesStreamEvent {
+  delta?: string;
+  error?: {
+    message?: string;
+    type?: string;
+  };
+  response?: OpenAIResponsesResponse & {
+    error?: {
+      message?: string;
+      type?: string;
+    };
+  };
+  text?: string;
+  type?: string;
+}
+
 interface ClaudeMessagesResponse {
   content?: readonly {
     text?: string;
@@ -44,10 +61,12 @@ interface ClaudeMessagesResponse {
 export class OpenAICompatibleCommitMessageProvider {
   private readonly fetch?: typeof fetch;
   private readonly getProxyConfig?: () => Promise<ProxyConfig>;
+  private readonly retryDelay: (milliseconds: number) => Promise<void>;
 
   public constructor(input: OpenAICompatibleCommitMessageProviderInput = {}) {
     this.fetch = input.fetch;
     this.getProxyConfig = input.getProxyConfig;
+    this.retryDelay = input.retryDelay ?? delay;
   }
 
   public async generate(input: OpenAICompatibleCommitMessageRequest): Promise<string> {
@@ -59,23 +78,48 @@ export class OpenAICompatibleCommitMessageProvider {
     const request = createRequest(input);
     const proxyConfig = await this.getProxyConfig?.();
     const dispatcher = proxyConfig ? createProxyDispatcher(request.url, proxyConfig) : undefined;
-    const response = await requestFetch(request.url, {
-      ...request.init,
-      ...(dispatcher ? { dispatcher } : {})
-    } as RequestInit & { dispatcher?: Dispatcher });
+    const response = await this.fetchWithRetry(requestFetch, request, dispatcher);
 
-    if (!response.ok) {
-      const bodyText = await response.text();
-      throw new Error(formatStatusError(response.status, bodyText));
-    }
-
-    const payload = await response.json();
-    const message = parseMessage(input.protocol, payload);
+    const message = await parseResponseMessage(input.protocol, response);
     if (!message) {
       throw new Error("OpenAI-compatible provider returned no commit message");
     }
 
     return firstLine(message);
+  }
+
+  private async fetchWithRetry(requestFetch: typeof fetch, request: ProviderHttpRequest, dispatcher: Dispatcher | undefined): Promise<Response> {
+    const init = {
+      ...request.init,
+      ...(dispatcher ? { dispatcher } : {})
+    } as RequestInit & { dispatcher?: Dispatcher };
+
+    for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
+      let response: Response;
+      try {
+        response = await requestFetch(request.url, init);
+      } catch (error) {
+        if (attempt === retryDelaysMs.length) {
+          throw error;
+        }
+
+        await this.retryDelay(retryDelaysMs[attempt]!);
+        continue;
+      }
+
+      if (response.ok) {
+        return response;
+      }
+
+      const bodyText = await response.text();
+      if (!isRetryableStatus(response.status) || attempt === retryDelaysMs.length) {
+        throw new Error(formatStatusError(response.status, bodyText));
+      }
+
+      await this.retryDelay(retryDelaysMs[attempt]!);
+    }
+
+    throw new Error("OpenAI-compatible request retry attempts were exhausted");
   }
 }
 
@@ -90,7 +134,8 @@ function createRequest(input: OpenAICompatibleCommitMessageRequest): ProviderHtt
       init: {
         body: JSON.stringify({
           input: input.prompt,
-          model: input.model
+          model: input.model,
+          stream: true
         }),
         headers: {
           Authorization: `Bearer ${input.apiKey}`,
@@ -153,6 +198,20 @@ const endpointPaths = {
   responses: "/v1/responses"
 } as const satisfies Record<HttpAiProviderProtocol, string>;
 
+const retryDelaysMs = [500, 1500] as const;
+
+const retryableStatusCodes = new Set([429, 500, 502, 503, 504]);
+
+function isRetryableStatus(statusCode: number): boolean {
+  return retryableStatusCodes.has(statusCode);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
 function createEndpointUrl(baseUrl: string, protocol: HttpAiProviderProtocol): string {
   const url = new URL(baseUrl);
   const endpointPath = endpointPaths[protocol];
@@ -190,6 +249,14 @@ function isNoProxyHost(host: string, noProxy: string | undefined): boolean {
     .some((pattern) => pattern === "*" || host.toLowerCase() === pattern || host.toLowerCase().endsWith(`.${pattern.replace(/^\./, "")}`));
 }
 
+async function parseResponseMessage(protocol: HttpAiProviderProtocol, response: Response): Promise<string | undefined> {
+  if (protocol === "responses") {
+    return parseResponsesStream(await response.text());
+  }
+
+  return parseMessage(protocol, await response.json());
+}
+
 function parseMessage(protocol: HttpAiProviderProtocol, payload: unknown): string | undefined {
   if (protocol === "responses") {
     const response = payload as OpenAIResponsesResponse;
@@ -208,6 +275,53 @@ function parseMessage(protocol: HttpAiProviderProtocol, payload: unknown): strin
   return response.choices?.[0]?.message?.content?.trim();
 }
 
+function parseResponsesStream(bodyText: string): string | undefined {
+  if (!bodyText.includes("data:")) {
+    return parseMessage("responses", JSON.parse(bodyText));
+  }
+
+  let deltaText = "";
+  let completedText: string | undefined;
+  for (const dataText of extractServerSentEventData(bodyText)) {
+    if (dataText === "[DONE]") {
+      continue;
+    }
+
+    const event = JSON.parse(dataText) as OpenAIResponsesStreamEvent;
+    if (event.type === "response.output_text.delta" && event.delta !== undefined) {
+      deltaText += event.delta;
+    }
+    if (event.type === "response.output_text.done" && event.text !== undefined) {
+      completedText = event.text.trim();
+    }
+    if (event.type === "response.completed" && event.response) {
+      completedText = parseMessage("responses", event.response) ?? completedText;
+    }
+    if (event.type === "response.failed" && event.response?.error) {
+      throw new Error(formatStreamEventError(event.response.error));
+    }
+    if (event.type === "error" && event.error) {
+      throw new Error(formatStreamEventError(event.error));
+    }
+  }
+
+  return completedText ?? deltaText.trim();
+}
+
+function extractServerSentEventData(bodyText: string): string[] {
+  return bodyText
+    .split(/\r?\n\r?\n/)
+    .map((block) =>
+      block
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice("data:".length).trimStart())
+        .join("\n")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
 function trimTrailingSlash(value: string): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
@@ -223,4 +337,8 @@ function formatStatusError(statusCode: number, bodyText: string): string {
   }
 
   return `OpenAI-compatible request failed with status ${statusCode}: ${details.slice(0, 500)}`;
+}
+
+function formatStreamEventError(error: { message?: string; type?: string }): string {
+  return `OpenAI-compatible streaming response failed: ${error.message ?? error.type ?? "unknown error"}`;
 }
