@@ -151,6 +151,23 @@ describe("FileChanges", () => {
     expect(onOpenFileDiff).not.toHaveBeenCalled();
   });
 
+  it("places row action tooltips below the action buttons", () => {
+    render(<FileChanges files={files} mode="list" />);
+
+    expect(screen.getByRole("button", { name: "Open file src/components/FileChanges.tsx" })).not.toHaveAttribute("title");
+    expect(screen.getByRole("button", { name: "Open file history for src/components/FileChanges.tsx" })).not.toHaveAttribute("title");
+    expect(
+      screen.getByRole("button", { name: "Open file src/components/FileChanges.tsx" }).querySelector(
+        "[data-tooltip='Open file src/components/FileChanges.tsx']"
+      )
+    ).toHaveAttribute("data-placement", "bottom");
+    expect(
+      screen.getByRole("button", { name: "Open file history for src/components/FileChanges.tsx" }).querySelector(
+        "[data-tooltip='Open file history for src/components/FileChanges.tsx']"
+      )
+    ).toHaveAttribute("data-placement", "bottom");
+  });
+
   it("sends view mode change intent without opening file diffs", async () => {
     const user = userEvent.setup();
     const onModeChange = vi.fn();

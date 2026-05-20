@@ -323,11 +323,10 @@ function FileActionButton({
       aria-label={label}
       className="guigit-icon-tooltip-host flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[10px] text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
       onClick={onClick}
-      title={label}
       type="button"
     >
       <FileActionIcon icon={icon} />
-      <IconTooltip label={label} placement="left" />
+      <IconTooltip label={label} placement="bottom" />
     </button>
   );
 }

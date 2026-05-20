@@ -55,26 +55,21 @@
 }
 
 .guigit-icon-tooltip-host:hover > .guigit-icon-tooltip,
-.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip,
-.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip {
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip {
   opacity: 1;
   visibility: visible;
 }
 
 .guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="top"],
 .guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="top"],
-.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="top"],
 .guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="bottom"],
-.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="bottom"],
-.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="bottom"] {
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="bottom"] {
   transform: translate(-50%, 0);
 }
 
 .guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="left"],
 .guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="left"],
-.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="left"],
 .guigit-icon-tooltip-host:hover > .guigit-icon-tooltip[data-placement="right"],
-.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="right"],
-.guigit-icon-tooltip-host:focus-within > .guigit-icon-tooltip[data-placement="right"] {
+.guigit-icon-tooltip-host:focus-visible > .guigit-icon-tooltip[data-placement="right"] {
   transform: translate(0, -50%);
 }

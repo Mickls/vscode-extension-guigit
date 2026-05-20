@@ -338,6 +338,19 @@ describe("ChangesPanel", () => {
     expect(screen.getByRole("button", { name: "Open file src/unstaged.ts" }).querySelector("[data-tooltip='Open file src/unstaged.ts']")).toBeInTheDocument();
   });
 
+  it("places working tree row action tooltips below the action buttons", () => {
+    render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
+
+    expect(screen.getByRole("button", { name: "Unstage src/staged.ts" })).not.toHaveAttribute("title");
+    expect(screen.getByRole("button", { name: "Open file src/unstaged.ts" })).not.toHaveAttribute("title");
+    expect(
+      screen.getByRole("button", { name: "Unstage src/staged.ts" }).querySelector("[data-tooltip='Unstage src/staged.ts']")
+    ).toHaveAttribute("data-placement", "bottom");
+    expect(
+      screen.getByRole("button", { name: "Open file src/unstaged.ts" }).querySelector("[data-tooltip='Open file src/unstaged.ts']")
+    ).toHaveAttribute("data-placement", "bottom");
+  });
+
   it("keeps all unstaged row action buttons in the same row", () => {
     render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
 

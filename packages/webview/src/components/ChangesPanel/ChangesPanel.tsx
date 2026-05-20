@@ -544,14 +544,13 @@ function WorkingTreeActionButton({
       aria-label={label}
       className="guigit-icon-tooltip-host flex h-5 min-w-5 items-center justify-center rounded-[3px] border border-transparent text-[10px] text-[var(--vscode-icon-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
       onClick={onClick}
-      title={label}
       type="button"
     >
       {icon === "stage" ? <Check aria-hidden="true" className="h-3.5 w-3.5" /> : null}
       {icon === "unstage" ? <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> : null}
       {icon === "openFile" ? <FileText aria-hidden="true" className="h-3.5 w-3.5" /> : null}
       {icon === "discard" ? <X aria-hidden="true" className="h-3.5 w-3.5" /> : null}
-      <IconTooltip label={label} placement="left" />
+      <IconTooltip label={label} placement="bottom" />
     </button>
   );
 }
