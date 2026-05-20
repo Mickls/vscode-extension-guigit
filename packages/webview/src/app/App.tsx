@@ -713,6 +713,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
   }, [client]);
 
   const focusCommit = (commit: CommitListItemViewModel) => {
+    changeRightPanelTab("details");
     setSelectedCommitHash(commit.hash);
     selectedCommitHashRef.current = commit.hash;
     showCommitDetails(createPendingCommitDetails(commit));

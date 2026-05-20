@@ -354,6 +354,26 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Stash (1)" })).toBeInTheDocument();
   });
 
+  it.each(["Changes", "Stash"] as const)(
+    "switches to details when selecting a commit from the %s tab",
+    async (tabName) => {
+      const user = userEvent.setup();
+      const rpcClient = createTestRpcClient();
+
+      render(<App rpcClient={rpcClient} />);
+      dispatchHistoryResponse(rpcClient);
+      await waitForCommitRows();
+      await user.click(screen.getByRole("tab", { name: tabName }));
+      const loadRequest = latestRequest(rpcClient, "workingTree.load");
+      dispatchWorkingTreeResponse(loadRequest.id);
+
+      await user.click(screen.getAllByTestId("commit-row")[1]!);
+
+      expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("heading", { name: "Second real commit" })).toBeInTheDocument();
+    }
+  );
+
   it("posts working tree file action intents and updates changes after stage responses", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
