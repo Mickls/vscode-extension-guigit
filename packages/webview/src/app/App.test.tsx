@@ -2214,6 +2214,30 @@ describe("App", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it.each(["Changes", "Stash"] as const)(
+    "renders toolbar operation notifications as top-level toast on the %s tab",
+    async (tabName) => {
+      const user = userEvent.setup();
+      const rpcClient = createTestRpcClient();
+
+      render(<App rpcClient={rpcClient} />);
+      dispatchHistoryResponse(rpcClient);
+      await waitForCommitRows();
+      await user.click(screen.getByRole("tab", { name: tabName }));
+      const loadRequest = latestRequest(rpcClient, "workingTree.load");
+      dispatchWorkingTreeResponse(loadRequest.id);
+      rpcClient.post.mockClear();
+
+      await user.click(screen.getByRole("button", { name: "Pull" }));
+
+      const toast = screen
+        .getAllByRole("status")
+        .find((element) => element.textContent === "Pull is running..." && element.classList.contains("fixed"));
+      expect(toast).toBeInTheDocument();
+      expect(toast).toHaveClass("z-[1200]");
+    }
+  );
+
   it("keeps a seven day notification history, marks opened notifications read, copies individual messages, and clears all", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-05-12T08:00:00.000Z"));

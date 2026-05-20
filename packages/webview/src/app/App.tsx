@@ -26,7 +26,7 @@ import { createTranslator } from "./i18n";
 import { CompareOverlay } from "../components/CompareOverlay/CompareOverlay";
 import { CommitDetails } from "../components/CommitDetails/CommitDetails";
 import { CommitList, type CommitSelectionIntent } from "../components/CommitList/CommitList";
-import { ChangesPanel, type ChangesPanelOperationStatus } from "../components/ChangesPanel/ChangesPanel";
+import { ChangesPanel } from "../components/ChangesPanel/ChangesPanel";
 import { AiProviderPanel } from "../components/AiProviderPanel/AiProviderPanel";
 import { ConflictBanner } from "../components/ConflictBanner/ConflictBanner";
 import { ContextMenu, type ContextMenuAction } from "../components/ContextMenu/ContextMenu";
@@ -243,7 +243,6 @@ export function App({ rpcClient }: AppProps): ReactElement {
   const gitOperationBusy = Boolean(activeGitOperation || activeWorkingTreeOperation || conflictOperation);
   const selectedRepository = repositories.find((repository) => repository.id === selectedRepositoryId);
   const showRepositoryPrompt = historyLoaded && repositories.length === 0;
-  const changesOperationStatus: ChangesPanelOperationStatus | undefined = operationNotification;
   const showCommitDetails = (details: CommitDetailsViewModel | undefined) => {
     commitDetailsRef.current = details;
     setCommitDetails(details);
@@ -1429,7 +1428,6 @@ export function App({ rpcClient }: AppProps): ReactElement {
                   unstageAll: tx("changes.unstageAll", "Unstage All")
                 }}
                 operationBusy={gitOperationBusy}
-                operationStatus={changesOperationStatus}
                 repository={selectedRepository}
                 onCommit={commitWorkingTree}
                 onDiscardFile={discardWorkingTreeFile}
@@ -1461,7 +1459,6 @@ export function App({ rpcClient }: AppProps): ReactElement {
                   stash: tx("changes.stash", "Stash")
                 }}
                 operationBusy={gitOperationBusy}
-                operationStatus={changesOperationStatus}
                 repository={selectedRepository}
                 onApplyStash={(stashRef) => runStashAction("stash.apply", stashRef)}
                 onCreateStash={createStash}
@@ -1620,7 +1617,7 @@ export function App({ rpcClient }: AppProps): ReactElement {
         open={compareOverlayOpen}
         toHash={compareHashes?.[1] ?? ""}
       />
-      {operationNotification && rightPanelTab === "details" ? (
+      {operationNotification ? (
         <OperationToast message={operationNotification.message} state={operationNotification.state} />
       ) : null}
     </main>
