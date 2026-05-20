@@ -8,6 +8,7 @@ import type {
   WorkingTreeViewModel
 } from "../../app/rpcContract.generated";
 import { FileViewModeControls } from "../FileChanges/FileChanges";
+import { compressDirectoryChain } from "../FileChanges/treeCompression";
 import { IconTooltip } from "../IconTooltip/IconTooltip";
 
 export interface ChangesPanelLabels {
@@ -434,22 +435,23 @@ function renderWorkingTree(input: {
     }
 
     const directoryPath = input.parentPath ? `${input.parentPath}/${name}` : name;
-    const collapsed = input.collapsedDirectories.has(directoryPath);
+    const directory = compressDirectoryChain({ name, node: child, path: directoryPath });
+    const collapsed = input.collapsedDirectories.has(directory.path);
     return [
       <button
         aria-expanded={!collapsed}
-        aria-label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directoryPath)}
+        aria-label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directory.path)}
         className="guigit-icon-tooltip-host flex w-full items-center gap-2 border-b border-[var(--vscode-panel-border)] bg-transparent px-2 py-1.5 text-left text-[11px] text-[var(--vscode-descriptionForeground)] last:border-b-0 hover:bg-[var(--vscode-list-hoverBackground)]"
-        key={`directory-${input.depth}-${directoryPath}`}
-        onClick={() => input.toggleDirectory(directoryPath)}
+        key={`directory-${input.depth}-${directory.path}`}
+        onClick={() => input.toggleDirectory(directory.path)}
         style={{ paddingLeft: `${8 + input.depth * 14}px` }}
         type="button"
       >
         <span className="w-3 text-center">{collapsed ? "+" : "-"}</span>
-        <span className="truncate">{name}</span>
-        <span className="ml-auto text-[10px]">{countFiles(child)}</span>
+        <span className="truncate">{directory.label}</span>
+        <span className="ml-auto text-[10px]">{countFiles(directory.node)}</span>
         <IconTooltip
-          label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directoryPath)}
+          label={formatLabel(collapsed ? input.labels.expandDirectory : input.labels.collapseDirectory, directory.path)}
           placement="bottom"
         />
       </button>,
@@ -458,8 +460,8 @@ function renderWorkingTree(input: {
         : renderWorkingTree({
             ...input,
             depth: input.depth + 1,
-            node: child,
-            parentPath: directoryPath
+            node: directory.node,
+            parentPath: directory.path
           }))
     ];
   });

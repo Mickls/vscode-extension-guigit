@@ -214,8 +214,10 @@ describe("ChangesPanel", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "Collapse src" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Collapse assets" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse src/components" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse assets/styles" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Collapse src" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Collapse assets" })).not.toBeInTheDocument();
     expect(screen.getByText("Button.tsx")).toBeInTheDocument();
     expect(screen.getByText("app.css")).toBeInTheDocument();
 

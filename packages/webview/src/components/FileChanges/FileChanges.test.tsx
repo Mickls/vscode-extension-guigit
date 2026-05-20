@@ -69,11 +69,33 @@ describe("FileChanges", () => {
 
     const region = screen.getByRole("region", { name: "Files Changed" });
 
-    expect(within(region).getByText("src")).toBeInTheDocument();
-    expect(within(region).getByText("components")).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Collapse src/components" })).toBeInTheDocument();
     expect(within(region).getByText("FileChanges.tsx")).toBeInTheDocument();
-    expect(within(region).getByText("assets")).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Collapse assets" })).toBeInTheDocument();
     expect(within(region).getByText("logo.png")).toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: "Collapse src" })).not.toBeInTheDocument();
+    expect(within(region).queryByText("components")).not.toBeInTheDocument();
+  });
+
+  it("stops tree directory compression at branch points", () => {
+    render(
+      <FileChanges
+        files={[
+          createFile("app/biz/knowledge/base.go", "modified"),
+          createFile("app/biz/biz.go", "modified")
+        ]}
+        mode="tree"
+      />
+    );
+
+    const region = screen.getByRole("region", { name: "Files Changed" });
+
+    expect(within(region).getByRole("button", { name: "Collapse app/biz" })).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Collapse app/biz/knowledge" })).toBeInTheDocument();
+    expect(within(region).getByText("knowledge")).toBeInTheDocument();
+    expect(within(region).getByText("base.go")).toBeInTheDocument();
+    expect(within(region).getByText("biz.go")).toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: "Collapse app" })).not.toBeInTheDocument();
   });
 
   it("collapses and expands tree directories", async () => {
@@ -81,14 +103,12 @@ describe("FileChanges", () => {
 
     render(<FileChanges files={files} mode="tree" />);
 
-    await user.click(screen.getByRole("button", { name: "Collapse src" }));
+    await user.click(screen.getByRole("button", { name: "Collapse src/components" }));
 
-    expect(screen.queryByText("components")).not.toBeInTheDocument();
     expect(screen.queryByText("FileChanges.tsx")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Expand src" }));
+    await user.click(screen.getByRole("button", { name: "Expand src/components" }));
 
-    expect(screen.getByText("components")).toBeInTheDocument();
     expect(screen.getByText("FileChanges.tsx")).toBeInTheDocument();
   });
 
