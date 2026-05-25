@@ -188,15 +188,29 @@ describe("GitService", () => {
   it("prompts for clone url and target directory", async () => {
     const cloneCalls: unknown[] = [];
     const service = createService({
-      gitClone: async (targetDirectory, url) => {
-        cloneCalls.push([targetDirectory, url]);
+      gitClone: async (targetDirectory, url, destinationDirectoryName) => {
+        cloneCalls.push([targetDirectory, url, destinationDirectoryName]);
       },
       showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
-      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target/repo" }])
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }])
     });
 
     await expect(service.clone()).resolves.toEqual({ message: "Clone completed", status: "ok" });
-    expect(cloneCalls).toEqual([["/target/repo", "https://example.com/repo.git"]]);
+    expect(cloneCalls).toEqual([["/target", "https://example.com/repo.git", "repo"]]);
+  });
+
+  it("derives the clone target directory from scp-like repository urls", async () => {
+    const cloneCalls: unknown[] = [];
+    const service = createService({
+      gitClone: async (targetDirectory, url, destinationDirectoryName) => {
+        cloneCalls.push([targetDirectory, url, destinationDirectoryName]);
+      },
+      showInputBox: vi.fn().mockResolvedValue("git@example.com:owner/repo.git"),
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }])
+    });
+
+    await expect(service.clone()).resolves.toEqual({ message: "Clone completed", status: "ok" });
+    expect(cloneCalls).toEqual([["/target", "git@example.com:owner/repo.git", "repo"]]);
   });
 
   it("initializes git in the workspace folder", async () => {
@@ -459,8 +473,8 @@ describe("GitService", () => {
     const calls: string[] = [];
     const logs: unknown[] = [];
     const service = createService({
-      gitClone: async (targetDirectory, url) => {
-        calls.push(`clone ${url} ${targetDirectory}`);
+      gitClone: async (targetDirectory, url, destinationDirectoryName) => {
+        calls.push(`clone ${url} ${targetDirectory} ${destinationDirectoryName}`);
       },
       gitRaw: async (_repositoryRoot, args) => {
         calls.push(args.join(" "));
@@ -484,9 +498,9 @@ describe("GitService", () => {
       status: "ok"
     });
 
-    expect(calls).toEqual(["clone https://example.com/repo.git /target", "branch --all --format=%(refname:short)", "checkout feature/demo"]);
+    expect(calls).toEqual(["clone https://example.com/repo.git /target repo", "branch --all --format=%(refname:short)", "checkout feature/demo"]);
     expect(logs).toEqual([
-      { command: "git -C /target clone https://example.com/repo.git ." },
+      { command: "git -C /target clone https://example.com/repo.git repo" },
       { command: "git -C /repo branch --all --format=%(refname:short)" },
       { command: "git -C /repo checkout feature/demo" }
     ]);
@@ -1432,7 +1446,7 @@ describe("GitService", () => {
 });
 
 function createService(input: {
-  gitClone?: (targetDirectory: string, url: string) => Promise<void>;
+  gitClone?: (targetDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   clipboardWrite?: (text: string) => Thenable<void> | Promise<void>;
   openExternal?: (url: string) => Thenable<void> | Promise<void>;

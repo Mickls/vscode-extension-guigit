@@ -27,10 +27,74 @@ describe("WorkingTreeService", () => {
       expect.arrayContaining([
         ["/repo", ["symbolic-ref", "--short", "HEAD"]],
         ["/repo", ["status", "--porcelain=v1", "--untracked-files=all"]],
-        ["/repo", ["stash", "list"]]
+        ["/repo", ["stash", "list"]],
+        ["/repo", ["diff", "--cached", "--numstat"]],
+        ["/repo", ["diff", "--numstat"]]
       ])
     );
-    expect(gitRaw).toHaveBeenCalledTimes(3);
+    expect(gitRaw).toHaveBeenCalledTimes(5);
+  });
+
+  it("loads staged and unstaged line counts from git numstat", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
+        return "M  src/staged.ts\n M src/unstaged.ts\nAM src/both.ts\n?? src/untracked.ts\n";
+      }
+      if (args.join(" ") === "diff --cached --numstat") {
+        return "5\t2\tsrc/staged.ts\n3\t1\tsrc/both.ts\n";
+      }
+      if (args.join(" ") === "diff --numstat") {
+        return "7\t4\tsrc/unstaged.ts\n11\t6\tsrc/both.ts\n";
+      }
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
+        return "main\n";
+      }
+      return "";
+    });
+    const service = new WorkingTreeService({ gitRaw });
+
+    const result = await service.load("/repo", "/repo");
+
+    expect(result.staged).toMatchObject([
+      { deletions: 2, insertions: 5, path: "src/staged.ts" },
+      { deletions: 1, insertions: 3, path: "src/both.ts" }
+    ]);
+    expect(result.unstaged).toMatchObject([
+      { deletions: 4, insertions: 7, path: "src/unstaged.ts" },
+      { deletions: 6, insertions: 11, path: "src/both.ts" },
+      { deletions: 0, insertions: 0, path: "src/untracked.ts" }
+    ]);
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["diff", "--cached", "--numstat"]);
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["diff", "--numstat"]);
+  });
+
+  it("loads untracked text file line counts as insertions", async () => {
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "status --porcelain=v1 --untracked-files=all") {
+        return "?? src/new.ts\n?? src/empty.ts\n?? assets/image.png\n";
+      }
+      if (args.join(" ") === "symbolic-ref --short HEAD") {
+        return "main\n";
+      }
+      return "";
+    });
+    const readFile = vi.fn(async (path: string) => {
+      const files: Record<string, Buffer> = {
+        "/repo/assets/image.png": Buffer.from([0x89, 0x50, 0x00, 0x47]),
+        "/repo/src/empty.ts": Buffer.from(""),
+        "/repo/src/new.ts": Buffer.from("one\ntwo\nthree\n")
+      };
+      return files[path]!;
+    });
+    const service = new WorkingTreeService({ gitRaw, readFile });
+
+    const result = await service.load("/repo", "/repo");
+
+    expect(result.unstaged).toMatchObject([
+      { binary: false, deletions: 0, insertions: 3, path: "src/new.ts" },
+      { binary: false, deletions: 0, insertions: 0, path: "src/empty.ts" },
+      { binary: true, deletions: 0, insertions: 0, path: "assets/image.png" }
+    ]);
   });
 
   it("loads changes from an initialized repository before the first commit", async () => {

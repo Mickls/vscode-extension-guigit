@@ -1,7 +1,9 @@
 import { simpleGit } from "simple-git";
+import { readFile as nodeReadFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { OperationResultViewModel, StashEntryViewModel, WorkingTreeViewModel } from "../rpc/contract";
 import type { Logger } from "../../logging/LoggerService";
-import { parsePorcelainStatus, parseStashFiles, parseStashList } from "./WorkingTreeParser";
+import { parsePorcelainStatus, parseStashFiles, parseStashList, parseWorkingTreeStatus } from "./WorkingTreeParser";
 
 const defaultWorkingTreeMessages: Record<string, string> = {
   "changes.dropStash": "Drop Stash",
@@ -21,6 +23,7 @@ const workingTreeStatusArgs = ["status", "--porcelain=v1", "--untracked-files=al
 export interface WorkingTreeServiceInput {
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Logger;
+  readFile?: (path: string) => Promise<Buffer>;
   showWarningMessage?: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
   t?: (key: string, ...args: readonly unknown[]) => string;
 }
@@ -28,12 +31,14 @@ export interface WorkingTreeServiceInput {
 export class WorkingTreeService {
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger?: Logger;
+  private readonly readFile: (path: string) => Promise<Buffer>;
   private readonly showWarningMessage: (message: string, options: { modal: boolean }, ...items: readonly string[]) => Thenable<string | undefined>;
   private readonly t: (key: string, ...args: readonly unknown[]) => string;
 
   public constructor(input: WorkingTreeServiceInput = {}) {
     this.gitRaw = input.gitRaw ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
+    this.readFile = input.readFile ?? nodeReadFile;
     this.showWarningMessage =
       input.showWarningMessage ??
       (() => Promise.resolve(undefined));
@@ -41,12 +46,15 @@ export class WorkingTreeService {
   }
 
   public async load(repositoryId: string, repositoryRoot: string): Promise<WorkingTreeViewModel> {
-    const [branchOutput, statusOutput, stashOutput] = await Promise.all([
+    const [branchOutput, statusOutput, stashOutput, stagedNumstatOutput, unstagedNumstatOutput] = await Promise.all([
       this.getCurrentBranch(repositoryRoot),
       this.gitRaw(repositoryRoot, workingTreeStatusArgs),
-      this.gitRaw(repositoryRoot, ["stash", "list"])
+      this.gitRaw(repositoryRoot, ["stash", "list"]),
+      this.gitRaw(repositoryRoot, ["diff", "--cached", "--numstat"]),
+      this.gitRaw(repositoryRoot, ["diff", "--numstat"])
     ]);
-    const status = parsePorcelainStatus(statusOutput);
+    const status = parseWorkingTreeStatus(statusOutput, stagedNumstatOutput, unstagedNumstatOutput);
+    const unstaged = await this.withUntrackedLineCounts(repositoryRoot, status.unstaged);
 
     return {
       branch: branchOutput.trim(),
@@ -54,7 +62,7 @@ export class WorkingTreeService {
       repositoryRoot,
       staged: status.staged,
       stashes: parseStashList(stashOutput),
-      unstaged: status.unstaged
+      unstaged
     };
   }
 
@@ -146,6 +154,42 @@ export class WorkingTreeService {
     };
   }
 
+  private async withUntrackedLineCounts(
+    repositoryRoot: string,
+    files: readonly WorkingTreeViewModel["unstaged"][number][]
+  ): Promise<readonly WorkingTreeViewModel["unstaged"][number][]> {
+    return Promise.all(files.map((file) => this.withUntrackedLineCount(repositoryRoot, file)));
+  }
+
+  private async withUntrackedLineCount(
+    repositoryRoot: string,
+    file: WorkingTreeViewModel["unstaged"][number]
+  ): Promise<WorkingTreeViewModel["unstaged"][number]> {
+    if (file.area !== "untracked") {
+      return file;
+    }
+
+    try {
+      const content = await this.readFile(join(repositoryRoot, file.path));
+      if (content.includes(0)) {
+        return {
+          ...file,
+          binary: true,
+          deletions: 0,
+          insertions: 0
+        };
+      }
+
+      return {
+        ...file,
+        deletions: 0,
+        insertions: countTextLines(content)
+      };
+    } catch {
+      return file;
+    }
+  }
+
   private async withResult(
     repositoryId: string,
     repositoryRoot: string,
@@ -207,4 +251,19 @@ function formatGitCommand(repositoryRoot: string, args: readonly string[]): stri
 
 function defaultTranslate(key: string): string {
   return defaultWorkingTreeMessages[key] ?? key;
+}
+
+function countTextLines(content: Buffer): number {
+  if (content.length === 0) {
+    return 0;
+  }
+
+  let lineBreaks = 0;
+  for (const byte of content) {
+    if (byte === 0x0a) {
+      lineBreaks += 1;
+    }
+  }
+
+  return content.at(-1) === 0x0a ? lineBreaks : lineBreaks + 1;
 }

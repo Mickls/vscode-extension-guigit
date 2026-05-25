@@ -31,7 +31,7 @@ interface SquashPlan {
 
 export interface GitServiceInput {
   clipboardWrite?: (text: string) => Thenable<void>;
-  gitClone?: (targetDirectory: string, url: string) => Promise<void>;
+  gitClone?: (parentDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
   openExternal?: (url: string) => Thenable<void>;
@@ -50,7 +50,7 @@ export interface GitServiceInput {
 
 export class GitService {
   private readonly clipboardWrite: (text: string) => Thenable<void>;
-  private readonly gitClone: (targetDirectory: string, url: string) => Promise<void>;
+  private readonly gitClone: (parentDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly openExternal: (url: string) => Thenable<void>;
@@ -67,8 +67,8 @@ export class GitService {
 
   public constructor(input: GitServiceInput) {
     this.clipboardWrite = input.clipboardWrite ?? ((text) => env.clipboard.writeText(text));
-    this.gitClone = input.gitClone ?? (async (targetDirectory, url) => {
-      await simpleGit(targetDirectory).clone(url, ".");
+    this.gitClone = input.gitClone ?? (async (parentDirectory, url, destinationDirectoryName) => {
+      await simpleGit(parentDirectory).clone(url, destinationDirectoryName);
     });
     this.gitRaw = input.gitRaw ?? input.proxyService?.runRaw.bind(input.proxyService) ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
@@ -222,11 +222,16 @@ export class GitService {
   }
 
   public async clone(): Promise<OperationResultViewModel> {
-    const url = await this.showInputBox({
+    const urlInput = await this.showInputBox({
       placeHolder: "https://github.com/owner/repo.git",
       prompt: "Enter repository URL"
     });
+    const url = urlInput?.trim();
     if (!url) {
+      return { message: "Clone cancelled", status: "cancelled" };
+    }
+    const destinationDirectoryName = cloneDestinationName(url);
+    if (!destinationDirectoryName) {
       return { message: "Clone cancelled", status: "cancelled" };
     }
 
@@ -241,9 +246,9 @@ export class GitService {
       return { message: "Clone cancelled", status: "cancelled" };
     }
 
-    this.logger?.debug("git.clone", { targetDirectory, url });
-    this.logGitCommand(targetDirectory, ["clone", url, "."]);
-    await this.gitClone(targetDirectory, url);
+    this.logger?.debug("git.clone", { destinationDirectoryName, targetDirectory, url });
+    this.logGitCommand(targetDirectory, ["clone", url, destinationDirectoryName]);
+    await this.gitClone(targetDirectory, url, destinationDirectoryName);
 
     return {
       message: "Clone completed",
@@ -971,6 +976,22 @@ function createRemoteBranchItem(remote: string, input: string, remotes: readonly
     label: branch,
     value: branch
   };
+}
+
+function cloneDestinationName(url: string): string | undefined {
+  const normalizedUrl = url.replace(/[?#].*$/, "").replace(/[\\/]+$/, "");
+  const separatorIndex = Math.max(
+    normalizedUrl.lastIndexOf("/"),
+    normalizedUrl.lastIndexOf("\\"),
+    normalizedUrl.lastIndexOf(":")
+  );
+  const directoryName = normalizedUrl
+    .slice(separatorIndex + 1)
+    .replace(/\.git$/i, "");
+
+  return directoryName && directoryName !== "." && directoryName !== ".."
+    ? directoryName
+    : undefined;
 }
 
 function remoteFromPushArgs(args: readonly string[]): string {

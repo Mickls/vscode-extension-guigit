@@ -5,6 +5,13 @@ export interface PorcelainStatusViewModel {
   unstaged: readonly WorkingTreeFileChangeViewModel[];
 }
 
+interface NumstatFileStats {
+  binary: boolean;
+  deletions: number;
+  insertions: number;
+  path: string;
+}
+
 export function parsePorcelainStatus(output: string): PorcelainStatusViewModel {
   const staged: WorkingTreeFileChangeViewModel[] = [];
   const unstaged: WorkingTreeFileChangeViewModel[] = [];
@@ -29,6 +36,19 @@ export function parsePorcelainStatus(output: string): PorcelainStatusViewModel {
   }
 
   return { staged, unstaged };
+}
+
+export function parseWorkingTreeStatus(
+  statusOutput: string,
+  stagedNumstatOutput: string,
+  unstagedNumstatOutput: string
+): PorcelainStatusViewModel {
+  const status = parsePorcelainStatus(statusOutput);
+
+  return {
+    staged: mergeNumstat(status.staged, stagedNumstatOutput),
+    unstaged: mergeNumstat(status.unstaged, unstagedNumstatOutput)
+  };
 }
 
 export function parseStashList(output: string): readonly StashEntryViewModel[] {
@@ -87,6 +107,51 @@ export function parseStashFiles(
   }
 
   return [...files.values()];
+}
+
+function mergeNumstat(
+  files: readonly WorkingTreeFileChangeViewModel[],
+  numstatOutput: string
+): readonly WorkingTreeFileChangeViewModel[] {
+  const stats = parseNumstat(numstatOutput, files);
+  const statsByPath = new Map(stats.map((item) => [item.path, item]));
+
+  return files.map((file) => {
+    const stat = statsByPath.get(file.path) ?? (file.previousPath ? statsByPath.get(file.previousPath) : undefined);
+    if (!stat) {
+      return file;
+    }
+
+    return {
+      ...file,
+      binary: stat.binary,
+      deletions: stat.deletions,
+      insertions: stat.insertions
+    };
+  });
+}
+
+function parseNumstat(
+  output: string,
+  files: readonly WorkingTreeFileChangeViewModel[]
+): readonly NumstatFileStats[] {
+  const knownPaths = new Set(files.flatMap((file) => [file.path, file.previousPath].filter((path) => path !== undefined)));
+
+  return output
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const columns = line.split("\t");
+      const numstatPath = columns[2]!;
+      const parsedPath = knownPaths.has(numstatPath) ? { path: numstatPath } : parseNumstatPath(numstatPath);
+
+      return {
+        binary: columns[0] === "-" && columns[1] === "-",
+        deletions: columns[1] === "-" ? 0 : Number(columns[1]),
+        insertions: columns[0] === "-" ? 0 : Number(columns[0]),
+        path: parsedPath.path
+      };
+    });
 }
 
 function toFileChange(
