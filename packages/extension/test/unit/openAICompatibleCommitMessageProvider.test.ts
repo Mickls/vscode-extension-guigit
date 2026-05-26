@@ -201,6 +201,7 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
     expect(url).toBe("https://api.openai.com/v1/responses");
     expect(init).toMatchObject({
       headers: {
+        Accept: "text/event-stream",
         Authorization: "Bearer sk-test",
         "Content-Type": "application/json"
       },
@@ -211,6 +212,27 @@ describe("OpenAICompatibleCommitMessageProvider", () => {
       model: "gpt-test",
       stream: true
     });
+  });
+
+  it("parses chunked Responses API server-sent events from the response body", async () => {
+    const fetch = vi.fn(async () =>
+      createChunkedResponsesStreamResponse([
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"fix: "}\n',
+        '\nevent: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"read streaming "}',
+        '\n\nevent: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"events"}\n\n'
+      ])
+    );
+    const provider = new OpenAICompatibleCommitMessageProvider({ fetch });
+
+    await expect(
+      provider.generate({
+        apiKey: "sk-test",
+        baseUrl: "https://api.openai.com",
+        model: "gpt-test",
+        prompt: "Write one line",
+        protocol: "responses"
+      })
+    ).resolves.toBe("fix: read streaming events");
   });
 
   it("accepts JSON responses when a compatible responses provider ignores stream mode", async () => {
@@ -411,12 +433,34 @@ function createResponsesStreamResponse(events: readonly Record<string, unknown>[
     `${events
       .map((event) => [`event: ${event.type}`, `data: ${JSON.stringify(event)}`].join("\n"))
       .join("\n\n")}\n\n`,
-    status
+    status,
+    "text/event-stream"
   );
 }
 
-function createTextResponse(bodyText: string, status = 200): Response {
+function createChunkedResponsesStreamResponse(chunks: readonly string[], status = 200): Response {
+  return createTextResponse(chunks.join(""), status, "text/event-stream", chunks);
+}
+
+function createTextResponse(
+  bodyText: string,
+  status = 200,
+  contentType = "application/json",
+  chunks: readonly string[] = [bodyText]
+): Response {
+  const encoder = new TextEncoder();
   return {
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        controller.close();
+      }
+    }),
+    headers: new Headers({
+      "Content-Type": contentType
+    }),
     json: async () => JSON.parse(bodyText),
     ok: status >= 200 && status < 300,
     status,

@@ -294,6 +294,83 @@ describe("CommitMessageAiService", () => {
       status: "cancelled"
     });
   });
+
+  it("tests an OpenAI-compatible override with the stored API key when the panel key is unchanged", async () => {
+    const openAICompatibleProvider = {
+      generate: vi.fn().mockResolvedValue("fix: test provider")
+    };
+    const service = new CommitMessageAiService({
+      gitRaw: vi.fn(),
+      languageModelProvider: {
+        generate: vi.fn()
+      },
+      openAICompatibleProvider,
+      settingsService: createSettingsService("openAICompatible", "sk-stored")
+    });
+
+    await expect(
+      service.testProvider({
+        provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "",
+          mode: "default"
+        },
+        openAICompatible: {
+          baseUrl: "https://api.anthropic.com",
+          configured: true,
+          model: "claude-test",
+          protocol: "claudeMessages"
+        }
+      })
+    ).resolves.toEqual({
+      message: "OpenAI-compatible provider tested",
+      status: "ok"
+    });
+
+    expect(openAICompatibleProvider.generate).toHaveBeenCalledWith({
+      apiKey: "sk-stored",
+      baseUrl: "https://api.anthropic.com",
+      model: "claude-test",
+      prompt: "Return one conventional commit message line for a small backend change.",
+      protocol: "claudeMessages"
+    });
+  });
+
+  it("tests an OpenAI-compatible override with the panel API key when it is provided", async () => {
+    const openAICompatibleProvider = {
+      generate: vi.fn().mockResolvedValue("fix: test provider")
+    };
+    const service = new CommitMessageAiService({
+      gitRaw: vi.fn(),
+      languageModelProvider: {
+        generate: vi.fn()
+      },
+      openAICompatibleProvider,
+      settingsService: createSettingsService("openAICompatible", "sk-stored")
+    });
+
+    await service.testProvider({
+      provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "",
+        mode: "default"
+      },
+      openAICompatible: {
+        apiKey: "sk-panel",
+        baseUrl: "https://api.openai.com",
+        configured: true,
+        model: "gpt-test",
+        protocol: "responses"
+      }
+    });
+
+    expect(openAICompatibleProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      apiKey: "sk-panel",
+      baseUrl: "https://api.openai.com",
+      model: "gpt-test",
+      protocol: "responses"
+    }));
+  });
 });
 
 function createService(

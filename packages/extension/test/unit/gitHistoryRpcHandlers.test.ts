@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGitHistoryRpcHandlers } from "../../src/backend/rpc/gitHistoryRpcHandlers";
 import type {
+  AiProviderSettingsViewModel,
   BranchesViewModel,
   CommitDetailsViewModel,
   CommitListItemViewModel,
@@ -744,6 +745,7 @@ describe("Git history RPC handlers", () => {
 
   it("generates commit messages and configures AI providers", async () => {
     const calls: string[] = [];
+    let testedSettings: AiProviderSettingsViewModel | undefined;
     const handlers = createGitHistoryRpcHandlers({
       branchService: {
         listBranches: async () => branches
@@ -760,10 +762,13 @@ describe("Git history RPC handlers", () => {
           calls.push(`generate:${repositoryRoot}`);
           return { suggestion: { message: "feat: generated commit message" } };
         },
-        testProvider: async () => ({
-          message: "AI provider tested",
-          status: "ok" as const
-        })
+        testProvider: async (settings) => {
+          testedSettings = settings;
+          return {
+            message: "AI provider tested",
+            status: "ok" as const
+          };
+        }
       },
       fileService: {
         getCommitDetails: async () => details,
@@ -835,12 +840,26 @@ describe("Git history RPC handlers", () => {
       },
       settings: createSettings("tree")
     });
-    await expect(handlers["settings.testAiProvider"]!({ id: "test-ai", type: "settings.testAiProvider" })).resolves.toEqual({
+    const panelSettings = {
+      provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "",
+        mode: "default"
+      },
+      openAICompatible: {
+        baseUrl: "https://api.openai.com",
+        configured: true,
+        model: "gpt-test",
+        protocol: "responses"
+      }
+    } satisfies AiProviderSettingsViewModel;
+    await expect(handlers["settings.testAiProvider"]!({ id: "test-ai", settings: panelSettings, type: "settings.testAiProvider" })).resolves.toEqual({
       message: "AI provider tested",
       status: "ok"
     });
 
     expect(calls).toEqual(["generate:/repo"]);
+    expect(testedSettings).toEqual(panelSettings);
   });
 
   it("returns commit details for the requested repository", async () => {

@@ -176,7 +176,7 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
       };
     },
     "settings.changeLanguage": () => input.languageService.changeLanguagePreference(),
-    "settings.testAiProvider": () => input.commitMessageAiService.testProvider(),
+    "settings.testAiProvider": (request) => input.commitMessageAiService.testProvider(request.settings),
     "proxy.configure": () => input.proxyService.configureProxy(),
     "proxy.refresh": () => input.proxyService.refreshProxy(),
     "git.pull": async (request) => {

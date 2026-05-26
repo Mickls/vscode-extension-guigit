@@ -1,4 +1,4 @@
-import type { CommitMessageSuggestionViewModel, OperationResultViewModel } from "../rpc/contract";
+import type { AiProviderSettingsViewModel, CommitMessageSuggestionViewModel, OperationResultViewModel } from "../rpc/contract";
 import type { SettingsService } from "../../state/SettingsService";
 import type { LanguageModelCommitMessageProvider } from "../vscode/LanguageModelCommitMessageProvider";
 import type { OpenAICompatibleCommitMessageProvider } from "./OpenAICompatibleCommitMessageProvider";
@@ -41,12 +41,12 @@ export class CommitMessageAiService {
     };
   }
 
-  public async testProvider(): Promise<OperationResultViewModel> {
-    const settings = this.settingsService.getSettings();
+  public async testProvider(settingsOverride?: AiProviderSettingsViewModel): Promise<OperationResultViewModel> {
+    const aiSettings = settingsOverride ?? this.settingsService.getSettings().ai;
     const prompt = "Return one conventional commit message line for a small backend change.";
 
-    if (settings.ai.provider === "openAICompatible") {
-      const apiKey = await this.settingsService.getOpenAICompatibleApiKey();
+    if (aiSettings.provider === "openAICompatible") {
+      const apiKey = settingsOverride?.openAICompatible.apiKey?.trim() || (await this.settingsService.getOpenAICompatibleApiKey());
       if (!apiKey) {
         return {
           message: "OpenAI-compatible API key is not configured",
@@ -56,10 +56,10 @@ export class CommitMessageAiService {
 
       await this.openAICompatibleProvider.generate({
         apiKey,
-        baseUrl: settings.ai.openAICompatible.baseUrl,
-        model: settings.ai.openAICompatible.model,
+        baseUrl: aiSettings.openAICompatible.baseUrl,
+        model: aiSettings.openAICompatible.model,
         prompt,
-        protocol: settings.ai.openAICompatible.protocol
+        protocol: aiSettings.openAICompatible.protocol
       });
       return {
         message: "OpenAI-compatible provider tested",

@@ -20,6 +20,9 @@ export interface ChangesPanelLabels {
   commitMessage: string;
   expandDirectory: string;
   generate: string;
+  generateCommitMessageGenerating: string;
+  generateCommitMessageLongRunningStatus: string;
+  generateCommitMessageStatus: string;
   list: string;
   listView: string;
   openDiff: string;
@@ -45,6 +48,9 @@ const defaultLabels: ChangesPanelLabels = {
   commitMessage: "Commit message",
   expandDirectory: "Expand {0}",
   generate: "Generate",
+  generateCommitMessageGenerating: "Generating...",
+  generateCommitMessageLongRunningStatus: "Still generating. Large staged changes can take a while.",
+  generateCommitMessageStatus: "Generating commit message...",
   list: "List",
   listView: "List view",
   openDiff: "Open diff for {0}",
@@ -60,6 +66,8 @@ const defaultLabels: ChangesPanelLabels = {
   unstage: "Unstage {0}",
   unstageAll: "Unstage All"
 };
+
+const longRunningCommitMessageGenerationDelayMs = 8000;
 
 export interface ChangesPanelProps {
   commitMessageResetKey?: number;
@@ -118,6 +126,7 @@ export function ChangesPanel({
 }: ChangesPanelProps): ReactElement {
   const text = { ...defaultLabels, ...labels };
   const [commitMessage, setCommitMessage] = useState("");
+  const [generationLongRunning, setGenerationLongRunning] = useState(false);
   const editSequenceRef = useRef(0);
   const latestGenerateRequestIdRef = useRef<string | undefined>(undefined);
   const generateRequestEditSequencesRef = useRef(new Map<string, number>());
@@ -126,6 +135,11 @@ export function ChangesPanel({
   const workingTreeBlocksCommit = workingTree?.operationState?.status === "conflict";
   const canCommit = !operationBusy && !workingTreeBlocksCommit && staged.length > 0 && commitMessage.trim().length > 0;
   const status = operationStatus ?? workingTreeOperationStatus(workingTree);
+  const generationStatus = generatingCommitMessage
+    ? generationLongRunning
+      ? text.generateCommitMessageLongRunningStatus
+      : text.generateCommitMessageStatus
+    : undefined;
 
   useEffect(() => {
     setCommitMessage("");
@@ -148,6 +162,19 @@ export function ChangesPanel({
       setCommitMessage(commitMessageSuggestion.message);
     }
   }, [commitMessageSuggestion]);
+
+  useEffect(() => {
+    if (!generatingCommitMessage) {
+      setGenerationLongRunning(false);
+      return;
+    }
+
+    setGenerationLongRunning(false);
+    const timeout = window.setTimeout(() => {
+      setGenerationLongRunning(true);
+    }, longRunningCommitMessageGenerationDelayMs);
+    return () => window.clearTimeout(timeout);
+  }, [generatingCommitMessage]);
 
   const changeCommitMessage = (message: string) => {
     editSequenceRef.current += 1;
@@ -206,14 +233,25 @@ export function ChangesPanel({
             value={commitMessage}
           />
         </label>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {generationStatus ? (
+            <div className="min-w-0 flex-1 text-[11px] text-[var(--vscode-descriptionForeground)]" role="status">
+              {generationStatus}
+            </div>
+          ) : null}
           <button
-            className="rounded-[3px] border border-[var(--vscode-button-border)] px-2 py-1 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-w-24 items-center justify-center gap-1.5 rounded-[3px] border border-[var(--vscode-button-border)] px-2 py-1 text-xs text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={generatingCommitMessage}
             onClick={generateCommitMessage}
             type="button"
           >
-            {text.generate}
+            {generatingCommitMessage ? (
+              <span
+                aria-hidden="true"
+                className="h-3 w-3 shrink-0 animate-spin rounded-full border border-current border-t-transparent"
+              />
+            ) : null}
+            {generatingCommitMessage ? text.generateCommitMessageGenerating : text.generate}
           </button>
           <button
             className="rounded-[3px] bg-[var(--vscode-button-background)] px-3 py-1 text-xs text-[var(--vscode-button-foreground)] disabled:cursor-not-allowed disabled:opacity-50"

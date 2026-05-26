@@ -334,7 +334,7 @@ export type RpcRequest =
   | (RpcEnvelope & { type: "stash.drop"; repositoryId: string; stashRef: string })
   | (RpcEnvelope & { type: "commitMessage.generate"; repositoryId: string })
   | (RpcEnvelope & { type: "settings.configureAiProvider" })
-  | (RpcEnvelope & { type: "settings.testAiProvider" });
+  | (RpcEnvelope & { type: "settings.testAiProvider"; settings?: AiProviderSettingsViewModel });
 
 export interface RpcPayloadByType {
   "history.load": {

@@ -149,6 +149,48 @@ describe("App", () => {
     }));
   });
 
+  it("posts current AI provider panel values when testing without saving", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchSettingsResponse("settings-get", "tree");
+    dispatchHistoryResponse(rpcClient);
+    await waitForCommitRows();
+    rpcClient.post.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configure AI Provider" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "API protocol" }), "claudeMessages");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Commit message prompt" }), "custom");
+    await user.type(screen.getByLabelText("Custom prompt rules"), "Use imperative mood.");
+    await user.clear(screen.getByLabelText("API host"));
+    await user.type(screen.getByLabelText("API host"), "https://api.anthropic.com");
+    await user.clear(screen.getByLabelText("Model"));
+    await user.type(screen.getByLabelText("Model"), "claude-test");
+    await user.type(screen.getByLabelText("API key"), "sk-ant-test");
+    await user.click(screen.getByRole("button", { name: "Test" }));
+
+    expect(latestRequest(rpcClient, "settings.testAiProvider")).toEqual(expect.objectContaining({
+      settings: {
+        provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "Use imperative mood.",
+          mode: "custom"
+        },
+        openAICompatible: {
+          apiKey: "sk-ant-test",
+          baseUrl: "https://api.anthropic.com",
+          configured: true,
+          model: "claude-test",
+          protocol: "claudeMessages"
+        }
+      },
+      type: "settings.testAiProvider"
+    }));
+    expect(rpcClient.post.mock.calls.some(([request]) => request.type === "settings.update")).toBe(false);
+  });
+
   it("refreshes saved AI provider settings when opening the panel without exposing the API key", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();
@@ -213,7 +255,22 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Test" }));
 
     const request = latestRequest(rpcClient, "settings.testAiProvider");
-    expect(request).toEqual(expect.objectContaining({ type: "settings.testAiProvider" }));
+    expect(request).toEqual(expect.objectContaining({
+      settings: {
+        provider: "openAICompatible",
+        commitMessagePrompt: {
+          customRules: "",
+          mode: "default"
+        },
+        openAICompatible: {
+          baseUrl: "https://api.openai.com",
+          configured: true,
+          model: "gpt-test",
+          protocol: "responses"
+        }
+      },
+      type: "settings.testAiProvider"
+    }));
     expect(screen.getByRole("button", { name: "Testing..." })).toBeDisabled();
 
     dispatchAiProviderTestResponse(request.id);
@@ -595,12 +652,14 @@ describe("App", () => {
       repositoryId: "/repo",
       type: "commitMessage.generate"
     }));
-    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Generating..." })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Generating commit message...");
 
     dispatchCommitMessageGenerateResponse(generateRequest.id, "feat: generated");
 
     expect(screen.getByRole("textbox", { name: "Commit message" })).toHaveValue("feat: generated");
     expect(screen.getByRole("button", { name: "Generate" })).not.toBeDisabled();
+    expect(screen.queryByText("Generating commit message...")).not.toBeInTheDocument();
   });
 
   it("keeps stale commit message generation errors from replacing the current notification", async () => {

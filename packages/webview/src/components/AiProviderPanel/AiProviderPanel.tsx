@@ -11,7 +11,7 @@ export interface AiProviderPanelProps {
   labels?: Partial<AiProviderPanelLabels>;
   onClose?: () => void;
   onSave?: (settings: AiProviderSettingsViewModel) => void;
-  onTest?: () => void;
+  onTest?: (settings: AiProviderSettingsViewModel) => void;
   open: boolean;
   saving?: boolean;
   settings: AiProviderSettingsViewModel;
@@ -86,10 +86,9 @@ export function AiProviderPanel({
     return null;
   }
 
-  const save = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const createCurrentSettings = (): AiProviderSettingsViewModel => {
     const trimmedApiKey = apiKey.trim();
-    onSave?.({
+    return {
       provider: "openAICompatible",
       commitMessagePrompt: {
         customRules: customPromptRules.trim(),
@@ -102,7 +101,16 @@ export function AiProviderPanel({
         model: model.trim(),
         protocol
       }
-    });
+    };
+  };
+
+  const save = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSave?.(createCurrentSettings());
+  };
+
+  const test = () => {
+    onTest?.(createCurrentSettings());
   };
 
   return (
@@ -223,7 +231,7 @@ export function AiProviderPanel({
           <button className={secondaryButtonClassName} disabled={saving} onClick={onClose} type="button">
             {text.cancel}
           </button>
-          <button className={secondaryButtonClassName} disabled={busy} onClick={onTest} type="button">
+          <button className={secondaryButtonClassName} disabled={busy} onClick={test} type="button">
             {testing ? text.testing : text.test}
           </button>
           <button className={primaryButtonClassName} disabled={busy} type="submit">

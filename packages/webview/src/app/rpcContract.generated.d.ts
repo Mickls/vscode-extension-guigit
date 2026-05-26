@@ -374,6 +374,7 @@ export type RpcRequest = (RpcEnvelope & {
     type: "settings.configureAiProvider";
 }) | (RpcEnvelope & {
     type: "settings.testAiProvider";
+    settings?: AiProviderSettingsViewModel;
 });
 export interface RpcPayloadByType {
     "history.load": {

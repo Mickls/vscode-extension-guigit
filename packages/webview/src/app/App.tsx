@@ -1132,10 +1132,11 @@ export function App({ rpcClient }: AppProps): ReactElement {
     setTestingAiProvider(false);
   };
 
-  const testAiProvider = () => {
+  const testAiProvider = (ai: AiProviderSettingsViewModel) => {
     setTestingAiProvider(true);
     client?.post({
       id: crypto.randomUUID(),
+      settings: ai,
       type: "settings.testAiProvider"
     });
   };
@@ -1414,6 +1415,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
                   discard: `${tx("changes.discard", "Discard")} {0}`,
                   expandDirectory: tx("files.expandDirectory", "Expand {0}"),
                   generate: tx("changes.generateCommitMessage", "Generate"),
+                  generateCommitMessageGenerating: tx("changes.generateCommitMessageGenerating", "Generating..."),
+                  generateCommitMessageLongRunningStatus: tx(
+                    "changes.generateCommitMessageLongRunningStatus",
+                    "Still generating. Large staged changes can take a while."
+                  ),
+                  generateCommitMessageStatus: tx("changes.generateCommitMessageStatus", "Generating commit message..."),
                   list: tx("files.list", "List"),
                   listView: tx("files.listView", "List view"),
                   openDiff: tx("files.openDiff", "Open diff for {0}"),

@@ -138,6 +138,7 @@ function createRequest(input: OpenAICompatibleCommitMessageRequest): ProviderHtt
           stream: true
         }),
         headers: {
+          Accept: "text/event-stream",
           Authorization: `Bearer ${input.apiKey}`,
           "Content-Type": "application/json"
         },
@@ -251,6 +252,10 @@ function isNoProxyHost(host: string, noProxy: string | undefined): boolean {
 
 async function parseResponseMessage(protocol: HttpAiProviderProtocol, response: Response): Promise<string | undefined> {
   if (protocol === "responses") {
+    if (isEventStreamResponse(response) && response.body) {
+      return parseResponsesEventStream(response.body);
+    }
+
     return parseResponsesStream(await response.text());
   }
 
@@ -280,32 +285,87 @@ function parseResponsesStream(bodyText: string): string | undefined {
     return parseMessage("responses", JSON.parse(bodyText));
   }
 
-  let deltaText = "";
-  let completedText: string | undefined;
+  const state: ResponsesStreamState = {
+    deltaText: ""
+  };
   for (const dataText of extractServerSentEventData(bodyText)) {
-    if (dataText === "[DONE]") {
-      continue;
+    applyResponsesStreamEvent(dataText, state);
+  }
+
+  return streamStateMessage(state);
+}
+
+async function parseResponsesEventStream(body: ReadableStream<Uint8Array>): Promise<string | undefined> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const state: ResponsesStreamState = {
+    deltaText: ""
+  };
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      buffer += decoder.decode();
+      break;
     }
 
-    const event = JSON.parse(dataText) as OpenAIResponsesStreamEvent;
-    if (event.type === "response.output_text.delta" && event.delta !== undefined) {
-      deltaText += event.delta;
-    }
-    if (event.type === "response.output_text.done" && event.text !== undefined) {
-      completedText = event.text.trim();
-    }
-    if (event.type === "response.completed" && event.response) {
-      completedText = parseMessage("responses", event.response) ?? completedText;
-    }
-    if (event.type === "response.failed" && event.response?.error) {
-      throw new Error(formatStreamEventError(event.response.error));
-    }
-    if (event.type === "error" && event.error) {
-      throw new Error(formatStreamEventError(event.error));
+    buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r\n/g, "\n");
+
+    let separatorIndex = buffer.indexOf("\n\n");
+    while (separatorIndex !== -1) {
+      const block = buffer.slice(0, separatorIndex);
+      buffer = buffer.slice(separatorIndex + 2);
+      applyResponsesStreamBlock(block, state);
+      separatorIndex = buffer.indexOf("\n\n");
     }
   }
 
-  return completedText ?? deltaText.trim();
+  applyResponsesStreamBlock(buffer, state);
+  return streamStateMessage(state);
+}
+
+interface ResponsesStreamState {
+  completedText?: string;
+  deltaText: string;
+}
+
+function isEventStreamResponse(response: Response): boolean {
+  return response.headers.get("content-type")?.toLowerCase().includes("text/event-stream") ?? false;
+}
+
+function applyResponsesStreamBlock(block: string, state: ResponsesStreamState): void {
+  for (const dataText of extractServerSentEventData(`${block.trim()}\n\n`)) {
+    applyResponsesStreamEvent(dataText, state);
+  }
+}
+
+function applyResponsesStreamEvent(dataText: string, state: ResponsesStreamState): void {
+  if (dataText === "[DONE]") {
+    return;
+  }
+
+  const event = JSON.parse(dataText) as OpenAIResponsesStreamEvent;
+  if (event.type === "response.output_text.delta" && event.delta !== undefined) {
+    state.deltaText += event.delta;
+  }
+  if (event.type === "response.output_text.done" && event.text !== undefined) {
+    state.completedText = event.text.trim();
+  }
+  if (event.type === "response.completed" && event.response) {
+    state.completedText = parseMessage("responses", event.response) ?? state.completedText;
+  }
+  if (event.type === "response.failed" && event.response?.error) {
+    throw new Error(formatStreamEventError(event.response.error));
+  }
+  if (event.type === "error" && event.error) {
+    throw new Error(formatStreamEventError(event.error));
+  }
+}
+
+function streamStateMessage(state: ResponsesStreamState): string | undefined {
+  return state.completedText ?? state.deltaText.trim();
 }
 
 function extractServerSentEventData(bodyText: string): string[] {

@@ -57,7 +57,20 @@ describe("AiProviderPanel", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await user.click(screen.getByRole("button", { name: "Close Configure AI Provider" }));
 
-    expect(onTest).toHaveBeenCalledOnce();
+    expect(onTest).toHaveBeenCalledWith({
+      provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "Use imperative mood.",
+        mode: "custom"
+      },
+      openAICompatible: {
+        apiKey: "sk-ant-test",
+        baseUrl: "https://api.anthropic.com",
+        configured: true,
+        model: "claude-test",
+        protocol: "claudeMessages"
+      }
+    });
     expect(onSave).toHaveBeenCalledWith({
       provider: "openAICompatible",
       commitMessagePrompt: {
@@ -102,7 +115,19 @@ describe("AiProviderPanel", () => {
     );
     await user.click(screen.getByRole("button", { name: "Test" }));
 
-    expect(onTest).toHaveBeenCalledOnce();
+    expect(onTest).toHaveBeenCalledWith({
+      provider: "openAICompatible",
+      commitMessagePrompt: {
+        customRules: "",
+        mode: "default"
+      },
+      openAICompatible: {
+        baseUrl: "https://api.openai.com",
+        configured: true,
+        model: "gpt-test",
+        protocol: "responses"
+      }
+    });
   });
 });
 

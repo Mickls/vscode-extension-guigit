@@ -63,6 +63,9 @@
       "noStashes": "没有储藏",
       "commitMessage": "提交消息",
       "generateCommitMessage": "生成提交消息",
+      "generateCommitMessageGenerating": "生成中...",
+      "generateCommitMessageStatus": "正在生成提交消息...",
+      "generateCommitMessageLongRunningStatus": "仍在生成中。变更较大时可能需要更久。",
       "commit": "提交"
     },
     "workingTree": {

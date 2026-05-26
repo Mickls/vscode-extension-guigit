@@ -63,6 +63,9 @@
       "noStashes": "No stashes",
       "commitMessage": "Commit message",
       "generateCommitMessage": "Generate Commit Message",
+      "generateCommitMessageGenerating": "Generating...",
+      "generateCommitMessageStatus": "Generating commit message...",
+      "generateCommitMessageLongRunningStatus": "Still generating. Large staged changes can take a while.",
       "commit": "Commit"
     },
     "workingTree": {

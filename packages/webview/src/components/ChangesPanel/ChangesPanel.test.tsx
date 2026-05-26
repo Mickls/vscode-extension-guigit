@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +9,10 @@ import { ChangesPanel } from "./ChangesPanel";
 import type { WorkingTreeViewModel } from "../../app/rpcContract.generated";
 
 describe("ChangesPanel", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("renders commit composer before staged changes and changes", () => {
     render(<ChangesPanel fileViewMode="list" workingTree={workingTree} />);
@@ -103,7 +106,28 @@ describe("ChangesPanel", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Generating..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Generating..." }).querySelector(".animate-spin")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Generating commit message...");
+  });
+
+  it("shows a longer-running generation message when the AI request takes a while", () => {
+    vi.useFakeTimers();
+    render(
+      <ChangesPanel
+        fileViewMode="list"
+        generatingCommitMessage
+        workingTree={workingTree}
+      />
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Generating commit message...");
+
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Still generating. Large staged changes can take a while.");
   });
 
   it("does not let stale generated suggestions replace newer manual text", async () => {
