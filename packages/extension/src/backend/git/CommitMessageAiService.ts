@@ -2,6 +2,7 @@ import type { AiProviderSettingsViewModel, CommitMessageSuggestionViewModel, Ope
 import type { SettingsService } from "../../state/SettingsService";
 import type { LanguageModelCommitMessageProvider } from "../vscode/LanguageModelCommitMessageProvider";
 import type { OpenAICompatibleCommitMessageProvider } from "./OpenAICompatibleCommitMessageProvider";
+import { parseGitNumstatPath, unquoteGitPath } from "./GitPathParser";
 
 export interface CommitMessageAiServiceInput {
   gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
@@ -161,13 +162,13 @@ const defaultCommitMessagePromptRules = [
 const defaultPromptWindowCharacters = 12000;
 
 function parseStagedDiffMetadata(nameStatusOutput: string, numstatOutput: string): StagedDiffMetadata {
-  const numstatEntries = parseNumstatEntries(numstatOutput);
-  const binaryFilePaths = new Set(numstatEntries.filter((entry) => entry.isBinary).map((entry) => entry.path));
   const filePaths = nameStatusOutput
     .split("\n")
     .filter(Boolean)
-    .map((line) => line.split("\t").at(-1)!)
+    .map((line) => unquoteGitPath(line.split("\t").at(-1)!))
     .filter(Boolean);
+  const numstatEntries = parseNumstatEntries(numstatOutput, new Set(filePaths));
+  const binaryFilePaths = new Set(numstatEntries.filter((entry) => entry.isBinary).map((entry) => entry.path));
 
   return {
     binaryFilePaths: filePaths.filter((path, index) => binaryFilePaths.has(path) || numstatEntries[index]?.isBinary === true),
@@ -176,15 +177,19 @@ function parseStagedDiffMetadata(nameStatusOutput: string, numstatOutput: string
   };
 }
 
-function parseNumstatEntries(numstatOutput: string): readonly { isBinary: boolean; path: string }[] {
+function parseNumstatEntries(
+  numstatOutput: string,
+  knownPaths: ReadonlySet<string>
+): readonly { isBinary: boolean; path: string }[] {
   return numstatOutput
     .split("\n")
     .filter(Boolean)
     .map((line) => {
       const [added, deleted, ...pathParts] = line.split("\t");
+      const parsedPath = parseGitNumstatPath(pathParts.join("\t"), knownPaths);
       return {
         isBinary: added === "-" && deleted === "-",
-        path: pathParts.join("\t")
+        path: parsedPath.path
       };
     });
 }

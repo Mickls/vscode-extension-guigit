@@ -78,6 +78,43 @@ describe("CommitMessageAiService", () => {
     expect(languageModelProvider.generate).toHaveBeenCalledWith(expect.stringContaining("+export const value = 1;"));
   });
 
+  it("decodes quoted UTF-8 staged paths before requesting text diff content", async () => {
+    const quotedPath = String.raw`"src/\346\225\260\346\215\256\345\272\223/README.md"`;
+    const decodedPath = "src/数据库/README.md";
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      if (args.join(" ") === "diff --cached --stat") {
+        return ` ${quotedPath} | 1 +`;
+      }
+
+      if (args.join(" ") === "diff --cached --name-status") {
+        return `M\t${quotedPath}\n`;
+      }
+
+      if (args.join(" ") === "diff --cached --numstat") {
+        return `1\t0\t${quotedPath}\n`;
+      }
+
+      if (args.at(-1) === decodedPath) {
+        return "diff --git a/src/数据库/README.md b/src/数据库/README.md\n+content\n";
+      }
+
+      return "";
+    });
+    const languageModelProvider = {
+      generate: vi.fn().mockResolvedValue("docs: update database readme")
+    };
+    const service = createService({
+      gitRaw,
+      languageModelProvider
+    });
+
+    await service.generate("/repo");
+
+    expect(gitRaw).toHaveBeenCalledWith("/repo", ["diff", "--cached", "--no-ext-diff", "--", decodedPath]);
+    expect(languageModelProvider.generate).toHaveBeenCalledWith(expect.stringContaining(`- ${decodedPath}`));
+    expect(languageModelProvider.generate).toHaveBeenCalledWith(expect.stringContaining("+content"));
+  });
+
   it("lists binary staged files without requesting their patch content", async () => {
     const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
       if (args.join(" ") === "diff --cached --stat") {

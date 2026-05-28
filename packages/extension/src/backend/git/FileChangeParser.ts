@@ -1,10 +1,12 @@
 import type { FileChangeViewModel } from "../rpc/contract";
+import { parseGitNumstatPath, unquoteGitPath } from "./GitPathParser";
 
 interface FileStats {
   binary: boolean;
   deletions: number;
   insertions: number;
   path: string;
+  previousPath?: string;
 }
 
 interface FileStatus {
@@ -14,21 +16,26 @@ interface FileStatus {
 }
 
 export function parseGitFileChanges(numstatOutput: string, nameStatusOutput: string): readonly FileChangeViewModel[] {
-  return mergeFileChanges(parseNumstat(numstatOutput), parseNameStatus(nameStatusOutput));
+  const statuses = parseNameStatus(nameStatusOutput);
+  return mergeFileChanges(parseNumstat(numstatOutput, statuses), statuses);
 }
 
-function parseNumstat(output: string): readonly FileStats[] {
+function parseNumstat(output: string, statuses: readonly FileStatus[]): readonly FileStats[] {
+  const knownPaths = new Set(statuses.flatMap((file) => [file.path, file.previousPath].filter((path) => path !== undefined)));
+
   return output
     .split("\n")
     .filter(Boolean)
     .map((line) => {
       const [insertions, deletions, path] = line.split("\t");
+      const parsedPath = parseGitNumstatPath(path!, knownPaths);
 
       return {
         binary: insertions === "-" && deletions === "-",
         deletions: deletions === "-" ? 0 : Number.parseInt(deletions!, 10),
         insertions: insertions === "-" ? 0 : Number.parseInt(insertions!, 10),
-        path: path!
+        path: parsedPath.path,
+        previousPath: parsedPath.previousPath
       };
     });
 }
@@ -43,21 +50,21 @@ function parseNameStatus(output: string): readonly FileStatus[] {
 
       if (code.startsWith("R") || code.startsWith("C")) {
         return {
-          path: parts[2]!,
-          previousPath: parts[1]!,
+          path: unquoteGitPath(parts[2]!),
+          previousPath: unquoteGitPath(parts[1]!),
           status: code.startsWith("R") ? "renamed" : "copied"
         };
       }
 
       return {
-        path: parts[1]!,
+        path: unquoteGitPath(parts[1]!),
         status: statusFromCode(code)
       };
     });
 }
 
 function mergeFileChanges(stats: readonly FileStats[], statuses: readonly FileStatus[]): readonly FileChangeViewModel[] {
-  const statsByPath = new Map(stats.map((item) => [item.path, item]));
+  const statsByPath = new Map(stats.flatMap((item) => [[item.path, item], ...(item.previousPath ? [[item.previousPath, item] as const] : [])]));
 
   if (statuses.length === 0) {
     return stats.map((item) => ({

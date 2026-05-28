@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePorcelainStatus, parseStashFiles, parseStashList } from "../../src/backend/git/WorkingTreeParser";
+import { parsePorcelainStatus, parseStashFiles, parseStashList, parseWorkingTreeStatus } from "../../src/backend/git/WorkingTreeParser";
 
 describe("WorkingTreeParser", () => {
   it("groups porcelain status into staged, unstaged, and untracked files", () => {
@@ -90,6 +90,20 @@ describe("WorkingTreeParser", () => {
     ]);
   });
 
+  it("merges quoted UTF-8 numstat paths into working tree status", () => {
+    const path = String.raw`"issue/EPIC-20260527-001_VSCode\346\225\260\346\215\256\345\272\223\346\217\222\344\273\266/README.md"`;
+    const result = parseWorkingTreeStatus(` M ${path}`, "", `2\t1\t${path}`);
+
+    expect(result.unstaged).toMatchObject([
+      {
+        deletions: 1,
+        insertions: 2,
+        path: "issue/EPIC-20260527-001_VSCode数据库插件/README.md",
+        status: "modified"
+      }
+    ]);
+  });
+
   it("parses stash list entries", () => {
     expect(parseStashList("stash@{0}: WIP on main: abc1234 message\nstash@{1}: On feature: save work")).toEqual([
       {
@@ -123,6 +137,24 @@ describe("WorkingTreeParser", () => {
         insertions: 3,
         path: "src/new.txt",
         previousPath: "src/old.txt",
+        status: "renamed"
+      }
+    ]);
+  });
+
+  it("decodes quoted UTF-8 rename paths in stash files", () => {
+    const previousPath = String.raw`"src/\346\227\247\347\233\256\345\275\225/\346\227\247\346\226\207\344\273\266.md"`;
+    const nextPath = String.raw`"src/\346\226\260\347\233\256\345\275\225/\346\226\260\346\226\207\344\273\266.md"`;
+    const result = parseStashFiles(`R050\t${previousPath}\t${nextPath}\n`, `1\t0\t${previousPath} => ${nextPath}\n`);
+
+    expect(result).toEqual([
+      {
+        area: "stash",
+        binary: false,
+        deletions: 0,
+        insertions: 1,
+        path: "src/新目录/新文件.md",
+        previousPath: "src/旧目录/旧文件.md",
         status: "renamed"
       }
     ]);
