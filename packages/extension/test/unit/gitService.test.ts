@@ -4,6 +4,9 @@ import { GitService } from "../../src/backend/git/GitService";
 import type { OperationResultViewModel } from "../../src/backend/rpc/contract";
 
 vi.mock("vscode", () => ({
+  commands: {
+    executeCommand: vi.fn()
+  },
   env: {
     clipboard: {
       writeText: vi.fn()
@@ -484,6 +487,7 @@ describe("GitService", () => {
         debug: () => undefined,
         info: (_message, context) => logs.push(context)
       },
+      showInformationMessage: vi.fn().mockResolvedValue(undefined),
       showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
       showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }]),
       showQuickPick: vi.fn().mockResolvedValue({ label: "feature/demo", value: "feature/demo" })
@@ -504,6 +508,70 @@ describe("GitService", () => {
       { command: "git -C /repo branch --all --format=%(refname:short)" },
       { command: "git -C /repo checkout feature/demo" }
     ]);
+  });
+
+  it("opens the cloned repository in the current window when requested", async () => {
+    const clonedRepositories: string[] = [];
+    const executeCommand = vi.fn().mockResolvedValue(undefined);
+    const showInformationMessage = vi.fn().mockResolvedValue("Open in Current Window");
+    const service = createService({
+      executeCommand,
+      gitClone: async (targetDirectory, url, destinationDirectoryName) => {
+        clonedRepositories.push(`${targetDirectory}/${destinationDirectoryName}:${url}`);
+      },
+      showInformationMessage,
+      showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }])
+    });
+
+    await expect(service.clone()).resolves.toEqual({
+      message: "Clone completed",
+      status: "ok"
+    });
+
+    expect(clonedRepositories).toEqual(["/target/repo:https://example.com/repo.git"]);
+    expect(showInformationMessage).toHaveBeenCalledWith(
+      "Clone completed: repo. Open cloned repository?",
+      "Open in Current Window",
+      "Open in New Window"
+    );
+    expect(executeCommand).toHaveBeenCalledWith("vscode.openFolder", { fsPath: "/target/repo" }, { forceNewWindow: false });
+  });
+
+  it("opens the cloned repository in a new window when requested", async () => {
+    const executeCommand = vi.fn().mockResolvedValue(undefined);
+    const service = createService({
+      executeCommand,
+      gitClone: async () => undefined,
+      showInformationMessage: vi.fn().mockResolvedValue("Open in New Window"),
+      showInputBox: vi.fn().mockResolvedValue("git@github.com:owner/tool.git"),
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }])
+    });
+
+    await expect(service.clone()).resolves.toEqual({
+      message: "Clone completed",
+      status: "ok"
+    });
+
+    expect(executeCommand).toHaveBeenCalledWith("vscode.openFolder", { fsPath: "/target/tool" }, { forceNewWindow: true });
+  });
+
+  it("leaves the cloned repository closed when the open prompt is dismissed", async () => {
+    const executeCommand = vi.fn().mockResolvedValue(undefined);
+    const service = createService({
+      executeCommand,
+      gitClone: async () => undefined,
+      showInformationMessage: vi.fn().mockResolvedValue(undefined),
+      showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }])
+    });
+
+    await expect(service.clone()).resolves.toEqual({
+      message: "Clone completed",
+      status: "ok"
+    });
+
+    expect(executeCommand).not.toHaveBeenCalled();
   });
 
   it("uses backend quick picks for advanced pull and push", async () => {
@@ -1449,6 +1517,7 @@ function createService(input: {
   gitClone?: (targetDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   clipboardWrite?: (text: string) => Thenable<void> | Promise<void>;
+  executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<unknown> | Promise<unknown>;
   openExternal?: (url: string) => Thenable<void> | Promise<void>;
   safetyService?: {
     abortOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
@@ -1491,6 +1560,7 @@ function createService(input: {
     gitClone: input.gitClone,
     gitRaw: input.gitRaw ?? (async () => ""),
     clipboardWrite: input.clipboardWrite,
+    executeCommand: input.executeCommand,
     openExternal: input.openExternal,
     safetyService:
       input.safetyService ??

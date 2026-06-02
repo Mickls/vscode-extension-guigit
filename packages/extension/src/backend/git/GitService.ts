@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { simpleGit } from "simple-git";
-import { env, Uri, window } from "vscode";
+import { commands, env, Uri, window } from "vscode";
 import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
 import type { ProxyService } from "./ProxyService";
@@ -31,6 +31,7 @@ interface SquashPlan {
 
 export interface GitServiceInput {
   clipboardWrite?: (text: string) => Thenable<void>;
+  executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<unknown>;
   gitClone?: (parentDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
@@ -50,6 +51,7 @@ export interface GitServiceInput {
 
 export class GitService {
   private readonly clipboardWrite: (text: string) => Thenable<void>;
+  private readonly executeCommand: (command: string, ...args: readonly unknown[]) => Thenable<unknown>;
   private readonly gitClone: (parentDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
@@ -67,6 +69,11 @@ export class GitService {
 
   public constructor(input: GitServiceInput) {
     this.clipboardWrite = input.clipboardWrite ?? ((text) => env.clipboard.writeText(text));
+    this.executeCommand =
+      input.executeCommand ??
+      (async (command, ...args) => {
+        await commands.executeCommand(command, ...args);
+      });
     this.gitClone = input.gitClone ?? (async (parentDirectory, url, destinationDirectoryName) => {
       await simpleGit(parentDirectory).clone(url, destinationDirectoryName);
     });
@@ -249,6 +256,7 @@ export class GitService {
     this.logger?.debug("git.clone", { destinationDirectoryName, targetDirectory, url });
     this.logGitCommand(targetDirectory, ["clone", url, destinationDirectoryName]);
     await this.gitClone(targetDirectory, url, destinationDirectoryName);
+    await this.promptOpenClonedRepository(join(targetDirectory, destinationDirectoryName), destinationDirectoryName);
 
     return {
       message: "Clone completed",
@@ -304,6 +312,24 @@ export class GitService {
     );
 
     return workspaceFolder?.value;
+  }
+
+  private async promptOpenClonedRepository(repositoryRoot: string, repositoryName: string): Promise<void> {
+    const openInCurrentWindow = "Open in Current Window";
+    const openInNewWindow = "Open in New Window";
+    const choice = await this.showInformationMessage(
+      `Clone completed: ${repositoryName}. Open cloned repository?`,
+      openInCurrentWindow,
+      openInNewWindow
+    );
+
+    if (!choice) {
+      return;
+    }
+
+    await this.executeCommand("vscode.openFolder", Uri.file(repositoryRoot), {
+      forceNewWindow: choice === openInNewWindow
+    });
   }
 
   public async copyHash(hash: string): Promise<OperationResultViewModel> {
