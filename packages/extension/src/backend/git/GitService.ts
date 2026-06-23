@@ -18,7 +18,8 @@ interface QuickPickItem {
 }
 
 interface QuickPickWithInputOptions {
-  createRemote: string;
+  createLocal?: boolean;
+  createRemote?: string;
   placeHolder: string;
   remotes?: readonly string[];
 }
@@ -332,10 +333,12 @@ export class GitService {
     }
 
     this.logger?.debug("git.checkout", { branch, repositoryRoot });
-    await this.runGitRaw(repositoryRoot, ["checkout", branch.value]);
+    const isNewBranch = branch.value.startsWith(newLocalBranchValuePrefix);
+    const branchName = isNewBranch ? branch.value.slice(newLocalBranchValuePrefix.length) : branch.value;
+    await this.runGitRaw(repositoryRoot, isNewBranch ? ["checkout", "-b", branchName] : ["checkout", branchName]);
 
     return {
-      message: `Checked out ${branch.value}`,
+      message: isNewBranch ? `Created and checked out ${branchName}` : `Checked out ${branchName}`,
       status: "ok"
     };
   }
@@ -775,9 +778,9 @@ export class GitService {
       .split("\n")
       .map((branch) => branch.trim())
       .filter((branch) => branch.length > 0);
-    return this.showQuickPick(
+    return this.showQuickPickWithInput(
       preferMainBranches(branches).map((branch) => ({ label: branch, value: branch })),
-      { placeHolder: "Select branch to checkout" }
+      { createLocal: true, placeHolder: "Select branch to checkout" }
     );
   }
 
@@ -986,9 +989,9 @@ function showQuickPickWithInput(
     const disposables = [
       quickPick.onDidAccept(() => {
         const input = quickPick.value.trim();
-        const existingItem = items.find((item) => itemMatchesInput(item.value, input));
+        const existingItem = items.find((item) => inputMatchesItem(item.value, input, options));
         const typedBranch = input
-          ? existingItem ?? createRemoteBranchItem(options.createRemote, input, options.remotes ?? [options.createRemote])
+          ? existingItem ?? createBranchItemForInput(input, options)
           : quickPick.selectedItems[0] ?? quickPick.activeItems[0];
         settle(typedBranch);
       }),
@@ -1069,6 +1072,10 @@ function itemMatchesInput(value: string, input: string): boolean {
   return value === input || remoteTarget.branch === input;
 }
 
+function inputMatchesItem(value: string, input: string, options: QuickPickWithInputOptions): boolean {
+  return options.createLocal ? value === input : itemMatchesInput(value, input);
+}
+
 function createRemoteBranchItem(remote: string, input: string, remotes: readonly string[]): QuickPickItem {
   const remotePrefix = `${remote}/`;
   const separatorIndex = input.indexOf("/");
@@ -1080,6 +1087,27 @@ function createRemoteBranchItem(remote: string, input: string, remotes: readonly
     label: branch,
     value: branch
   };
+}
+
+const newLocalBranchValuePrefix = "__create_local_branch__:";
+
+function createBranchItemForInput(input: string, options: QuickPickWithInputOptions): QuickPickItem {
+  if (options.createLocal) {
+    return {
+      label: input,
+      value: `${newLocalBranchValuePrefix}${input}`
+    };
+  }
+
+  const createRemote = options.createRemote;
+  if (!createRemote) {
+    return {
+      label: input,
+      value: input
+    };
+  }
+
+  return createRemoteBranchItem(createRemote, input, options.remotes ?? [createRemote]);
 }
 
 const forceWithLeaseStaleInfoMessage = "Force push was rejected because the remote branch changed or your local remote-tracking information is stale. Fetch first, review the remote changes, then retry force push if you still want to overwrite the remote branch.";

@@ -192,6 +192,40 @@ describe("GitService", () => {
     );
   });
 
+  it("creates and checks out a branch typed into checkout", async () => {
+    const calls: string[] = [];
+    let accept: () => void;
+    vi.mocked(window.createQuickPick).mockReturnValueOnce({
+      activeItems: [],
+      dispose: vi.fn(),
+      items: [],
+      onDidAccept: (listener: () => void) => {
+        accept = listener;
+        return { dispose: vi.fn() };
+      },
+      onDidHide: () => ({ dispose: vi.fn() }),
+      selectedItems: [],
+      show: () => accept(),
+      value: "feature/new-branch"
+    } as never);
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch --all --format=%(refname:short)") {
+          return "main\nfeature/demo\norigin/new-branch\n";
+        }
+
+        return "";
+      }
+    });
+
+    await expect(service.checkout("/repo")).resolves.toEqual({
+      message: "Created and checked out feature/new-branch",
+      status: "ok"
+    });
+    expect(calls).toEqual(["branch --all --format=%(refname:short)", "checkout -b feature/new-branch"]);
+  });
+
   it("prompts for clone url and target directory", async () => {
     const cloneCalls: unknown[] = [];
     const operationProgress: unknown[] = [];
@@ -1668,7 +1702,7 @@ function createService(input: {
   ) => Thenable<{ label: string; value: string } | undefined> | Promise<{ label: string; value: string } | undefined>;
   showQuickPickWithInput?: (
     items: readonly { label: string; value: string }[],
-    options: { createRemote: string; placeHolder: string }
+    options: { createLocal?: boolean; createRemote?: string; placeHolder: string; remotes?: readonly string[] }
   ) => Thenable<{ label: string; value: string } | undefined> | Promise<{ label: string; value: string } | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined> | Promise<string | undefined>;
   withProgress?: <T>(
@@ -1708,7 +1742,7 @@ function createService(input: {
     showQuickPick: input.showQuickPick,
     showQuickPickWithInput: input.showQuickPickWithInput ?? (
       input.showQuickPick
-        ? (items) => input.showQuickPick!(items, { placeHolder: "Select remote branch to push" })
+        ? (items, options) => input.showQuickPick!(items, { placeHolder: options.placeHolder })
         : undefined
     ),
     showWarningMessage: input.showWarningMessage,
