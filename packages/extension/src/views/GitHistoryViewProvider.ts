@@ -76,6 +76,13 @@ export class GitHistoryViewProvider implements WebviewViewProvider {
     });
   }
 
+  public reportOperationProgress(progress: Extract<BackendNotification, { type: "operation.progress" }>["progress"]): void {
+    void this.postNotification({
+      progress,
+      type: "operation.progress"
+    });
+  }
+
   public showFileHistoryForUri(resource?: Uri): Promise<void> {
     return this.fileHistoryPanel?.openHistoryForUri(resource).then(() => undefined) ?? Promise.resolve();
   }

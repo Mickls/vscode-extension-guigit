@@ -2,8 +2,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { simpleGit } from "simple-git";
-import { commands, env, Uri, window } from "vscode";
-import type { GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
+import type { SimpleGitProgressEvent } from "simple-git";
+import { commands, env, ProgressLocation, Uri, window } from "vscode";
+import type { GitOperationProgressViewModel, GitResetMode, OperationResultViewModel, RpcPayloadByType } from "../rpc/contract";
 import type { ConflictResolutionInput, SafetyService } from "./SafetyService";
 import type { ProxyService } from "./ProxyService";
 import type { SettingsService } from "../../state/SettingsService";
@@ -22,6 +23,10 @@ interface QuickPickWithInputOptions {
   remotes?: readonly string[];
 }
 
+interface ProgressReporter {
+  report(value: { message?: string; increment?: number }): void;
+}
+
 interface SquashPlan {
   base: string;
   mode: "cherry-pick" | "soft-reset";
@@ -32,10 +37,16 @@ interface SquashPlan {
 export interface GitServiceInput {
   clipboardWrite?: (text: string) => Thenable<void>;
   executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<unknown>;
-  gitClone?: (parentDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
+  gitClone?: (
+    parentDirectory: string,
+    url: string,
+    destinationDirectoryName: string,
+    onProgress?: (progress: GitOperationProgressViewModel) => void
+  ) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   logger?: Pick<Logger, "debug" | "info">;
   openExternal?: (url: string) => Thenable<void>;
+  postOperationProgress?: (progress: GitOperationProgressViewModel) => void;
   proxyService?: Pick<ProxyService, "runRaw">;
   safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
@@ -46,16 +57,26 @@ export interface GitServiceInput {
   showQuickPick?: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   showQuickPickWithInput?: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
+  withProgress?: <T>(
+    options: { cancellable: boolean; location: ProgressLocation; title: string },
+    task: (progress: ProgressReporter) => Thenable<T> | Promise<T>
+  ) => Thenable<T>;
   workspaceFolders?: readonly string[];
 }
 
 export class GitService {
   private readonly clipboardWrite: (text: string) => Thenable<void>;
   private readonly executeCommand: (command: string, ...args: readonly unknown[]) => Thenable<unknown>;
-  private readonly gitClone: (parentDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
+  private readonly gitClone: (
+    parentDirectory: string,
+    url: string,
+    destinationDirectoryName: string,
+    onProgress?: (progress: GitOperationProgressViewModel) => void
+  ) => Promise<void>;
   private readonly gitRaw: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly openExternal: (url: string) => Thenable<void>;
+  private readonly postOperationProgress: (progress: GitOperationProgressViewModel) => void;
   private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly stateService: Pick<WorkspaceStateService, "getAdvancedGitSelection" | "setAdvancedGitSelection">;
@@ -65,6 +86,10 @@ export class GitService {
   private readonly showQuickPick: (items: readonly QuickPickItem[], options: { placeHolder: string }) => Thenable<QuickPickItem | undefined>;
   private readonly showQuickPickWithInput: (items: readonly QuickPickItem[], options: QuickPickWithInputOptions) => Thenable<QuickPickItem | undefined>;
   private readonly showWarningMessage: (message: string, ...items: readonly string[]) => Thenable<string | undefined>;
+  private readonly withProgress: <T>(
+    options: { cancellable: boolean; location: ProgressLocation; title: string },
+    task: (progress: ProgressReporter) => Thenable<T> | Promise<T>
+  ) => Thenable<T>;
   private readonly workspaceFolders: readonly string[];
 
   public constructor(input: GitServiceInput) {
@@ -74,14 +99,19 @@ export class GitService {
       (async (command, ...args) => {
         await commands.executeCommand(command, ...args);
       });
-    this.gitClone = input.gitClone ?? (async (parentDirectory, url, destinationDirectoryName) => {
-      await simpleGit(parentDirectory).clone(url, destinationDirectoryName);
+    this.gitClone = input.gitClone ?? (async (parentDirectory, url, destinationDirectoryName, onProgress) => {
+      await simpleGit(parentDirectory, {
+        progress: (event: SimpleGitProgressEvent) => {
+          onProgress?.(cloneProgressViewModel(event));
+        }
+      }).clone(url, destinationDirectoryName);
     });
     this.gitRaw = input.gitRaw ?? input.proxyService?.runRaw.bind(input.proxyService) ?? ((repositoryRoot, args) => simpleGit(repositoryRoot).raw([...args]));
     this.logger = input.logger;
     this.openExternal = input.openExternal ?? (async (url) => {
       await env.openExternal(Uri.parse(url));
     });
+    this.postOperationProgress = input.postOperationProgress ?? (() => undefined);
     this.safetyService = input.safetyService;
     this.settingsService = input.settingsService;
     this.stateService = input.stateService ?? new WorkspaceStateService();
@@ -103,6 +133,9 @@ export class GitService {
     this.showWarningMessage =
       input.showWarningMessage ??
       ((message, ...items) => window.showWarningMessage(message, ...items));
+    this.withProgress =
+      input.withProgress ??
+      ((options, task) => window.withProgress(options, task));
     this.workspaceFolders = input.workspaceFolders ?? [];
   }
 
@@ -204,7 +237,11 @@ export class GitService {
         : ["push", remoteTarget.remote, `HEAD:${remoteTarget.branch}`];
 
     this.logger?.debug("git.advancedPush", { args, repositoryRoot });
-    await this.runGitRaw(repositoryRoot, args);
+    if (forceMode.value === "force-with-lease") {
+      await this.runForceWithLeasePush(repositoryRoot, args);
+    } else {
+      await this.runGitRaw(repositoryRoot, args);
+    }
     void this.promptPullRequestForCurrentBranch(repositoryRoot, args).catch((error: unknown) => {
       this.logger?.debug("git.pullRequestPrompt.failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -255,7 +292,12 @@ export class GitService {
 
     this.logger?.debug("git.clone", { destinationDirectoryName, targetDirectory, url });
     this.logGitCommand(targetDirectory, ["clone", url, destinationDirectoryName]);
-    await this.gitClone(targetDirectory, url, destinationDirectoryName);
+    await this.withCloneProgress(destinationDirectoryName, targetDirectory, async (reportProgress) => {
+      await this.gitClone(targetDirectory, url, destinationDirectoryName, (progress) => {
+        reportProgress(progress);
+        this.postOperationProgress(progress);
+      });
+    });
     await this.promptOpenClonedRepository(join(targetDirectory, destinationDirectoryName), destinationDirectoryName);
 
     return {
@@ -330,6 +372,26 @@ export class GitService {
     await this.executeCommand("vscode.openFolder", Uri.file(repositoryRoot), {
       forceNewWindow: choice === openInNewWindow
     });
+  }
+
+  private async withCloneProgress<T>(
+    repositoryName: string,
+    targetDirectory: string,
+    task: (reportProgress: (progress: GitOperationProgressViewModel) => void) => Promise<T>
+  ): Promise<T> {
+    return this.withProgress(
+      {
+        cancellable: false,
+        location: ProgressLocation.Notification,
+        title: `Cloning ${repositoryName}`
+      },
+      async (progress) => {
+        progress.report({ message: `Preparing clone into ${targetDirectory}` });
+        return task((value) => {
+          progress.report({ message: cloneProgressMessage(value) });
+        });
+      }
+    );
   }
 
   public async copyHash(hash: string): Promise<OperationResultViewModel> {
@@ -454,7 +516,11 @@ export class GitService {
     const args = forceWithLease
       ? ["push", "--force-with-lease", remoteTarget.remote, `${hash}:refs/heads/${remoteTarget.branch}`]
       : ["push", remoteTarget.remote, `${hash}:refs/heads/${remoteTarget.branch}`];
-    await this.runGitRaw(repositoryRoot, args);
+    if (forceWithLease) {
+      await this.runForceWithLeasePush(repositoryRoot, args);
+    } else {
+      await this.runGitRaw(repositoryRoot, args);
+    }
     return {
       message: forceWithLease ? `Force pushed commits to ${target}` : `Pushed commits to ${target}`,
       status: "ok"
@@ -858,6 +924,18 @@ export class GitService {
     return this.gitRaw(repositoryRoot, args);
   }
 
+  private async runForceWithLeasePush(repositoryRoot: string, args: readonly string[]): Promise<void> {
+    try {
+      await this.runGitRaw(repositoryRoot, args);
+    } catch (error) {
+      if (isForceWithLeaseStaleInfoError(error)) {
+        throw new Error(forceWithLeaseStaleInfoMessage);
+      }
+
+      throw error;
+    }
+  }
+
   private logGitCommand(repositoryRoot: string, args: readonly string[]): void {
     this.logger?.info("git.command", {
       command: `git -C ${repositoryRoot} ${args.join(" ")}`
@@ -1004,6 +1082,13 @@ function createRemoteBranchItem(remote: string, input: string, remotes: readonly
   };
 }
 
+const forceWithLeaseStaleInfoMessage = "Force push was rejected because the remote branch changed or your local remote-tracking information is stale. Fetch first, review the remote changes, then retry force push if you still want to overwrite the remote branch.";
+
+function isForceWithLeaseStaleInfoError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return message.includes("stale info") || message.includes("fetch first");
+}
+
 function cloneDestinationName(url: string): string | undefined {
   const normalizedUrl = url.replace(/[?#].*$/, "").replace(/[\\/]+$/, "");
   const separatorIndex = Math.max(
@@ -1018,6 +1103,36 @@ function cloneDestinationName(url: string): string | undefined {
   return directoryName && directoryName !== "." && directoryName !== ".."
     ? directoryName
     : undefined;
+}
+
+function cloneProgressViewModel(event: SimpleGitProgressEvent): GitOperationProgressViewModel {
+  return {
+    message: cloneProgressMessage({
+      progress: event.progress,
+      stage: event.stage
+    }),
+    operation: "git.clone",
+    processed: event.processed,
+    progress: event.progress,
+    stage: event.stage,
+    total: event.total
+  };
+}
+
+function cloneProgressMessage(progress: Pick<GitOperationProgressViewModel, "progress" | "stage">): string {
+  const stage = progress.stage ? titleCaseProgressStage(progress.stage) : "Cloning";
+
+  return typeof progress.progress === "number"
+    ? `${stage} ${progress.progress}%`
+    : stage;
+}
+
+function titleCaseProgressStage(stage: string): string {
+  return stage
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => `${part[0]!.toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }
 
 function remoteFromPushArgs(args: readonly string[]): string {

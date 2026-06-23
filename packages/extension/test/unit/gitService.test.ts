@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { window } from "vscode";
+import { ProgressLocation, window } from "vscode";
 import { GitService } from "../../src/backend/git/GitService";
 import type { OperationResultViewModel } from "../../src/backend/rpc/contract";
 
@@ -15,13 +15,17 @@ vi.mock("vscode", () => ({
   Uri: {
     file: (fsPath: string) => ({ fsPath })
   },
+  ProgressLocation: {
+    Notification: 15
+  },
   window: {
     createQuickPick: vi.fn(),
     showInformationMessage: vi.fn(),
     showInputBox: vi.fn(),
     showOpenDialog: vi.fn(),
     showWarningMessage: vi.fn(),
-    showQuickPick: vi.fn()
+    showQuickPick: vi.fn(),
+    withProgress: vi.fn((_options, task) => task({ report: vi.fn() }))
   }
 }));
 
@@ -190,16 +194,51 @@ describe("GitService", () => {
 
   it("prompts for clone url and target directory", async () => {
     const cloneCalls: unknown[] = [];
+    const operationProgress: unknown[] = [];
+    const progressReports: unknown[] = [];
+    const withProgress = vi.fn(async (_options, task) => task({ report: (value: unknown) => progressReports.push(value) }));
     const service = createService({
-      gitClone: async (targetDirectory, url, destinationDirectoryName) => {
+      gitClone: async (targetDirectory, url, destinationDirectoryName, onProgress) => {
         cloneCalls.push([targetDirectory, url, destinationDirectoryName]);
+        onProgress?.({
+          message: "Receiving 42%",
+          operation: "git.clone",
+          processed: 42,
+          progress: 42,
+          stage: "receiving",
+          total: 100
+        });
       },
+      postOperationProgress: (progress) => operationProgress.push(progress),
       showInputBox: vi.fn().mockResolvedValue("https://example.com/repo.git"),
-      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }])
+      showOpenDialog: vi.fn().mockResolvedValue([{ fsPath: "/target" }]),
+      withProgress
     });
 
     await expect(service.clone()).resolves.toEqual({ message: "Clone completed", status: "ok" });
     expect(cloneCalls).toEqual([["/target", "https://example.com/repo.git", "repo"]]);
+    expect(withProgress).toHaveBeenCalledWith(
+      {
+        cancellable: false,
+        location: ProgressLocation.Notification,
+        title: "Cloning repo"
+      },
+      expect.any(Function)
+    );
+    expect(progressReports).toEqual([
+      { message: "Preparing clone into /target" },
+      { message: "Receiving 42%" }
+    ]);
+    expect(operationProgress).toEqual([
+      {
+        message: "Receiving 42%",
+        operation: "git.clone",
+        processed: 42,
+        progress: 42,
+        stage: "receiving",
+        total: 100
+      }
+    ]);
   });
 
   it("derives the clone target directory from scp-like repository urls", async () => {
@@ -633,6 +672,35 @@ describe("GitService", () => {
       ],
       { placeHolder: "Force push to origin/feature with lease?" }
     );
+  });
+
+  it("guides advanced force push users to fetch before retrying stale lease failures", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "origin/feature", value: "origin/feature" })
+      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" })
+      .mockResolvedValueOnce({ label: "Force Push", value: "confirm" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/feature\n";
+        }
+
+        if (args.join(" ") === "push --force-with-lease origin HEAD:feature") {
+          throw new Error("! [rejected] HEAD -> feature (stale info)\nerror: failed to push some refs");
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.advancedPush("/repo")).rejects.toThrow(
+      "Fetch first, review the remote changes, then retry force push"
+    );
+    expect(calls).toEqual(["branch -r", "push --force-with-lease origin HEAD:feature"]);
   });
 
   it("moves the last advanced pull selections to the top", async () => {
@@ -1207,6 +1275,39 @@ describe("GitService", () => {
     expect(calls).toEqual(["branch -r", "push --force-with-lease origin abc123:refs/heads/review/topic"]);
   });
 
+  it("guides push-all force push users to fetch before retrying stale lease failures", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "origin/review/topic",
+      value: "origin/review/topic"
+    });
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" })
+      .mockResolvedValueOnce({ label: "Force Push", value: "confirm" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "push --force-with-lease origin abc123:refs/heads/review/topic") {
+          throw new Error("! [rejected] abc123 -> review/topic (stale info)");
+        }
+
+        return "";
+      },
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).rejects.toThrow(
+      "Fetch first, review the remote changes, then retry force push"
+    );
+    expect(calls).toEqual(["branch -r", "push --force-with-lease origin abc123:refs/heads/review/topic"]);
+  });
+
   it("cancels push all commits when push mode is dismissed", async () => {
     const calls: string[] = [];
     const showQuickPickWithInput = vi.fn().mockResolvedValue({
@@ -1514,11 +1615,31 @@ describe("GitService", () => {
 });
 
 function createService(input: {
-  gitClone?: (targetDirectory: string, url: string, destinationDirectoryName: string) => Promise<void>;
+  gitClone?: (
+    targetDirectory: string,
+    url: string,
+    destinationDirectoryName: string,
+    onProgress?: (progress: {
+      message: string;
+      operation: "git.clone";
+      processed?: number;
+      progress?: number;
+      stage?: string;
+      total?: number;
+    }) => void
+  ) => Promise<void>;
   gitRaw?: (repositoryRoot: string, args: readonly string[]) => Promise<string>;
   clipboardWrite?: (text: string) => Thenable<void> | Promise<void>;
   executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<unknown> | Promise<unknown>;
   openExternal?: (url: string) => Thenable<void> | Promise<void>;
+  postOperationProgress?: (progress: {
+    message: string;
+    operation: "git.clone";
+    processed?: number;
+    progress?: number;
+    stage?: string;
+    total?: number;
+  }) => void;
   safetyService?: {
     abortOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
     continueOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
@@ -1550,6 +1671,10 @@ function createService(input: {
     options: { createRemote: string; placeHolder: string }
   ) => Thenable<{ label: string; value: string } | undefined> | Promise<{ label: string; value: string } | undefined>;
   showWarningMessage?: (message: string, ...items: readonly string[]) => Thenable<string | undefined> | Promise<string | undefined>;
+  withProgress?: <T>(
+    options: { cancellable: boolean; location: ProgressLocation; title: string },
+    task: (progress: { report(value: { message?: string; increment?: number }): void }) => Thenable<T> | Promise<T>
+  ) => Thenable<T> | Promise<T>;
   logger?: {
     debug(message: string, context?: unknown): void;
     info(message: string, context?: unknown): void;
@@ -1562,6 +1687,7 @@ function createService(input: {
     clipboardWrite: input.clipboardWrite,
     executeCommand: input.executeCommand,
     openExternal: input.openExternal,
+    postOperationProgress: input.postOperationProgress,
     safetyService:
       input.safetyService ??
       ({
@@ -1586,6 +1712,7 @@ function createService(input: {
         : undefined
     ),
     showWarningMessage: input.showWarningMessage,
+    withProgress: input.withProgress,
     workspaceFolders: input.workspaceFolders
   });
 }

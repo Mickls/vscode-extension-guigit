@@ -330,6 +330,7 @@
     "status": {
       "completed": "{0}已完成",
       "cancelled": "{0}已取消",
+      "cloneRunning": "Clone 正在启动，Git 进度会显示在这里。",
       "running": "{0} 正在执行..."
     },
     "rightPanel": {

@@ -36,6 +36,12 @@ describe("GitHistoryViewProvider notifications", () => {
       type: "workingTree"
     });
     provider.revealCommit("abc1234");
+    provider.reportOperationProgress({
+      message: "Receiving 42%",
+      operation: "git.clone",
+      progress: 42,
+      stage: "receiving"
+    });
 
     expect(webviewView.webview.options).toEqual({
       enableScripts: true,
@@ -53,6 +59,15 @@ describe("GitHistoryViewProvider notifications", () => {
     expect(postMessage).toHaveBeenCalledWith({
       hash: "abc1234",
       type: "history.revealCommit"
+    });
+    expect(postMessage).toHaveBeenCalledWith({
+      progress: {
+        message: "Receiving 42%",
+        operation: "git.clone",
+        progress: 42,
+        stage: "receiving"
+      },
+      type: "operation.progress"
     });
   });
 

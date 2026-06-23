@@ -250,6 +250,15 @@ export interface OperationResultViewModel {
   message: string;
 }
 
+export interface GitOperationProgressViewModel {
+  operation: "git.clone";
+  message: string;
+  progress?: number;
+  stage?: string;
+  processed?: number;
+  total?: number;
+}
+
 export type RpcRequest =
   | (RpcEnvelope & {
       type: "history.load";
@@ -445,6 +454,10 @@ export type BackendNotification =
   | {
       type: "operation.completed";
       result: OperationResultViewModel;
+    }
+  | {
+      type: "operation.progress";
+      progress: GitOperationProgressViewModel;
     }
   | {
       type: "workingTree.changed";

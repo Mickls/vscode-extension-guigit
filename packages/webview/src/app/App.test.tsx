@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import type {
+  BackendNotification,
   BranchesViewModel,
   CommitListItemViewModel,
   GraphNodeViewModel,
@@ -332,6 +333,24 @@ describe("App", () => {
     expect(latestRequest(rpcClient, "git.clone")).toEqual(expect.objectContaining({
       type: "git.clone"
     }));
+    expect(screen.getByRole("status")).toHaveTextContent("Clone is starting. Git progress will appear here.");
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            progress: {
+              message: "Receiving 42%",
+              operation: "git.clone",
+              progress: 42,
+              stage: "receiving"
+            },
+            type: "operation.progress"
+          } satisfies BackendNotification
+        })
+      );
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Receiving 42%");
   });
 
   it("asks to initialize a repository when the workspace has no git repositories", async () => {

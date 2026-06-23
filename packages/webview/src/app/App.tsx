@@ -414,6 +414,13 @@ export function App({ rpcClient }: AppProps): ReactElement {
           });
         }
 
+        if (response.type === "operation.progress") {
+          notify({
+            message: response.progress.message,
+            state: "running"
+          });
+        }
+
         return;
       }
 
@@ -1185,7 +1192,12 @@ export function App({ rpcClient }: AppProps): ReactElement {
 
     const label = promptGitOperationLabels[type];
     setActiveGitOperation(type);
-    notify({ message: tx("status.running", "{0} is running...", label), state: "running" });
+    notify({
+      message: type === "git.clone"
+        ? tx("status.cloneRunning", "Clone is starting. Git progress will appear here.")
+        : tx("status.running", "{0} is running...", label),
+      state: "running"
+    });
     if (type === "git.checkout") {
       client?.post({
         id: crypto.randomUUID(),

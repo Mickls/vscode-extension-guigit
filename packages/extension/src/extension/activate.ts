@@ -161,6 +161,7 @@ export function activate(context: ExtensionContext): void {
   const safetyService = new SafetyService({ logger });
   const gitService = new GitService({
     logger,
+    postOperationProgress: (progress) => viewProvider?.reportOperationProgress(progress),
     proxyService,
     safetyService,
     settingsService,

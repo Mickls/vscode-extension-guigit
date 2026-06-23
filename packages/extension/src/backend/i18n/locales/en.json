@@ -330,6 +330,7 @@
     "status": {
       "completed": "{0} completed",
       "cancelled": "{0} cancelled",
+      "cloneRunning": "Clone is starting. Git progress will appear here.",
       "running": "{0} is running..."
     },
     "rightPanel": {
