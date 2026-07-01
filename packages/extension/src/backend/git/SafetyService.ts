@@ -201,7 +201,10 @@ export class SafetyService {
 
       return result;
     } catch (error) {
-      if (conflict && (await this.getConflictState(repositoryRoot, conflict.operationKind)) !== "none") {
+      const conflictState = conflict
+        ? await this.getConflictStateAfterFailure(repositoryRoot, conflict.operationKind, error)
+        : "none";
+      if (conflict && conflictState !== "none") {
         this.logger?.debug("safety.conflict.detected", {
           operationName: conflict.operationName,
           repositoryRoot
@@ -210,6 +213,23 @@ export class SafetyService {
       }
 
       throw error;
+    }
+  }
+
+  private async getConflictStateAfterFailure(
+    repositoryRoot: string,
+    operationKind: ConflictResolutionInput["operationKind"],
+    operationError: unknown
+  ): Promise<"inProgress" | "none" | "unresolved"> {
+    try {
+      return await this.getConflictState(repositoryRoot, operationKind);
+    } catch (conflictStateError) {
+      this.logger?.debug("safety.conflict.stateCheckFailed", {
+        conflictStateError: conflictStateError instanceof Error ? conflictStateError.message : String(conflictStateError),
+        operationError: operationError instanceof Error ? operationError.message : String(operationError),
+        repositoryRoot
+      });
+      return "none";
     }
   }
 

@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { simpleGit } from "simple-git";
 import type { SimpleGitProgressEvent } from "simple-git";
 import { commands, env, ProgressLocation, Uri, window } from "vscode";
@@ -35,6 +35,10 @@ interface SquashPlan {
   unselectedInCommitOrder: readonly string[];
 }
 
+interface RunGitRawOptions {
+  preflight?: boolean;
+}
+
 export interface GitServiceInput {
   clipboardWrite?: (text: string) => Thenable<void>;
   executeCommand?: (command: string, ...args: readonly unknown[]) => Thenable<unknown>;
@@ -49,6 +53,7 @@ export interface GitServiceInput {
   openExternal?: (url: string) => Thenable<void>;
   postOperationProgress?: (progress: GitOperationProgressViewModel) => void;
   proxyService?: Pick<ProxyService, "runRaw">;
+  readTextFile?: (filePath: string) => Promise<string>;
   safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   settingsService: Pick<SettingsService, "getSettings">;
   stateService?: Pick<WorkspaceStateService, "getAdvancedGitSelection" | "setAdvancedGitSelection">;
@@ -78,6 +83,7 @@ export class GitService {
   private readonly logger: Pick<Logger, "debug" | "info"> | undefined;
   private readonly openExternal: (url: string) => Thenable<void>;
   private readonly postOperationProgress: (progress: GitOperationProgressViewModel) => void;
+  private readonly readTextFile: (filePath: string) => Promise<string>;
   private readonly safetyService: Pick<SafetyService, "abortOperation" | "continueOperation" | "getOperationState" | "runWithAutoStash">;
   private readonly settingsService: Pick<SettingsService, "getSettings">;
   private readonly stateService: Pick<WorkspaceStateService, "getAdvancedGitSelection" | "setAdvancedGitSelection">;
@@ -113,6 +119,7 @@ export class GitService {
       await env.openExternal(Uri.parse(url));
     });
     this.postOperationProgress = input.postOperationProgress ?? (() => undefined);
+    this.readTextFile = input.readTextFile ?? ((filePath) => readFile(filePath, "utf8"));
     this.safetyService = input.safetyService;
     this.settingsService = input.settingsService;
     this.stateService = input.stateService ?? new WorkspaceStateService();
@@ -637,11 +644,12 @@ export class GitService {
     args: readonly string[],
     message: string
   ): Promise<OperationResultViewModel> {
+    await this.ensureGitLfsAvailable(repositoryRoot);
     const preference = this.settingsService.getSettings().autoStashOnPull;
     const conflict = getPullConflictResolution(args);
     return this.safetyService.runWithAutoStash(repositoryRoot, preference, async () => {
       this.logger?.debug("git.pull", { args, repositoryRoot });
-      await this.runGitRaw(repositoryRoot, args);
+      await this.runGitRaw(repositoryRoot, args, { preflight: false });
 
       return {
         message,
@@ -922,9 +930,106 @@ export class GitService {
     }
   }
 
-  private async runGitRaw(repositoryRoot: string, args: readonly string[]): Promise<string> {
+  private async runGitRaw(repositoryRoot: string, args: readonly string[], options: RunGitRawOptions = {}): Promise<string> {
+    if (options.preflight !== false && requiresGitLfsPreflight(args)) {
+      await this.ensureGitLfsAvailable(repositoryRoot);
+    }
+
     this.logGitCommand(repositoryRoot, args);
-    return this.gitRaw(repositoryRoot, args);
+    try {
+      return await this.gitRaw(repositoryRoot, args);
+    } catch (error) {
+      if (requiresGitLfsPreflight(args) && isGitLfsMissingError(error)) {
+        throw new Error(gitLfsMissingMessage);
+      }
+
+      throw error;
+    }
+  }
+
+  private async ensureGitLfsAvailable(repositoryRoot: string): Promise<void> {
+    if (!(await this.repositoryUsesGitLfs(repositoryRoot))) {
+      return;
+    }
+
+    try {
+      await this.gitRaw(repositoryRoot, ["lfs", "version"]);
+    } catch {
+      throw new Error(gitLfsMissingMessage);
+    }
+  }
+
+  private async repositoryUsesGitLfs(repositoryRoot: string): Promise<boolean> {
+    const hasLfsAttributes = await this.hasGitLfsAttributes(repositoryRoot);
+    return hasLfsAttributes === true ||
+      (hasLfsAttributes === undefined && await this.hasGitLfsFilterConfig(repositoryRoot)) ||
+      await this.hasGitLfsPrePushHook(repositoryRoot);
+  }
+
+  private async hasGitLfsAttributes(repositoryRoot: string): Promise<boolean | undefined> {
+    const attributes = await this.tryReadTextFile(join(repositoryRoot, ".gitattributes"));
+    if (attributes !== undefined) {
+      return gitLfsAttributePattern.test(attributes);
+    }
+
+    try {
+      const infoAttributesPath = (await this.gitRaw(repositoryRoot, ["rev-parse", "--git-path", "info/attributes"])).trim();
+      const infoAttributes = await this.readTextFile(isAbsolute(infoAttributesPath) ? infoAttributesPath : join(repositoryRoot, infoAttributesPath));
+      return gitLfsAttributePattern.test(infoAttributes);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async hasGitLfsFilterConfig(repositoryRoot: string): Promise<boolean> {
+    try {
+      const filterConfig = await this.gitRaw(repositoryRoot, ["config", "--get-regexp", "^filter\\.lfs\\."]);
+      return gitLfsFilterConfigPattern.test(filterConfig);
+    } catch {
+      return false;
+    }
+  }
+
+  private async hasGitLfsPrePushHook(repositoryRoot: string): Promise<boolean> {
+    const defaultHookContent = await this.tryReadTextFile(join(repositoryRoot, ".git", "hooks", "pre-push"));
+    if (defaultHookContent !== undefined) {
+      return gitLfsHookPattern.test(defaultHookContent);
+    }
+
+    try {
+      const hookPath = await this.prePushHookPath(repositoryRoot);
+      const hookContent = await this.readTextFile(hookPath);
+      return gitLfsHookPattern.test(hookContent);
+    } catch {
+      return false;
+    }
+  }
+
+  private async tryReadTextFile(filePath: string): Promise<string | undefined> {
+    try {
+      return await this.readTextFile(filePath);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async prePushHookPath(repositoryRoot: string): Promise<string> {
+    const hooksPath = await this.getConfiguredHooksPath(repositoryRoot);
+    if (hooksPath) {
+      return join(isAbsolute(hooksPath) ? hooksPath : join(repositoryRoot, hooksPath), "pre-push");
+    }
+
+    const hookPath = (await this.gitRaw(repositoryRoot, ["rev-parse", "--git-path", "hooks/pre-push"])).trim();
+    return isAbsolute(hookPath) ? hookPath : join(repositoryRoot, hookPath);
+  }
+
+  private async getConfiguredHooksPath(repositoryRoot: string): Promise<string | undefined> {
+    try {
+      const hooksPath = (await this.gitRaw(repositoryRoot, ["config", "--path", "--get", "core.hookspath"])).trim();
+      return hooksPath || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private async runForceWithLeasePush(repositoryRoot: string, args: readonly string[]): Promise<void> {
@@ -1111,10 +1216,27 @@ function createBranchItemForInput(input: string, options: QuickPickWithInputOpti
 }
 
 const forceWithLeaseStaleInfoMessage = "Force push was rejected because the remote branch changed or your local remote-tracking information is stale. Fetch first, review the remote changes, then retry force push if you still want to overwrite the remote branch.";
+const gitLfsMissingMessage = "This repository uses Git LFS, but git-lfs is not available to Git. Install Git LFS or make git-lfs available on VS Code's PATH, then retry. If this repository should no longer use Git LFS, remove the repository's Git LFS attributes/hook configuration instead of bypassing hooks.";
+const gitLfsAttributePattern = /filter=lfs/i;
+const gitLfsFilterConfigPattern = /filter\.lfs\./i;
+const gitLfsHookPattern = /git[- ]lfs/i;
+
+function requiresGitLfsPreflight(args: readonly string[]): boolean {
+  return args[0] === "pull" || args[0] === "push";
+}
 
 function isForceWithLeaseStaleInfoError(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
   return message.includes("stale info") || message.includes("fetch first");
+}
+
+function isGitLfsMissingError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return message.includes("git-lfs") && (
+    message.includes("not found") ||
+    message.includes("command not found") ||
+    message.includes("is not a git command")
+  );
 }
 
 function cloneDestinationName(url: string): string | undefined {

@@ -202,6 +202,44 @@ describe("SafetyService", () => {
     ]);
   });
 
+  it("preserves the operation failure when conflict state inspection also fails", async () => {
+    const calls: string[] = [];
+    let afterOperation = false;
+    const gitRaw = vi.fn(async (_repositoryRoot: string, args: readonly string[]) => {
+      calls.push(args.join(" "));
+      if (args.join(" ") === "status --porcelain") {
+        if (afterOperation) {
+          throw new Error("git-lfs filter-process: git-lfs: command not found");
+        }
+
+        return "";
+      }
+
+      return "";
+    });
+    const operation = vi.fn(async () => {
+      calls.push("operation");
+      afterOperation = true;
+      throw new Error("This repository uses Git LFS, but git-lfs is not available to Git.");
+    });
+    const service = new SafetyService({ gitRaw });
+
+    await expect(
+      service.runWithAutoStash("/repo", "ask", operation, {
+        abortArgs: ["rebase", "--abort"],
+        continueArgs: ["rebase", "--continue"],
+        operationKind: "rebase",
+        operationName: "Rebase"
+      })
+    ).rejects.toThrow("This repository uses Git LFS");
+
+    expect(calls).toEqual([
+      "status --porcelain",
+      "operation",
+      "status --porcelain"
+    ]);
+  });
+
   it("keeps the conflict session active when continue is clicked before conflicts are resolved", async () => {
     const calls: string[] = [];
     let statusCalls = 0;

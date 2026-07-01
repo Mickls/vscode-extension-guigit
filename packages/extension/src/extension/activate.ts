@@ -158,7 +158,10 @@ export function activate(context: ExtensionContext): void {
     t: (key, ...args) => languageService.t(key, ...args)
   });
   const diffService = new DiffService({ logger });
-  const safetyService = new SafetyService({ logger });
+  const safetyService = new SafetyService({
+    gitRaw: (repositoryRoot, args) => proxyService.runRaw(repositoryRoot, args),
+    logger
+  });
   const gitService = new GitService({
     logger,
     postOperationProgress: (progress) => viewProvider?.reportOperationProgress(progress),

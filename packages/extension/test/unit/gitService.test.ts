@@ -113,6 +113,123 @@ describe("GitService", () => {
     );
   });
 
+  it("checks git lfs before pulling repositories with lfs attributes", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          return "origin/feature\n";
+        }
+
+        if (args.join(" ") === "lfs version") {
+          throw new Error("git: 'lfs' is not a git command");
+        }
+
+        return "";
+      },
+      readTextFile: async (filePath) => filePath.endsWith(".gitattributes")
+        ? "*.psd filter=lfs diff=lfs merge=lfs -text\n"
+        : "",
+      safetyService: {
+        runWithAutoStash: async (repositoryRoot, preference, operation) => {
+          calls.push(`safety ${repositoryRoot} ${preference}`);
+          return operation();
+        }
+      }
+    });
+
+    await expect(service.pull("/repo")).rejects.toThrow("Install Git LFS or make git-lfs available on VS Code's PATH");
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "lfs version"
+    ]);
+  });
+
+  it("checks git lfs before pull rebase when lfs filters are configured", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Rebase", value: "rebase" })
+      .mockResolvedValueOnce({ label: "origin/main", value: "origin/main" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "rev-parse --git-path info/attributes") {
+          return ".git/info/attributes\n";
+        }
+
+        if (args.join(" ") === "config --get-regexp ^filter\\.lfs\\.") {
+          return "filter.lfs.process git-lfs filter-process\nfilter.lfs.required true\n";
+        }
+
+        if (args.join(" ") === "lfs version") {
+          throw new Error("git: 'lfs' is not a git command");
+        }
+
+        return "";
+      },
+      readTextFile: async () => {
+        throw new Error("missing file");
+      },
+      safetyService: {
+        runWithAutoStash: async (repositoryRoot, preference, operation) => {
+          calls.push(`safety ${repositoryRoot} ${preference}`);
+          return operation();
+        }
+      },
+      showQuickPick
+    });
+
+    await expect(service.advancedPull("/repo")).rejects.toThrow("Install Git LFS or make git-lfs available on VS Code's PATH");
+    expect(calls).toEqual([
+      "branch -r",
+      "rev-parse --git-path info/attributes",
+      "config --get-regexp ^filter\\.lfs\\.",
+      "lfs version"
+    ]);
+  });
+
+  it("rewrites git lfs filter-process failures from pull rebase", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Rebase", value: "rebase" })
+      .mockResolvedValueOnce({ label: "origin/main", value: "origin/main" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "pull --rebase origin main") {
+          throw new Error("git-lfs filter-process: git-lfs: command not found\nfatal: the remote end hung up unexpectedly");
+        }
+
+        return "";
+      },
+      safetyService: {
+        runWithAutoStash: async (repositoryRoot, preference, operation) => {
+          calls.push(`safety ${repositoryRoot} ${preference}`);
+          return operation();
+        }
+      },
+      showQuickPick
+    });
+
+    await expect(service.advancedPull("/repo")).rejects.toThrow("Install Git LFS or make git-lfs available on VS Code's PATH");
+    expect(calls).toEqual([
+      "branch -r",
+      "safety /repo ask",
+      "pull --rebase origin main"
+    ]);
+  });
+
   it("runs push, prompts pull request creation for non-main branches, and fetches", async () => {
     const calls: string[] = [];
     const openedUrls: string[] = [];
@@ -370,6 +487,54 @@ describe("GitService", () => {
       ],
       { placeHolder: "Pushed feature/demo. Create a pull request?" }
     );
+  });
+
+  it("explains git lfs pre-push hook failures during push", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          return "origin/feature/demo\n";
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature/demo\n";
+        }
+
+        if (args.join(" ") === "lfs version") {
+          throw new Error("git: 'lfs' is not a git command");
+        }
+
+        return "";
+      },
+      readTextFile: async () => "#!/bin/sh\ngit-lfs pre-push \"$@\"\n"
+    });
+
+    await expect(service.push("/repo")).rejects.toThrow("Install Git LFS or make git-lfs available on VS Code's PATH");
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
+      "lfs version"
+    ]);
+  });
+
+  it("keeps unrelated push failures unchanged", async () => {
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          return "origin/feature/demo\n";
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature/demo\n";
+        }
+
+        throw new Error("remote rejected the update");
+      }
+    });
+
+    await expect(service.push("/repo")).rejects.toThrow("remote rejected the update");
   });
 
   it("publishes the current branch to a same-name remote branch when selected", async () => {
@@ -1271,6 +1436,40 @@ describe("GitService", () => {
     expect(calls).toEqual(["branch -r", "push upstream abc123:refs/heads/review/topic"]);
   });
 
+  it("explains git lfs pre-push hook failures before pushing commits to a target", async () => {
+    const calls: string[] = [];
+    const showQuickPickWithInput = vi.fn().mockResolvedValue({
+      label: "origin/review/topic",
+      value: "origin/review/topic"
+    });
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Normal", value: "normal" })
+      .mockResolvedValueOnce({ label: "Push Commits", value: "confirm" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "lfs version") {
+          throw new Error("git: 'lfs' is not a git command");
+        }
+
+        return "";
+      },
+      readTextFile: async () => "#!/bin/sh\ngit lfs pre-push \"$@\"\n",
+      showQuickPick,
+      showQuickPickWithInput
+    });
+
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).rejects.toThrow(
+      "Install Git LFS or make git-lfs available on VS Code's PATH"
+    );
+    expect(calls).toEqual(["branch -r", "lfs version"]);
+  });
+
   it("force pushes all commits to a selected target with lease", async () => {
     const calls: string[] = [];
     const showQuickPickWithInput = vi.fn().mockResolvedValue({
@@ -1674,6 +1873,7 @@ function createService(input: {
     stage?: string;
     total?: number;
   }) => void;
+  readTextFile?: (filePath: string) => Promise<string>;
   safetyService?: {
     abortOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
     continueOperation(repositoryRoot: string): Promise<OperationResultViewModel>;
@@ -1722,6 +1922,7 @@ function createService(input: {
     executeCommand: input.executeCommand,
     openExternal: input.openExternal,
     postOperationProgress: input.postOperationProgress,
+    readTextFile: input.readTextFile ?? (async () => ""),
     safetyService:
       input.safetyService ??
       ({

@@ -197,6 +197,7 @@ describe("ProxyService", () => {
       HTTP_PROXY: "http://127.0.0.1:7890",
       HTTPS_PROXY: "http://127.0.0.1:7891",
       NO_PROXY: "localhost",
+      PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
       http_proxy: "http://127.0.0.1:7890",
       https_proxy: "http://127.0.0.1:7891",
       no_proxy: "localhost"
@@ -208,6 +209,33 @@ describe("ProxyService", () => {
       "https.proxy=http://127.0.0.1:7891"
     ]);
     expect(raw).toHaveBeenCalledWith(["fetch", "origin"]);
+  });
+
+  it("preserves existing PATH while adding common git tool directories", async () => {
+    const raw = vi.fn().mockResolvedValue("ok");
+    const service = createService({
+      env: {
+        PATH: "/custom/bin:/usr/bin"
+      },
+      simpleGitFactory: vi.fn().mockReturnValue({ raw })
+    });
+
+    await expect(service.runRaw("/repo", ["status"])).resolves.toBe("ok");
+
+    expect(service.getEnvironment().PATH).toBe("/custom/bin:/usr/bin:/opt/homebrew/bin:/usr/local/bin:/bin");
+  });
+
+  it("rewrites git lfs command-not-found failures from raw git commands", async () => {
+    const raw = vi.fn().mockRejectedValue(
+      new Error("git-lfs filter-process: git-lfs: command not found\nfatal: the remote end hung up unexpectedly")
+    );
+    const service = createService({
+      simpleGitFactory: vi.fn().mockReturnValue({ raw })
+    });
+
+    await expect(service.runRaw("/repo", ["status", "--porcelain"])).rejects.toThrow(
+      "Install Git LFS or make git-lfs available on VS Code's PATH"
+    );
   });
 
   it("configures and refreshes custom proxy settings", async () => {

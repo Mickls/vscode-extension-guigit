@@ -1,6 +1,7 @@
 import { exec as childExec } from "child_process";
 import { Socket } from "net";
 import { platform as osPlatform } from "os";
+import { delimiter } from "path";
 import { promisify } from "util";
 import { simpleGit } from "simple-git";
 import type { OperationResultViewModel } from "../rpc/contract";
@@ -35,10 +36,21 @@ export interface ProxyServiceInput {
 
 const execAsync = promisify(childExec);
 const baseGitConfig = ["core.quotepath=false", "log.showSignature=false"];
+const gitLfsMissingMessage = "This repository uses Git LFS, but git-lfs is not available to Git. Install Git LFS or make git-lfs available on VS Code's PATH, then retry. If this repository should no longer use Git LFS, remove the repository's Git LFS attributes/hook configuration instead of bypassing hooks.";
+const gitToolPathCandidates = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
 const noProxyConfig: ProxyConfig = {
   enabled: false,
   source: "none"
 };
+
+function isGitLfsMissingError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return message.includes("git-lfs") && (
+    message.includes("not found") ||
+    message.includes("command not found") ||
+    message.includes("is not a git command")
+  );
+}
 
 export class ProxyService {
   private readonly env: Record<string, string | undefined>;
@@ -121,8 +133,34 @@ export class ProxyService {
 
   public async runRaw(repositoryRoot: string, args: readonly string[]): Promise<string> {
     const config = await this.getProxyConfig();
+    this.applyGitToolPathsToEnvironment();
     this.applyProxyToEnvironment(config);
-    return this.simpleGitFactory(repositoryRoot, { config: this.getGitConfig(config) }).raw(args);
+    try {
+      return await this.simpleGitFactory(repositoryRoot, { config: this.getGitConfig(config) }).raw(args);
+    } catch (error) {
+      if (isGitLfsMissingError(error)) {
+        throw new Error(gitLfsMissingMessage);
+      }
+
+      throw error;
+    }
+  }
+
+  private applyGitToolPathsToEnvironment(): void {
+    const pathKey = this.getPathEnvironmentKey();
+    const currentPath = this.env[pathKey] ?? "";
+    const pathEntries = currentPath.split(delimiter).filter((entry) => entry.length > 0);
+    const pathEntrySet = new Set(pathEntries);
+    const missingEntries = gitToolPathCandidates.filter((entry) => !pathEntrySet.has(entry));
+    if (missingEntries.length === 0) {
+      return;
+    }
+
+    this.env[pathKey] = [...pathEntries, ...missingEntries].join(delimiter);
+  }
+
+  private getPathEnvironmentKey(): string {
+    return Object.keys(this.env).find((key) => key.toLowerCase() === "path") ?? "PATH";
   }
 
   public async configureProxy(): Promise<OperationResultViewModel> {
