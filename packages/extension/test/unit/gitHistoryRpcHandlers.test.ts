@@ -501,6 +501,7 @@ describe("Git history RPC handlers", () => {
   });
 
   it("loads repositories, branches, and commit history", async () => {
+    let loadedBranches: readonly string[] | undefined;
     const handlers = createGitHistoryRpcHandlers({
       branchService: {
         listBranches: async () => branches
@@ -510,10 +511,13 @@ describe("Git history RPC handlers", () => {
           email: "ada@example.com",
           name: "Ada"
         }),
-        loadHistory: async () => ({
-          commits: [commit],
-          hasMore: false
-        })
+        loadHistory: async (input) => {
+          loadedBranches = input.branches;
+          return {
+            commits: [commit],
+            hasMore: false
+          };
+        }
       },
       fileService: {
         getCommitDetails: async () => details,
@@ -547,7 +551,12 @@ describe("Git history RPC handlers", () => {
       workingTreeService: createWorkingTreeService()
     });
 
-    await expect(handlers["history.load"]!({ id: "1", pageSize: 50, type: "history.load" })).resolves.toEqual({
+    await expect(handlers["history.load"]!({
+      branches: ["yc_test"],
+      id: "1",
+      pageSize: 50,
+      type: "history.load"
+    })).resolves.toEqual({
       branches,
       commits: [commit],
       currentUser: {
@@ -557,6 +566,15 @@ describe("Git history RPC handlers", () => {
       hasMore: false,
       repositories: [{ id: "/repo", name: "repo", rootPath: "/repo" }]
     });
+    expect(loadedBranches).toBeUndefined();
+
+    await handlers["history.load"]!({
+      branches: ["main", "yc_test"],
+      id: "2",
+      pageSize: 50,
+      type: "history.load"
+    });
+    expect(loadedBranches).toEqual(["main"]);
   });
 
   it("routes repository initialization without requiring an existing repository", async () => {

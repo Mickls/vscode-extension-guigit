@@ -1592,6 +1592,50 @@ describe("App", () => {
     }));
   });
 
+  it("clears a selected branch after it is deleted before a fetch reload", async () => {
+    const user = userEvent.setup();
+    const rpcClient = createTestRpcClient();
+    const branchesWithDeletedLocal = {
+      locals: [
+        { current: true, name: "main" },
+        { current: false, name: "yc_test" }
+      ],
+      remotes: []
+    } satisfies BranchesViewModel;
+    const branchesAfterDeletion = {
+      locals: [{ current: true, name: "main" }],
+      remotes: []
+    } satisfies BranchesViewModel;
+
+    render(<App rpcClient={rpcClient} />);
+    dispatchHistoryResponse(rpcClient, { branches: branchesWithDeletedLocal });
+    await waitForCommitRows();
+
+    await user.click(screen.getByRole("button", { name: "Branches" }));
+    await user.click(screen.getByRole("checkbox", { name: "yc_test" }));
+    const filteredHistoryRequest = latestRequest(rpcClient, "history.load");
+    expect(filteredHistoryRequest).toEqual(expect.objectContaining({
+      branches: ["yc_test"],
+      type: "history.load"
+    }));
+
+    dispatchHistoryResponse(rpcClient, {
+      branches: branchesAfterDeletion,
+      requestId: filteredHistoryRequest.id
+    });
+    expect(screen.getByRole("button", { name: "Branches" })).toHaveTextContent("All branches");
+
+    rpcClient.post.mockClear();
+    await user.click(screen.getByRole("button", { name: "Fetch" }));
+    const fetchRequest = latestRequest(rpcClient, "git.fetch");
+    dispatchOperationResponse(fetchRequest.id, "git.fetch");
+
+    expect(latestRequest(rpcClient, "history.load")).toEqual(expect.objectContaining({
+      branches: undefined,
+      type: "history.load"
+    }));
+  });
+
   it("quickly filters history to the current git user", async () => {
     const user = userEvent.setup();
     const rpcClient = createTestRpcClient();

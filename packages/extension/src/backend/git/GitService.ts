@@ -198,12 +198,7 @@ export class GitService {
     }
 
     await this.runGitRaw(repositoryRoot, args);
-    void this.promptPullRequestForCurrentBranch(repositoryRoot, args).catch((error: unknown) => {
-      this.logger?.debug("git.pullRequestPrompt.failed", {
-        error: error instanceof Error ? error.message : String(error),
-        repositoryRoot
-      });
-    });
+    this.startPullRequestPrompt(repositoryRoot, args);
 
     return {
       message: "Push completed",
@@ -250,12 +245,7 @@ export class GitService {
     } else {
       await this.runGitRaw(repositoryRoot, args);
     }
-    void this.promptPullRequestForCurrentBranch(repositoryRoot, args).catch((error: unknown) => {
-      this.logger?.debug("git.pullRequestPrompt.failed", {
-        error: error instanceof Error ? error.message : String(error),
-        repositoryRoot
-      });
-    });
+    this.startPullRequestPrompt(repositoryRoot, args);
 
     return {
       message: "Advanced push completed",
@@ -531,6 +521,8 @@ export class GitService {
     } else {
       await this.runGitRaw(repositoryRoot, args);
     }
+    this.startPullRequestPrompt(repositoryRoot, args);
+
     return {
       message: forceWithLease ? `Force pushed commits to ${target}` : `Pushed commits to ${target}`,
       status: "ok"
@@ -915,18 +907,33 @@ export class GitService {
     return createRemoteBranchItem(createRemote, branch.trim(), remotes).value;
   }
 
-  private async promptPullRequestForCurrentBranch(repositoryRoot: string, pushArgs: readonly string[]): Promise<void> {
-    const branch = (await this.runGitRaw(repositoryRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
-    if (branch !== "main" && branch !== "master") {
-      const action = await this.pickQuickPickAction(`Pushed ${branch}. Create a pull request?`, [
-        { label: "Open Pull Request", value: "open-pull-request" },
-        { label: "Dismiss", value: "dismiss" }
-      ]);
-      if (action === "open-pull-request") {
-        const remote = remoteFromPushArgs(pushArgs);
-        const remoteUrl = (await this.runGitRaw(repositoryRoot, ["remote", "get-url", remote])).trim();
-        await this.openExternal(pullRequestUrl(remoteUrl, branch));
-      }
+  private startPullRequestPrompt(repositoryRoot: string, pushArgs: readonly string[]): void {
+    const target = pushTargetFromArgs(pushArgs);
+    void this.promptPullRequest(repositoryRoot, target).catch((error: unknown) => {
+      this.logger?.debug("git.pullRequestPrompt.failed", {
+        branch: target.branch,
+        error: error instanceof Error ? error.message : String(error),
+        remote: target.remote,
+        repositoryRoot
+      });
+    });
+  }
+
+  private async promptPullRequest(
+    repositoryRoot: string,
+    target: { branch: string; remote: string }
+  ): Promise<void> {
+    if (target.branch === "main" || target.branch === "master") {
+      return;
+    }
+
+    const action = await this.pickQuickPickAction(`Pushed ${target.branch}. Create a pull request?`, [
+      { label: "Open Pull Request", value: "open-pull-request" },
+      { label: "Dismiss", value: "dismiss" }
+    ]);
+    if (action === "open-pull-request") {
+      const remoteUrl = (await this.runGitRaw(repositoryRoot, ["remote", "get-url", target.remote])).trim();
+      await this.openExternal(pullRequestUrl(remoteUrl, target.branch));
     }
   }
 
@@ -939,6 +946,13 @@ export class GitService {
     try {
       return await this.gitRaw(repositoryRoot, args);
     } catch (error) {
+      const locksVerifyConfigKey = gitLfsLocksVerifyConfigKey(error);
+      if (args[0] === "push" && locksVerifyConfigKey) {
+        const retryArgs = ["-c", `${locksVerifyConfigKey}=false`, ...args];
+        this.logGitCommand(repositoryRoot, retryArgs);
+        return this.gitRaw(repositoryRoot, retryArgs);
+      }
+
       if (requiresGitLfsPreflight(args) && isGitLfsMissingError(error)) {
         throw new Error(gitLfsMissingMessage);
       }
@@ -1239,6 +1253,17 @@ function isGitLfsMissingError(error: unknown): boolean {
   );
 }
 
+function gitLfsLocksVerifyConfigKey(error: unknown): string | undefined {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/\bgit\s+config\s+(lfs\.\S+\.locksverify)\s+false\b/i);
+  const configKey = match?.[1];
+  if (!configKey || !/^lfs\.[^\s=]+\.locksverify$/i.test(configKey)) {
+    return undefined;
+  }
+
+  return configKey;
+}
+
 function cloneDestinationName(url: string): string | undefined {
   const normalizedUrl = url.replace(/[?#].*$/, "").replace(/[\\/]+$/, "");
   const separatorIndex = Math.max(
@@ -1285,9 +1310,13 @@ function titleCaseProgressStage(stage: string): string {
     .join(" ");
 }
 
-function remoteFromPushArgs(args: readonly string[]): string {
-  const refspecIndex = args.findIndex((arg) => arg.startsWith("HEAD:"));
-  return args[refspecIndex - 1]!;
+function pushTargetFromArgs(args: readonly string[]): { branch: string; remote: string } {
+  const refspec = args[args.length - 1]!;
+  const destination = refspec.slice(refspec.indexOf(":") + 1);
+  return {
+    branch: destination.replace(/^refs\/heads\//, ""),
+    remote: args[args.length - 2]!
+  };
 }
 
 function pullRequestUrl(remoteUrl: string, branch: string): string {

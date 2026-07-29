@@ -4,6 +4,7 @@ import { ProxyService } from "../../src/backend/git/ProxyService";
 describe("ProxyService", () => {
   it("prefers custom proxy settings", async () => {
     const service = createService({
+      isPortOpen: async (_host, port) => port === 7890 || port === 7891,
       settings: {
         proxy: {
           enabled: true,
@@ -60,6 +61,24 @@ describe("ProxyService", () => {
     });
   });
 
+  it("skips unreachable loopback proxy settings and falls back to the next source", async () => {
+    const service = createService({
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:7890"
+      },
+      isPortOpen: async (_host, port) => port === 7890,
+      vscodeProxy: "http://127.0.0.1:7892"
+    });
+
+    await expect(service.getProxyConfig()).resolves.toEqual({
+      enabled: true,
+      http: undefined,
+      https: "http://127.0.0.1:7890",
+      noProxy: undefined,
+      source: "environment"
+    });
+  });
+
   it("uses only explicit proxy settings for provider requests", async () => {
     const service = createService({
       env: {
@@ -110,6 +129,7 @@ describe("ProxyService", () => {
 
         return "Enabled: No\n";
       },
+      isPortOpen: async (_host, port) => port === 7890,
       platform: "darwin"
     }).getProxyConfig()).resolves.toEqual({
       enabled: true,
@@ -130,6 +150,7 @@ describe("ProxyService", () => {
 
         return "ProxyServer    REG_SZ    127.0.0.1:7890";
       },
+      isPortOpen: async (_host, port) => port === 7890,
       platform: "win32"
     }).getProxyConfig()).resolves.toEqual({
       enabled: true,
@@ -154,6 +175,7 @@ describe("ProxyService", () => {
 
         return "7890";
       },
+      isPortOpen: async (_host, port) => port === 7890,
       platform: "linux"
     }).getProxyConfig()).resolves.toEqual({
       enabled: true,
@@ -180,6 +202,7 @@ describe("ProxyService", () => {
     const raw = vi.fn().mockResolvedValue("ok");
     const service = createService({
       env: {},
+      isPortOpen: async (_host, port) => port === 7890 || port === 7891,
       settings: {
         proxy: {
           enabled: true,

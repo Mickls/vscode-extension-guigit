@@ -372,13 +372,22 @@ export function createGitHistoryRpcHandlers(input: GitHistoryRpcHandlerInput): R
         };
       }
 
-      const [branches, currentUser, history] = await Promise.all([
-        input.branchService.listBranches(repository.rootPath),
-        input.commitService.getCurrentUser(repository.rootPath),
+      const currentUserPromise = input.commitService.getCurrentUser(repository.rootPath);
+      const branches = await input.branchService.listBranches(repository.rootPath);
+      const availableBranches = new Set([
+        ...branches.locals.map((branch) => branch.name),
+        ...branches.remotes.flatMap((remote) => remote.branches.map((branch) => branch.name))
+      ]);
+      const selectedBranches = request.branches?.filter((branch) => availableBranches.has(branch));
+      const selectedBranch = request.branch === "all" || (request.branch && availableBranches.has(request.branch))
+        ? request.branch
+        : undefined;
+      const [currentUser, history] = await Promise.all([
+        currentUserPromise,
         input.commitService.loadHistory({
           author: request.author,
-          branch: request.branch,
-          branches: request.branches,
+          branch: selectedBranch,
+          branches: selectedBranches && selectedBranches.length > 0 ? selectedBranches : undefined,
           cursor: request.cursor,
           pageSize: request.pageSize,
           repositoryRoot: repository.rootPath,

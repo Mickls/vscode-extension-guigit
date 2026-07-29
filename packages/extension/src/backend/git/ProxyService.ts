@@ -89,23 +89,23 @@ export class ProxyService {
   }
 
   public async getProxyConfig(): Promise<ProxyConfig> {
-    const config =
-      this.getCustomProxyConfig() ??
-      await this.getGitProxyConfig() ??
-      this.getVSCodeProxyConfig() ??
-      this.getEnvironmentProxyConfig() ??
-      await this.getSystemProxyConfig() ??
-      await this.getLocalProxyAppConfig() ??
-      noProxyConfig;
+    const config = await this.firstAvailableProxyConfig([
+      () => Promise.resolve(this.getCustomProxyConfig()),
+      () => this.getGitProxyConfig(),
+      () => Promise.resolve(this.getVSCodeProxyConfig()),
+      () => Promise.resolve(this.getEnvironmentProxyConfig()),
+      () => this.getSystemProxyConfig(),
+      () => this.getLocalProxyAppConfig()
+    ]);
     this.lastConfig = config;
     return config;
   }
 
   public async getConfiguredProxyConfig(): Promise<ProxyConfig> {
-    const config =
-      this.getCustomProxyConfig() ??
-      await this.getGitProxyConfig() ??
-      noProxyConfig;
+    const config = await this.firstAvailableProxyConfig([
+      () => Promise.resolve(this.getCustomProxyConfig()),
+      () => this.getGitProxyConfig()
+    ]);
     this.lastConfig = config;
     return config;
   }
@@ -247,6 +247,31 @@ export class ProxyService {
       message: `Proxy refreshed: ${describeProxyConfig(config)}`,
       status: "ok"
     };
+  }
+
+  private async firstAvailableProxyConfig(
+    candidates: readonly (() => Promise<ProxyConfig | undefined>)[]
+  ): Promise<ProxyConfig> {
+    for (const candidate of candidates) {
+      const config = await candidate();
+      if (config && await this.isProxyReachable(config)) {
+        return config;
+      }
+    }
+
+    return noProxyConfig;
+  }
+
+  private async isProxyReachable(config: ProxyConfig): Promise<boolean> {
+    const endpoints = [...new Set([config.http, config.https].filter((proxy): proxy is string => Boolean(proxy)))];
+    for (const proxy of endpoints) {
+      const endpoint = localProxyEndpoint(proxy);
+      if (endpoint && !(await this.isPortOpen(endpoint.host, endpoint.port))) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private applyProxyToEnvironment(config: ProxyConfig): void {
@@ -443,6 +468,24 @@ function describeProxyConfig(config: ProxyConfig): string {
   }
 
   return `${config.source} ${config.https ?? config.http}`;
+}
+
+function localProxyEndpoint(proxy: string): { host: string; port: number } | undefined {
+  try {
+    const url = new URL(proxy.includes("://") ? proxy : `http://${proxy}`);
+    const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    if (host !== "localhost" && host !== "::1" && !host.startsWith("127.")) {
+      return undefined;
+    }
+
+    const defaultPort = url.protocol === "https:" ? 443 : 80;
+    return {
+      host,
+      port: Number(url.port || defaultPort)
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function parseNetworkSetupProxy(output: string): string | undefined {

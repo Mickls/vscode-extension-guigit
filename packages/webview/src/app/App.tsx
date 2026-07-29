@@ -491,6 +491,14 @@ export function App({ rpcClient }: AppProps): ReactElement {
         hasMoreRef.current = response.payload.hasMore;
         nextCursorRef.current = response.payload.nextCursor;
         setCommits(nextCommits);
+        const availableBranchNames = new Set([
+          ...response.payload.branches.locals.map((branch) => branch.name),
+          ...response.payload.branches.remotes.flatMap((remote) => remote.branches.map((branch) => branch.name))
+        ]);
+        const existingSelectedBranches = selectedBranchesRef.current.filter((branch) => availableBranchNames.has(branch));
+        if (existingSelectedBranches.length !== selectedBranchesRef.current.length) {
+          updateSelectedBranches(existingSelectedBranches);
+        }
         setBranches(response.payload.branches);
         setRepositories(response.payload.repositories);
         setCurrentUser(response.payload.currentUser);

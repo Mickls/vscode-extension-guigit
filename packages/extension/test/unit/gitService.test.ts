@@ -259,7 +259,6 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "rev-parse --abbrev-ref HEAD",
       "push origin HEAD:feature/demo",
-      "rev-parse --abbrev-ref HEAD",
       "remote get-url origin"
     ]);
     await expect(service.fetch("/repo")).resolves.toEqual({ message: "Fetch completed", status: "ok" });
@@ -268,7 +267,6 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "rev-parse --abbrev-ref HEAD",
       "push origin HEAD:feature/demo",
-      "rev-parse --abbrev-ref HEAD",
       "remote get-url origin",
       "fetch --all --prune"
     ]);
@@ -477,8 +475,7 @@ describe("GitService", () => {
     expect(calls).toEqual([
       "rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "rev-parse --abbrev-ref HEAD",
-      "push origin HEAD:feature/demo",
-      "rev-parse --abbrev-ref HEAD"
+      "push origin HEAD:feature/demo"
     ]);
     expect(showQuickPick).toHaveBeenCalledWith(
       [
@@ -573,8 +570,7 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref HEAD",
       "remote",
       "branch -r",
-      "push -u origin HEAD:feature",
-      "rev-parse --abbrev-ref HEAD"
+      "push -u origin HEAD:feature"
     ]);
     expect(showQuickPick).toHaveBeenCalledWith(
       [
@@ -621,8 +617,7 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref HEAD",
       "remote",
       "branch -r",
-      "push -u origin HEAD:chore/all-my-stuffs",
-      "rev-parse --abbrev-ref HEAD"
+      "push -u origin HEAD:chore/all-my-stuffs"
     ]);
   });
 
@@ -662,8 +657,7 @@ describe("GitService", () => {
       "rev-parse --abbrev-ref HEAD",
       "remote",
       "branch -r",
-      "push origin HEAD:chore/all-my-stuffs",
-      "rev-parse --abbrev-ref HEAD"
+      "push origin HEAD:chore/all-my-stuffs"
     ]);
     expect(showQuickPick).toHaveBeenCalledWith(
       [
@@ -855,8 +849,7 @@ describe("GitService", () => {
       "branch -r",
       "pull --rebase origin main",
       "branch -r",
-      "push --force-with-lease origin HEAD:feature",
-      "rev-parse --abbrev-ref HEAD"
+      "push --force-with-lease origin HEAD:feature"
     ]);
     expect(conflictContext).toEqual({
       abortArgs: ["rebase", "--abort"],
@@ -900,6 +893,123 @@ describe("GitService", () => {
       "Fetch first, review the remote changes, then retry force push"
     );
     expect(calls).toEqual(["branch -r", "push --force-with-lease origin HEAD:feature"]);
+  });
+
+  it("prompts for the actual non-main remote branch even when the local branch is main", async () => {
+    const calls: string[] = [];
+    const openedUrls: string[] = [];
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Normal", value: "normal" })
+      .mockResolvedValueOnce({ label: "Open Pull Request", value: "open-pull-request" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n  origin/review/topic\n";
+        }
+
+        if (args.join(" ") === "remote get-url origin") {
+          return "git@github.com:owner/repo.git\n";
+        }
+
+        return args.join(" ") === "rev-parse --abbrev-ref HEAD" ? "main\n" : "";
+      },
+      openExternal: async (url) => {
+        openedUrls.push(url);
+      },
+      showQuickPick,
+      showQuickPickWithInput: vi.fn().mockResolvedValue({
+        label: "origin/review/topic",
+        value: "origin/review/topic"
+      })
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+    await Promise.resolve();
+
+    expect(calls).toEqual([
+      "branch -r",
+      "push origin HEAD:review/topic",
+      "remote get-url origin"
+    ]);
+    expect(showQuickPick).toHaveBeenLastCalledWith(
+      [
+        { label: "Open Pull Request", value: "open-pull-request" },
+        { label: "Dismiss", value: "dismiss" }
+      ],
+      { placeHolder: "Pushed review/topic. Create a pull request?" }
+    );
+    expect(openedUrls).toEqual(["https://github.com/owner/repo/pull/new/review%2Ftopic"]);
+  });
+
+  it("does not prompt when advanced push targets the remote main branch", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi.fn().mockResolvedValueOnce({ label: "Normal", value: "normal" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        return args.join(" ") === "rev-parse --abbrev-ref HEAD" ? "feature/local\n" : "";
+      },
+      showQuickPick,
+      showQuickPickWithInput: vi.fn().mockResolvedValue({
+        label: "origin/main",
+        value: "origin/main"
+      })
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+    await Promise.resolve();
+
+    expect(calls).toEqual(["branch -r", "push origin HEAD:main"]);
+    expect(showQuickPick).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries advanced force push with git lfs locks verify disabled for the current command", async () => {
+    const calls: string[] = [];
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "origin/feature", value: "origin/feature" })
+      .mockResolvedValueOnce({ label: "Force with lease", value: "force-with-lease" })
+      .mockResolvedValueOnce({ label: "Force Push", value: "confirm" })
+      .mockResolvedValueOnce({ label: "Dismiss", value: "dismiss" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/feature\n";
+        }
+
+        if (args.join(" ") === "push --force-with-lease origin HEAD:feature") {
+          throw new Error([
+            'Remote "origin" does not support the Git LFS locking API. Consider disabling it with:',
+            "  $ git config lfs.https://github.com/deputy-ai/product_automation.git/info/lfs.locksverify false",
+            'Post "https://lfs.github.com/deputy-ai/product_automation/locks/verify": proxyconnect tcp: dial tcp 127.0.0.1:7892: connect: connection refused',
+            "error: failed to push some refs"
+          ].join("\n"));
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature\n";
+        }
+
+        return "";
+      },
+      showQuickPick
+    });
+
+    await expect(service.advancedPush("/repo")).resolves.toEqual({ message: "Advanced push completed", status: "ok" });
+
+    expect(calls).toEqual([
+      "branch -r",
+      "push --force-with-lease origin HEAD:feature",
+      "-c lfs.https://github.com/deputy-ai/product_automation.git/info/lfs.locksverify=false push --force-with-lease origin HEAD:feature"
+    ]);
+    expect(calls.some((call) => call.startsWith("config "))).toBe(false);
   });
 
   it("moves the last advanced pull selections to the top", async () => {
@@ -991,8 +1101,7 @@ describe("GitService", () => {
     expect(calls).toEqual([
       "branch -r",
       "rev-parse --abbrev-ref HEAD",
-      "push origin HEAD:feature/new-branch",
-      "rev-parse --abbrev-ref HEAD"
+      "push origin HEAD:feature/new-branch"
     ]);
   });
 
@@ -1031,8 +1140,7 @@ describe("GitService", () => {
     );
     expect(calls).toEqual([
       "branch -r",
-      "push origin HEAD:feature/new-branch",
-      "rev-parse --abbrev-ref HEAD"
+      "push origin HEAD:feature/new-branch"
     ]);
   });
 
@@ -1060,8 +1168,7 @@ describe("GitService", () => {
 
     expect(calls).toEqual([
       "branch -r",
-      "push upstream HEAD:feature/new-branch",
-      "rev-parse --abbrev-ref HEAD"
+      "push upstream HEAD:feature/new-branch"
     ]);
   });
 
@@ -1097,8 +1204,7 @@ describe("GitService", () => {
 
     expect(calls).toEqual([
       "branch -r",
-      "push upstream HEAD:feature/new-branch",
-      "rev-parse --abbrev-ref HEAD"
+      "push upstream HEAD:feature/new-branch"
     ]);
   });
 
@@ -1405,6 +1511,58 @@ describe("GitService", () => {
     expect(calls).toEqual(["branch -r", "push origin abc123:refs/heads/review/topic"]);
   });
 
+  it("prompts to create a pull request after pushing commits to a non-main remote branch", async () => {
+    const calls: string[] = [];
+    const openedUrls: string[] = [];
+    const showQuickPick = vi
+      .fn()
+      .mockResolvedValueOnce({ label: "Normal", value: "normal" })
+      .mockResolvedValueOnce({ label: "Push Commits", value: "confirm" })
+      .mockResolvedValueOnce({ label: "Open Pull Request", value: "open-pull-request" });
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "branch -r") {
+          return "  origin/main\n";
+        }
+
+        if (args.join(" ") === "remote get-url origin") {
+          return "git@github.com:owner/repo.git\n";
+        }
+
+        return "";
+      },
+      openExternal: async (url) => {
+        openedUrls.push(url);
+      },
+      showQuickPick,
+      showQuickPickWithInput: vi.fn().mockResolvedValue({
+        label: "origin/review/topic",
+        value: "origin/review/topic"
+      })
+    });
+
+    await expect(service.pushAllCommitsToHere("/repo", "abc123")).resolves.toEqual({
+      message: "Pushed commits to origin/review/topic",
+      status: "ok"
+    });
+    await Promise.resolve();
+
+    expect(calls).toEqual([
+      "branch -r",
+      "push origin abc123:refs/heads/review/topic",
+      "remote get-url origin"
+    ]);
+    expect(showQuickPick).toHaveBeenLastCalledWith(
+      [
+        { label: "Open Pull Request", value: "open-pull-request" },
+        { label: "Dismiss", value: "dismiss" }
+      ],
+      { placeHolder: "Pushed review/topic. Create a pull request?" }
+    );
+    expect(openedUrls).toEqual(["https://github.com/owner/repo/pull/new/review%2Ftopic"]);
+  });
+
   it("pushes all commits to a typed explicit remote branch target", async () => {
     const calls: string[] = [];
     const showQuickPickWithInput = vi.fn().mockResolvedValue({
@@ -1468,6 +1626,35 @@ describe("GitService", () => {
       "Install Git LFS or make git-lfs available on VS Code's PATH"
     );
     expect(calls).toEqual(["branch -r", "lfs version"]);
+  });
+
+  it("does not retry push proxy failures without a git lfs locks verify suggestion", async () => {
+    const calls: string[] = [];
+    const service = createService({
+      gitRaw: async (_repositoryRoot, args) => {
+        calls.push(args.join(" "));
+        if (args.join(" ") === "rev-parse --abbrev-ref --symbolic-full-name @{u}") {
+          return "origin/feature/demo\n";
+        }
+
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feature/demo\n";
+        }
+
+        if (args.join(" ") === "push origin HEAD:feature/demo") {
+          throw new Error("proxyconnect tcp: dial tcp 127.0.0.1:7892: connect: connection refused");
+        }
+
+        return "";
+      }
+    });
+
+    await expect(service.push("/repo")).rejects.toThrow("proxyconnect tcp");
+    expect(calls).toEqual([
+      "rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "rev-parse --abbrev-ref HEAD",
+      "push origin HEAD:feature/demo"
+    ]);
   });
 
   it("force pushes all commits to a selected target with lease", async () => {
